@@ -20,10 +20,10 @@
               :builds [{:id "dev"             ; development configuration
                         :source-paths ["src"] ; Paths to monitor for build
                         :figwheel true        ; Enable Figwheel
-                        :compiler {:main longterm.core     ; your main namespace
+                        :compiler {:main longterm    ; your main namespace
                                    :asset-path "cljs/out"                       ; Where load-dependent files will go, mind you this one is relative
                                    :output-to "resources/public/cljs/main.js"   ; Where the main file will be built
                                    :output-dir "resources/public/cljs/out"      ; Directory for temporary files
                                    :source-map-timestamp true}                  ; Sourcemaps hurray!
                         }]}
-  :repl-options {:init-ns longterm.core})
+  :repl-options {:init-ns longterm})

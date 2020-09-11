@@ -1,4 +1,4 @@
-(ns longterm.core
+(ns longterm.deflow
   (:use longterm.util)
   (:use longterm.flow)
   (:require [longterm.compiler :as c]))
