@@ -1,7 +1,9 @@
 (ns longterm.deflow
-  (:use longterm.util)
-  (:use longterm.flow)
-  (:require [longterm.compiler :as c]))
+  (:require [longterm.util :as util]
+            [longterm.thunk :as thunk]
+            [longterm.flow :as flow]
+            [longterm.continuation :as continuation]
+            [longterm.compiler :as compiler]))
 
 ;;;; deflow - defines a longterm flow
 
@@ -11,15 +13,15 @@
 ;;;     (notify-office-manager result)))
 (defmacro deflow
   "Define a long term flow"
-  ([name [& args] & code]
-   `(deflow ~name "" [~@args] & ~@code))
-  ([name docstring [& args] & code]
-   (let* [
-          ast-hash (md5-hash `[~name ~code])
-          bindings (c/bindings-from-args args)
-          thunkdefs (c/compile-body name bindings code)
-          ]
-     `(let [thunks# ~(map #'c/make-thunk thunkdefs)
-            entry-point# (fn [~@args] ~@(-> thunks# (first) :body))]
-        (def ^{:hash ast-hash} ~name ~docstring
-          (->Flow, 'name, ast-hash entry-point# thunks#))))))
+  [name docstring? args & code]
+  (if-not (string? docstring?)
+    `(deflow ~name "" ~docstring? args ~@code)
+     (let* [
+            ast-hash (util/md5-hash `[~name ~code])
+            bindings (compiler/bindings-from-args args)
+            thunkdefs (compiler/compile-body name bindings code)
+            ]
+       `(let [thunks# ~(map #'continuation/make-thunk thunkdefs)
+              entry-point# (fn [~@args] ~@(-> thunks# (first) :body))]
+          (def ^{:hash ast-hash} ~name ~docstring?
+            (flow/->Flow, 'name, ast-hash entry-point# thunks#))))))

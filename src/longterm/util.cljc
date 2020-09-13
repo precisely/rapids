@@ -1,5 +1,4 @@
-(ns longterm.util (:import java.security.MessageDigest
-                           java.math.BigInteger))
+(ns longterm.util)
 
 (defmacro range-case [target & cases]
   "Compare the target against a set of ranges or constant values and return
@@ -78,7 +77,7 @@
              (= :else (first cases))
              (recur (drop 2 cases) (conj ret :else (second cases)) nil)
 
-             (vector? (first cases))
+              (vector? (first cases))
              (let [condition (first cases)
                    clause (second cases)
 
@@ -142,10 +141,3 @@
              (let [[condition clause]
                    `[(= ~target ~(first cases)) ~(second cases)]]
                (recur (drop 2 cases) (conj ret condition clause) nil)))))))
-
-(defn md5 [^String s]
-          (let [algorithm (MessageDigest/getInstance "MD5")
-                raw (.digest algorithm (.getBytes s))]
-            (format "%032x" (BigInteger. 1 raw))))
-
-(defn md5-hash [s] (md5 (pr-str s)))
