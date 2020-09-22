@@ -1,6 +1,6 @@
 (ns longterm.event_store
   (:require
-    [longterm.continuation :as continuation]
+    [longterm.thunk :as continuation]
     [longterm.thunk :as thunk]))
 
 (defprotocol IEventStore

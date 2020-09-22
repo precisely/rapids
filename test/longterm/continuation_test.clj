@@ -1,4 +1,4 @@
-(ns longterm.core-test
+(ns longterm.continuation_test
   (:require [clojure.test :refer :all]
             [longterm.core :refer :all]))
 

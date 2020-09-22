@@ -2,8 +2,8 @@
   (:require [longterm.util :as util]
             [longterm.thunk :as thunk]
             [longterm.flow :as flow]
-            [longterm.continuation :as continuation]
-            [longterm.compiler :as compiler]))
+            [longterm.thunk :as continuation]
+            [longterm.partitioner :as partitioner]))
 
 ;;;; deflow - defines a longterm flow
 
@@ -17,9 +17,9 @@
   (if-not (string? docstring?)
     `(deflow ~name "" ~docstring? args ~@code)
      (let* [
-            ast-hash (util/md5-hash `[~name ~code])
-            bindings (compiler/bindings-from-args args)
-            thunkdefs (compiler/compile-body name bindings code)
+            ; ast-hash (util/md5-hash `[~name ~code])
+            bindings (partitioner/bindings-from-args args)
+            thunkdefs (partitioner/partition-body name bindings code)
             ]
        `(let [thunks# ~(map #'continuation/make-thunk thunkdefs)
               entry-point# (fn [~@args] ~@(-> thunks# (first) :body))]
