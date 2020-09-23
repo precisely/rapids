@@ -54,33 +54,8 @@
 ; (defn partition-expr ;;; => [partition0-body continuations flow-breaker? value-form]
 ; (defn partition-fn-args ;; => [partition0-body continuations flow-breaker? value-forms]
 
-(declare a b c d e f g e f g h i j k l m n o p q r s t u v w x y z fl1 fl2 fl3 fl4 deflow)
-
-(deflow fl1 [z]
-  (let [x (do (m)
-              (if (a)
-                (if (b)
-                  (fl1)
-                  (c))
-                (if (d)
-                  (if (fl2)
-                    (let [y (fl3)]
-                      (e y)))))]
-    (f x)))
-
-:p1 (resume-at [:p2 x]
-      (do (m)
-        (if (a)
-          (if (b)
-            (fl1)
-            (c))
-          (if (d)
-            (fl2)))))
-
-:p2 (f x)
-
-:p3 (
-
+(declare a b c d e f g e f g h i j k l m n o p q r s t u v w x y z fl1--- fl2--- fl3--- fl4--- fl5--- deflow
+  fl4-arg0 resume-at arg0 arg1 if-arg0 start say wait-for)
 
 
 
@@ -175,6 +150,13 @@
       (b)      ; arg2     |- <asdf:0/myfn/2> (partition1)
       (flow2)  ; arg3     |
       (c)))    ; (c)      |- <asdf:0> (parition2)
+
+   (fn [{:keys [z arg0 arg1 arg2 arg3]}]
+      (myfn arg0 arg1 arg2 arg3 (c)))
+
+      (deflow f1 [z] (if z (do (c) (d) (f2)) nil))
+      (deflow f2 [] (a) (b) (f3))
+      (deflow f3 [] (e) (f) (wait-for-event :user-input)) => +DELAY+
 
   On input, next-address = asdf:0
   1. compute argument-body and params:

@@ -27,13 +27,17 @@
 
 (def ^:dynamic *thunks* ())
 
+(def +delay+ (atom "DELAY"))
 
 (defrecord Thunk
   [address
    bindings
    result-key])                                             ; a symbol or vector of symbols
 
-(declare bindings-to-args bindings-with-result)
+(declare bindings-to-args bindings-with-result result-with)
+
+(defn handle-event
+  [event])
 
 (defn resume-at
   "Generates code that continues execution at address after flow-form is complete.
@@ -48,7 +52,12 @@
    `(let [bindings# (hash-map ~@(flatten (map (fn [p] `('~, p, p)) params)))
           new-thunk# (Thunk. ~address bindings# '~result-key)]
       (binding [*thunks* (cons new-thunk# *thunks*)]
-        ~flow-form))))
+        (let [result# ~flow-form]
+          ;; flow-form is not guaranteed to be a flow-breaking
+          ;; because it may have conditional branches which return
+          ;; values which should immediately be passed to the next continuation
+          (if-not (= result# +flow-delay+)
+            (return-with result#)))))))
 
 (defn return-with
   "Returns a result to the thunk at the top of the stack"
