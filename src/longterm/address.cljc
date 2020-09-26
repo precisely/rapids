@@ -29,6 +29,10 @@
   [^Symbol flow
    ^PersistentVector point])
 
+(defn create
+  [symbol]
+  (Address. symbol []))
+
 (defmethod print-method Address
   [o w]
   (print-simple

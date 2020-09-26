@@ -1,22 +1,21 @@
 (ns longterm.run_store
   (:require
-    [longterm.thunk :as thunk]))
+    [longterm.stack :as thunk]
+    [longterm.util :refer [dissoc-in]])
 
 (defprotocol IRunStore
-  (rs-save-handlers [rs run-id event-id handler])
-  (rs-load-handlers [rs run-id event-id])
-  (rs-delete-handler [rs run-id event-id]))
+  (rs-save [rs run-id event-id stack expiry])
+  (rs-load [rs run-id])
+  (rs-delete [rs run-id]))
 
 (defrecord InMemoryRunStore [processes]
   IRunStore
-  (rs-create-handler [rs run-id event-id handler]
-    (swap! (-> rs :processes) assoc-in [run-id] {event-id event-data}))
-  (rs-update-handler [rs run-id event-id event-data]
-    (swap! (-> rs :processes) assoc-in [run-id] {event-id event-data}))
-  (rs-get-handler [rs run-id event-id]
-    (swap! (-> rs :processes) #(dissoc (-> % run-id) event-id)))
-  (rs-delete-handler [rs run-id event-id]
-    (get-in (deref rs) [run-id event-id])))
+  (rs-save [rs run-id event-id stack expiry]
+    (swap! rs assoc-in [run-id event-id] {:stack stack :expiry expiry}))
+  (rs-load [rs run-id event-id]
+    (get-in @rs [run-id event-id]))
+  (rs-delete [rs run-id]
+    (swap! rs (dissoc rs run-id))))
 
 (defn make-in-memory-event-store []
   (InMemoryRunStore. (atom {})))
@@ -27,7 +26,7 @@
 ;; Public API based on *event-store* global
 ;;
 
-(defn create-handler [run-id event-id & {:keys [thunks expiry]}]
+(defn save [run-id event-id & {:keys [stack expiry]}]
   (rs-create-handler *event-store* run-id event-id {:thunks thunks :expiry expiry}))
 
 (defn update-handler [run-id event-id & {:keys [thunks]}] ; we may support more data in future

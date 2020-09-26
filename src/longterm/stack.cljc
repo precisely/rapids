@@ -1,10 +1,10 @@
-(ns longterm.thunk
+(ns longterm.stack
   (:require [longterm.flow :as flow]
             [longterm.address :as address]))
 
 ;;;; Continuation
 
-;;; Execution passes between continuations using thunks.
+;;; Execution passes between continuations using stack frames.
 ;;; Thunks provide the means for capturing and transmitting the bindings
 ;;; between continuations.
 
@@ -25,52 +25,47 @@
 
 ;;;
 
-(def ^:dynamic *thunks* ())
+(def ^:dynamic *stack* ())
 
-(def +delay+ (atom "DELAY"))
+(def ^:const SUSPEND ::SUSPEND)
 
-(defrecord Thunk
+(defrecord StackFrame
   [address
    bindings
-   result-key])                                             ; a symbol or vector of symbols
+   result-key
+   event-id
+   expiry])                             ; a symbol or vector of symbols
 
 (declare bindings-to-args bindings-with-result result-with)
 
-(defn handle-event
-  [event])
-
-(defn resume-at
+(defmacro resume-at
   "Generates code that continues execution at address after flow-form is complete.
   address - names the continuation
   params - list of parameters needed by the continuation
   result-key - the key to which the value of form will be bound in the continuation
-  flow-form - expression which invokes a flow"
-  ([[address params] flow-form]
-   (resume-at [address params nil] flow-form))
-
-  ([[address params result-key] flow-form]
-   `(let [bindings# (hash-map ~@(flatten (map (fn [p] `('~, p, p)) params)))
-          new-thunk# (Thunk. ~address bindings# '~result-key)]
-      (binding [*thunks* (cons new-thunk# *thunks*)]
-        (let [result# ~flow-form]
-          ;; flow-form is not guaranteed to be a flow-breaking
-          ;; because it may have conditional branches which return
-          ;; values which should immediately be passed to the next continuation
-          (if-not (= result# +flow-delay+)
-            (return-with result#)))))))
+  body - expression which invokes a flow"
+  ([[address params result-key] & body] `(resume-at [~address ~params ~result-key nil nil] ~@body))
+  ([[address params result-key event-id] & body] `(resume-at [~address ~params ~result-key ~event-id nil] ~@body))
+  ([[address params result-key event-id expiry] & body]
+   (assert address)
+   (assert (vector? params))
+   `(let [bindings#  (hash-map ~@(flatten (map (fn [p] `('~p p)) params)))
+          new-frame# (StackFrame. ~address bindings# '~result-key ~event-id ~expiry)]
+      (binding [*stack* (cons new-frame# *stack*)]
+        ~@body))))
 
 (defn return-with
-  "Returns a result to the thunk at the top of the stack"
-  ([thunks result]
-   (binding [*thunks* thunks] (return-with result)))
+  "Returns a result to the frame at the top of the stack"
+  ([frames result]
+   (binding [*stack* frames] (return-with result)))
 
   ([result]
-   (let [[thunk remaining-thunks] *thunks*                  ; pop the top thunk (*thunks* is bound to rest)
-         address (-> thunk :address)
-         point (-> address :point)
-         flow (-> address :flow (resolve) (symbol))
-         bindings (bindings-with-result thunk result)]
-     (binding [*thunks* remaining-thunks]
+   (let [[frame remaining-frames] *stack* ; pop the top frame (*frames* is bound to rest)
+         address  (-> frame :address)
+         point    (-> address :point)
+         flow     (-> address :flow (resolve) (symbol))
+         bindings (bindings-with-result frame result)]
+     (binding [*stack* remaining-frames]
        (flow/continue flow point ~@(bindings-to-args bindings))))))
 
 
@@ -90,9 +85,9 @@
                          result-keys results))))
   (apply assoc bindings (interleave result-keys results)))
 
-(defn- bindings-with-result [thunk result]
-  (let [result-key (-> thunk :result-key)
-        bindings (-> thunk :bindings)]
+(defn- bindings-with-result [frame result]
+  (let [result-key (-> frame :result-key)
+        bindings   (-> frame :bindings)]
     (cond
       (seq? result-key) (make-multiple-value-args bindings result-key result)
       (symbol? result-key) (assoc bindings result-key result)

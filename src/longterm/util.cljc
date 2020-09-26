@@ -1,5 +1,19 @@
 (ns longterm.util)
 
+(defn dissoc-in
+  "Dissociates an entry from a nested associative structure returning a new
+  nested structure. keys is a sequence of keys. Any empty maps that result
+  will not be present in the new structure."
+  [m [k & ks :as keys]]
+  (if ks
+    (if-let [nextmap (get m k)]
+      (let [newmap (dissoc-in nextmap ks)]
+        (if (seq newmap)
+          (assoc m k newmap)
+          (dissoc m k)))
+      m)
+    (dissoc m k)))
+
 (defmacro range-case [target & cases]
   "Compare the target against a set of ranges or constant values and return
    the first one that matches. If none match, and there exists a case with the
@@ -141,3 +155,11 @@
              (let [[condition clause]
                    `[(= ~target ~(first cases)) ~(second cases)]]
                (recur (drop 2 cases) (conj ret condition clause) nil)))))))
+
+(defn refers-to?
+  "Dereferences a symbol or var and applies pred to the referenced value"
+  [pred val]
+  (or (pred val)
+    (cond
+      (symbol? val) (recur pred (resolve val))
+      (var? x) (recur pred (var-get val)))))
