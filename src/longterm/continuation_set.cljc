@@ -1,8 +1,5 @@
 (ns longterm.continuation_set
-  (:use longterm.stack)
-  (:require
-    [longterm.continuation_def :as cdef]
-    [longterm.stack :as thunk]))
+  (:use longterm.stack))
 
 ;;;; ContinuationSet
 

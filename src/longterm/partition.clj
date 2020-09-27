@@ -54,7 +54,7 @@
          start-body   []
          any-suspend? nil]
     (if body
-      (let [[pexpr expr-cset suspend?] (partition-expr expr part-address start-params)
+      (let [[pexpr expr-cset suspend?] (partition-expr expr part-address params)
             cset (cset/combine cset expr-cset)]
         (if suspend?
           (let [next-address (address/increment address)
@@ -111,12 +111,12 @@
 (defn partition-special-expr
   [op expr mexpr address params]
   (case op
-    'let (partition-let-expr expr mexpr address params)
-    'if (partition-if-expr expr mexpr address params)
-    'fn (partition-fn-expr expr mexpr address params)
-    'do (partition-do-expr expr mexpr address params)
-    'quote [expr, nil, false]
-    'loop (partition-loop-expr expr mexpr address params)
+    let (partition-let-expr expr mexpr address params)
+    if (partition-if-expr expr mexpr address params)
+    fn (partition-fn-expr expr mexpr address params)
+    do (partition-do-expr expr mexpr address params)
+    quote [expr, nil, false]
+    loop (partition-loop-expr expr mexpr address params)
     (throw (Exception. (format "Special operator %s not yet available in Flows in %s" op expr)))))
 
 (defn partition-let-expr

@@ -14,17 +14,19 @@
   [name docstring? args & code]
   (if-not (string? docstring?)
     `(deflow ~name "" ~docstring? args ~@code)
-    (let* [params                 (params-from-args args)
-           address                (address/create name)
-           entry-address          (address/child address 0)
-           [start-body, cset, _]  (p/partition-body code address params)
-           cset                   (cset/add cset entry-address params start-body)
-           c-args                 (params-to-continuation-args params)]
-      `(let [cset#          ~cset ; compiles the fndefs in the cset
-             entry-point#   (fn [~@args] ((get cset# entry-address) ~@c-args))]
+    (let [params        (params-from-args args)
+          address       (address/create name)
+          entry-address (address/child address 0)
+          [start-body, cset, _] (p/partition-body code address params)
+          cset          (cset/add cset entry-address params start-body)
+          c-args        (params-to-continuation-args params)]
+      `(let [cset#        ~cset         ; compiles the fndefs in the cset
+             entry-point# (fn [~@args] ((get cset# entry-address) ~@c-args))]
          (def ~name ~docstring?
            (Flow. '~name entry-point# cset#))))))
 
+(defn wait-for
+  [event-id expiry])
 ;;
 ;; HELPERS
 ;;
