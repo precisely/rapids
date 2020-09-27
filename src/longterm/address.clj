@@ -36,7 +36,7 @@
 (defmethod print-method Address
   [o w]
   (print-simple
-    (str "#<Address " (:flow o) ":" (string/join "/" (:point o))" >")
+    (str "#<Address " (:flow o) ":" (string/join "/" (:point o)) ">")
     w))
 
 (defn to-string [a]
@@ -55,10 +55,11 @@
 (defn increment
   ([address] (increment address 1))
 
-  ([address & step]
+  ([address step]
   (let [point (:point address)
         last (last point)]
-    (assoc address :point (conj (butlast point) (+ step (last point)))))))
+    (assoc address :point (conj (butlast point)
+                            (+ step last))))))
 
 (defn resolve-continuation [address]
   (let [[flow point] address]
