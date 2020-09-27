@@ -26,8 +26,8 @@
 ;;      :b              ; point = invalid
 ;;         (b)}))       ; point = "1/baz/0/{}/2"
 (defrecord Address
-  [^Symbol flow
-   ^PersistentVector point])
+  [flow ; Symbol
+   point]) ; Vector
 
 (defn create
   [symbol]

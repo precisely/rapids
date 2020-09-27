@@ -162,4 +162,4 @@
   (or (pred val)
     (cond
       (symbol? val) (recur pred (resolve val))
-      (var? x) (recur pred (var-get val)))))
+      (var? val) (recur pred (var-get val)))))
