@@ -1,10 +1,6 @@
 (ns longterm.run-store
   (:require
-    [longterm.stack :as stack]
-    #?(:clj
-       [java.util.UUID :refer [randomUUID] :rename {randomUUID random-uuid}]
-       :cljs
-       [cljs.core :refer [random-uuid]])))
+    [longterm.stack :as stack]))
 
 (defprotocol IRunStore
   (rs-start! [rs])
@@ -17,10 +13,14 @@
     (if-not (= state rs-state)
       (throw (Exception. (format "%s for Run %s which is not in state %s" msg run-id state))))))
 
+(defn new-uuid []
+  (str #?(:clj  (java.util.UUID/randomUUID)
+          :cljs (random-uuid))))
+
 (defrecord InMemoryRunStore [processes]
   IRunStore
   (rs-start! [rs]
-    (let [run-id (str (randomUUID))]
+    (let [run-id (str (new-uuid))]
       (swap! rs assoc run-id {:stack [] :state :running :result nil})))
   (rs-save-stack! [rs run-id stack]
     (swap! rs
@@ -46,13 +46,15 @@
 ;;
 (defmacro start-run! [flow-form]
   `(binding [*run-id* (rs-start! *run-store*)]
-    ;; code that starts the first flow
-    ))
+     ;; code that starts the first flow
+     ))
 
 (defn save-stack! []
   (rs-save-stack! *run-store* *run-id* stack/*stack*))
 
-(defn get-run ([] (rs-get *run-store* *run-id*))
+(defn get-run
+  ([] (recur *run-id*))
+  ([run-id] (rs-get *run-store* run-id)))
 
 (defn finalize-run!
   ([result] (rs-finalize! *run-store* *run-id* result)))

@@ -1,7 +1,7 @@
 (ns longterm.partition
   (:require [longterm.address :as address]
             [longterm.util :refer [refers-to?]]
-            [longterm.flow :refer [flow?]]
+            [longterm.flow :as flow]
             [longterm.continuation_set :as cset])
   (:use longterm.stack))
 
@@ -101,8 +101,8 @@
   (let [op (first mexpr)]
     (cond
       (special-symbol? op) (partition-special-expr op expr mexpr address params)
-      (refers-to? fn? op) (partition-fncall-expr expr mexpr address params)
-      (refers-to? flow? op) (partition-flow-expr  op expr mexpr address params)
+      (refers-to? fn? op) (partition-fncall-expr op expr mexpr address params)
+      (refers-to? flow/flow? op) (partition-flow-expr op expr mexpr address params)
       :else (throw (Exception. (format "Unrecognized operator %s in %s" op expr))))))
 
 ;;
@@ -119,13 +119,16 @@
     loop (partition-loop-expr expr mexpr address params)
     (throw (Exception. (format "Special operator %s not yet available in Flows in %s" op expr)))))
 
+;;
+;; Partitioning expressions with bindings
+;;
 (defn partition-let-expr
   [expr mexpr address params]
-  (let [bindings    (second mexpr)
-        keys        (map first bindings)
-        vexprs      (map second bindings)
-        body        (nthrest mexpr 2)
-        address     (address/child address 'let)
+  (let [address  (address/child address 'let)
+        bindings (second mexpr)
+        keys     (map first bindings)
+        vexprs   (map second bindings)
+        body     (nthrest mexpr 2)
 
         [start, cset, suspend?]
         (partition-body-with-bindings keys vexprs address params body)]
@@ -134,20 +137,32 @@
       [start, cset, suspend?]
       [expr, nil, nil])))
 
-;;
-;; Partitioning expressions with bindings
-;;
-(defn partition-fncall-expr
-  [expr, mexpr, address, params]
-  (let [[_ & args] mexpr
-        keys (nsymbols (count args))
 
+(defn partition-fncall-expr
+  [op, expr, mexpr, address, params]
+  (let [address (address/child address op)
+        [_ & args] mexpr
+        keys (nsymbols (count args))
+        pcall-body (with-meta `(~op ~@keys) (meta expr))
         [start, cset, suspend?]
         (partition-body-with-bindings keys args address params
-          `[~expr])]
+          `[~pcall-body])]
     (if suspend?
       [start, cset, true]
       [expr, nil, nil])))
+
+(defn partition-flow-expr
+  [op expr mexpr address params]
+  (let [address (address/child address op)
+        [_ & args] mexpr
+        keys       (nsymbols (count args))
+        pcall-body (with-meta `(flow/start '~op [~@keys]) expr)
+        [start, cset, suspend?]
+        (partition-body-with-bindings keys args address params
+          `[~pcall-body])]
+    (if suspend?
+      [start, cset, true]
+      [`[(flow/start '~op [~@args])] , nil, nil])))
 
 (defn partition-body-with-bindings
   [keys, args, address, params, body]
@@ -184,8 +199,8 @@
 
       ;; finalize the last partition by executing the body with the
       ;; bound params
-      (let [final-body `(let ,cur-part-bindings ,@body)
-            cset (cset/add cset cur-part-address params final-body)]
+      (let [final-body `(let, cur-part-bindings, @body)
+            cset       (cset/add cset cur-part-address params final-body)]
         ;; return result
         [start, cset, any-suspend?]))))
 

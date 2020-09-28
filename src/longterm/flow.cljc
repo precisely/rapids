@@ -1,6 +1,8 @@
 (ns longterm.flow
   (:import (clojure.lang Symbol IFn IPersistentMap)))
 
+(declare flow?)
+
 (defrecord Flow
   [; Global symbol defined as this flow
    name
@@ -15,7 +17,11 @@
 
 (defn start
   [flow args]
-  (apply (get flow :entry-point) args))
+  (cond
+    (symbol? flow) (recur (resolve flow) args)
+    (var? flow) (recur (var-get flow) args)
+    (flow? flow) (apply (get flow :entry-point) args)
+    :else (throw (Exception. "Invalid flow %s" flow))))
 
 (defn flow?
   "True if o is a Flow instance or a symbol or Var pointing to a flow"
