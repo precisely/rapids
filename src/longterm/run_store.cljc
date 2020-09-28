@@ -53,7 +53,7 @@
   (rs-save-stack! *run-store* *run-id* stack/*stack*))
 
 (defn get-run
-  ([] (recur *run-id*))
+  ([] (get-run *run-id*))
   ([run-id] (rs-get *run-store* run-id)))
 
 (defn finalize-run!
@@ -66,11 +66,11 @@
   (let [run-id    (:run-id event)
         event-id  (:event-id event)
         result    (:result event)
-        stack     (load-run run-id)
+        stack     (get-run run-id)
         top-frame (first stack)]
     (if-not stack
       (throw (Exception. (format "Event received with unrecognized run-id: %s" run-id))))
     (if-not (and top-frame (= (:event-id top-frame) event-id))
-      (throw (Exception. (format "Unrecognized event %s for process %s" id run-id))))
+      (throw (Exception. (format "Unrecognized event %s for process %s" event-id run-id))))
     ; return the result
     (stack/return-with top-frame result)))

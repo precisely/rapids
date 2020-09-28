@@ -16,7 +16,7 @@
   (apply (-> flow :continuations point) bindings))
 
 (defn start
-  [flow args]
+  [flow & args]
   (cond
     (symbol? flow) (recur (resolve flow) args)
     (var? flow) (recur (var-get flow) args)

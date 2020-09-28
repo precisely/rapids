@@ -92,7 +92,7 @@
   (let [mexpr (macroexpand-keeping-metadata expr)]
     (cond
       (list? mexpr) (partition-list-expr expr mexpr address params)
-      (vector? mexpr) (partition-vector-expr params expr mexpr)
+      (vector? mexpr) (partition-vector-expr expr address params)
       (map? mexpr) (partition-map-expr params expr address)
       :otherwise expr)))
 
@@ -122,47 +122,40 @@
 ;;
 ;; Partitioning expressions with bindings
 ;;
-(defn partition-let-expr
-  [expr mexpr address params]
-  (let [address  (address/child address 'let)
-        bindings (second mexpr)
-        keys     (map first bindings)
-        vexprs   (map second bindings)
-        body     (nthrest mexpr 2)
 
-        [start, cset, suspend?]
-        (partition-body-with-bindings keys vexprs address params body)]
-
-    (if suspend?
-      [start, cset, suspend?]
-      [expr, nil, nil])))
-
-
-(defn partition-fncall-expr
-  [op, expr, mexpr, address, params]
-  (let [address (address/child address op)
-        [_ & args] mexpr
-        keys (nsymbols (count args))
-        pcall-body (with-meta `(~op ~@keys) (meta expr))
-        [start, cset, suspend?]
-        (partition-body-with-bindings keys args address params
-          `[~pcall-body])]
-    (if suspend?
-      [start, cset, true]
-      [expr, nil, nil])))
-
-(defn partition-flow-expr
-  [op expr mexpr address params]
+(defn partition-functional-expr
+  "Partitions a function-like expression - a list with an operator followed
+  by an arbitrary list of arguments.
+  make-call-form - is a function which takes a list of parameters and returns
+  a form which represents the functional call
+  always-suspend - guarantees that the partitioner returns suspend?=true even if none
+  of the arguments suspend."
+  [op expr mexpr address params make-call-form always-suspend?]
   (let [address (address/child address op)
         [_ & args] mexpr
         keys       (nsymbols (count args))
-        pcall-body (with-meta `(flow/start '~op [~@keys]) expr)
+        pcall-body (with-meta (make-call-form keys) expr)
         [start, cset, suspend?]
         (partition-body-with-bindings keys args address params
           `[~pcall-body])]
     (if suspend?
       [start, cset, true]
-      [`[(flow/start '~op [~@args])] , nil, nil])))
+      [pcall-body , nil, always-suspend?])))
+
+(defn partition-vector-expr
+  [expr address params]
+  (partition-functional-expr "[]" expr expr address params
+    #(`(vector ~@%)) true))
+
+(defn partition-flow-expr
+  [op expr mexpr address params]
+  (partition-functional-expr op expr mexpr address params
+    #(`(flow/start '~op ~%)), true))
+
+(defn partition-fncall-expr
+  [op, expr, mexpr, address, params]
+  (partition-functional-expr op expr mexpr address params
+    #(`(~op ~%)), false))
 
 (defn partition-body-with-bindings
   [keys, args, address, params, body]
@@ -222,3 +215,32 @@
 ;  (or (string? x) (keyword? x) (number? x) (char? x)
 ;    (contains? [true false nil ##Inf ##-Inf ##NaN] x)
 ;    (and (list? x) (= (first x) 'quote))))
+
+
+;(defn partition-let-expr
+;  [expr mexpr address params]
+;  (let [address  (address/child address 'let)
+;        bindings (second mexpr)
+;        keys     (map first bindings)
+;        vexprs   (map second bindings)
+;        body     (nthrest mexpr 2)
+;
+;        [start, cset, suspend?]
+;        (partition-body-with-bindings keys vexprs address params body)]
+;
+;    (if suspend?
+;      [start, cset, suspend?]
+;      [expr, nil, nil])))
+;
+;(defn partition-fncall-expr
+;  [op, expr, mexpr, address, params]
+;  (let [address (address/child address op)
+;        [_ & args] mexpr
+;        keys (nsymbols (count args))
+;        pcall-body (with-meta `(~op ~@keys) (meta expr))
+;        [start, cset, suspend?]
+;        (partition-body-with-bindings keys args address params
+;          `[~pcall-body])]
+;    (if suspend?
+;      [start, cset, true]
+;      [pcall-body, nil, nil])))
