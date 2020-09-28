@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [longterm.address :refer :all]))
 
-(deftest Address
+(deftest ^:unit Address
   (testing "create"
     (let [a (create 'foo)]
       (is (= (:flow a) 'foo))

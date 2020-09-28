@@ -38,6 +38,8 @@
 
 (declare bindings-to-args bindings-with-result result-with)
 
+(defn suspend-signal? [x] (= x SUSPEND))
+
 (defmacro resume-at
   "Generates code that continues execution at address after flow-form is complete.
   address - names the continuation
@@ -65,7 +67,6 @@
          bindings (bindings-with-result frame result)]
      (binding [*stack* remaining-frames]
        (flow/continue flow point ~@(bindings-to-args bindings))))))
-
 
 ;;
 ;; Helpers

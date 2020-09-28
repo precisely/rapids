@@ -16,7 +16,11 @@
   :clean-targets ^{:protect false} ["target"]
   :plugins [[lein-cljsbuild "1.1.8" :exclusions [[org.clojure/clojure]]]
             [lein-figwheel "0.5.20"]]
-  :profiles {:dev {:source-paths ["scripts" "src"]} }
+  :profiles {:dev
+    {
+      :source-paths ["scripts" "src"]
+      :plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]]
+    } }
   :cljsbuild {
               :builds [{:id "dev"             ; development configuration
                         :source-paths ["src"] ; Paths to monitor for build
@@ -27,4 +31,9 @@
                                    :output-dir "resources/public/js/out"      ; Directory for temporary files
                                    :source-map-timestamp true}                  ; Sourcemaps hurray!
                         }]}
-  :repl-options {:init-ns longterm})
+  :repl-options {:init-ns longterm}
+
+  :test-selectors {:default (complement :integration)
+                   :integration :integration
+                   :unit :unit
+                   :all (constantly true)})

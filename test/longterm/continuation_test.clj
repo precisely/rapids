@@ -1,6 +1,5 @@
 (ns longterm.continuation_test
-  (:require [clojure.test :refer :all]
-            [longterm.core :refer :all]))
+  (:require [clojure.test :refer :all]))
 
 (deftest a-test
   (testing "FIXME, I fail."

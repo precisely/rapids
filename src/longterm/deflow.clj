@@ -1,8 +1,7 @@
 (ns longterm.deflow
-  (:require [longterm.util :as util]
-            [longterm.stack :as stack]
+  (:require [longterm.stack :as stack]
             [longterm.address :as address]
-            [longterm.stack :as continuation]
+            [longterm.run-store :as rs]
             [longterm.partition :as p]
             [longterm.continuation_set :as cset])
   (:import (longterm.flow Flow)))
@@ -22,11 +21,12 @@
           c-args        (params-to-continuation-args params)]
       `(let [cset#        ~cset         ; compiles the fndefs in the cset
              entry-point# (fn [~@args] ((get cset# entry-address) ~@c-args))]
-         (def ~name ~docstring?
-           (Flow. '~name entry-point# cset#))))))
+         (letfn [(~(symbol "wait-for") [event-id# expiry#]
+                     (rs/save event-id# expiry#)
+                   stack/SUSPEND)]
+           (def ~name ~docstring?
+             (Flow. '~name entry-point# cset#)))))))
 
-(defn wait-for
-  [event-id expiry])
 ;;
 ;; HELPERS
 ;;

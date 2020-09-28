@@ -20,10 +20,7 @@
 (defn flow?
   "True if o is a Flow instance or a symbol or Var pointing to a flow"
   [o]
-  (case (type o)
-    Symbol (flow? (var-get (resolve o)))
-    Var    (flow? (var-get o))
-    Flow   true))
+  (instance? o Flow))
 
 (defmethod print-method Flow
   [o w]
