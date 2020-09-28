@@ -200,7 +200,11 @@
 ;; HELPERS
 (defn macroexpand-keeping-metadata
   [expr]
-  (vary-meta (macroexpand expr) merge (meta expr)))
+  (let [expr-meta (meta expr)
+        mexpr (macroexpand expr)]
+    (if expr-meta
+      (vary-meta  merge (meta expr))
+      mexpr)))
 
 (defn nsymbols
   ([n] (nsymbols n 0))

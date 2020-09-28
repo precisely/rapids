@@ -9,7 +9,7 @@
 (def fl2 (Flow. 'fl2 #() {}))
 (def address (address/create 'main))
 
-(deftest ^:unit "partition-expr"
+(deftest ^:unit PartitionExpr
   (testing "literals"
     (testing "number"
       (is (= (partition-expr 123 address [])
