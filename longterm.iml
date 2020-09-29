@@ -61,6 +61,7 @@
     <orderEntry type="library" name="Leiningen: org.clojure/clojurescript:1.10.773" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/core.async:1.3.610" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/core.cache:1.0.207" level="project" />
+    <orderEntry type="library" name="Leiningen: org.clojure/core.match:1.0.0" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/core.memoize:1.0.236" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/core.specs.alpha:0.2.44" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/data.json:0.2.6" level="project" />

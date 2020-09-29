@@ -19,6 +19,11 @@
    (assoc-in cset [:bodies address]
      `(fn [& {:keys ~params}] ~@body)))
 
+(defn cdef
+  "Gets the continuation definition at address"
+  [cset address]
+  (get-in cset [:bodies address]))
+
 (defn combine
   [cset1 cset2]
   (if cset1

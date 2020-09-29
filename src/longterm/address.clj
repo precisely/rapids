@@ -29,7 +29,7 @@
   [flow                                 ; Symbol
    point]                               ; Vector
   Object
-  (toString [o] (str "#<Address " flow ":" (string/join "/" point) ">")))
+  (toString [_] (str "#<Address " flow ":" (string/join "/" point) ">")))
 
 (defn create
   [symbol & points]

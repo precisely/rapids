@@ -91,10 +91,10 @@
   [expr address params]
   (let [mexpr (macroexpand-keeping-metadata expr)]
     (cond
-      (list? mexpr) (partition-list-expr expr mexpr address params)
+      (seq? mexpr) (partition-list-expr expr mexpr address params)
       (vector? mexpr) (partition-vector-expr expr address params)
       (map? mexpr) (partition-map-expr params expr address)
-      :otherwise expr)))
+      :otherwise [expr, nil, nil])))
 
 (defn partition-list-expr
   [expr mexpr address params]
@@ -134,13 +134,13 @@
   (let [address (address/child address op)
         [_ & args] mexpr
         keys       (nsymbols (count args))
-        pcall-body (with-meta (make-call-form keys) expr)
+        pcall-body (with-meta (make-call-form keys) (meta expr))
         [start, cset, suspend?]
         (partition-body-with-bindings keys args address params
           `[~pcall-body])]
     (if suspend?
       [start, cset, true]
-      [pcall-body , nil, always-suspend?])))
+      [(make-call-form args), nil, always-suspend?])))
 
 (defn partition-vector-expr
   [expr address params]
@@ -150,12 +150,12 @@
 (defn partition-flow-expr
   [op expr mexpr address params]
   (partition-functional-expr op expr mexpr address params
-    #(`(flow/start '~op ~%)), true))
+    #(cons `flow/start (cons op %)), true))
 
 (defn partition-fncall-expr
   [op, expr, mexpr, address, params]
   (partition-functional-expr op expr mexpr address params
-    #(`(~op ~%)), false))
+    #(cons op %), false))
 
 (defn partition-body-with-bindings
   [keys, args, address, params, body]
@@ -166,9 +166,10 @@
      cur-part-bindings []
      part-params       params           ; params provided to this partition
      start             nil
-     any-suspend?      nil
+     any-suspend?      false
      cset              (cset/create)]
-    (if args
+    #_(println (format "address=%s\narg=%s rest-args=%s\n" address arg rest-args))
+    (if key
       (let [binding-address cur-part-address
             next-address    (address/increment binding-address)
             [arg-start, arg-cset, suspend?] (partition-expr arg binding-address params)
@@ -178,7 +179,7 @@
                 new-params      `[~@params ~@cur-part-params]
                 resume-pbody    `(resume-at [~next-address ~new-params ~key]
                                    ~arg-start)
-                pbody           (if (> cur-part-bindings 0)
+                pbody           (if (> (count cur-part-bindings) 0)
                                   `(let ~cur-part-bindings ~resume-pbody)
                                   resume-pbody)
                 cset            (if start (cset/add cset cur-part-address part-params pbody) cset)
@@ -187,15 +188,16 @@
               new-params, start, (or suspend? any-suspend?) cset))
           (recur rest-keys, rest-args
             cur-part-address,
-            `[~@cur-part-bindings [key arg]],
+            `[~@cur-part-bindings [~key ~arg]],
             params, start, any-suspend?, cset)))
 
       ;; finalize the last partition by executing the body with the
       ;; bound params
-      (let [final-body `(let, cur-part-bindings, @body)
-            cset       (cset/add cset cur-part-address params final-body)]
+      (let [final-body (if (> (count cur-part-bindings) 0) `(let, cur-part-bindings, @body) body)
+            cset       (cset/add cset cur-part-address params final-body)
+            result     [start, cset, any-suspend?]]
         ;; return result
-        [start, cset, any-suspend?]))))
+        result))))
 
 ;; HELPERS
 (defn macroexpand-keeping-metadata
@@ -203,7 +205,7 @@
   (let [expr-meta (meta expr)
         mexpr (macroexpand expr)]
     (if expr-meta
-      (vary-meta  merge (meta expr))
+      (with-meta mexpr expr-meta)
       mexpr)))
 
 (defn nsymbols

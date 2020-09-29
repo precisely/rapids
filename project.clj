@@ -19,6 +19,7 @@
   :profiles {:dev
     {
       :source-paths ["scripts" "src"]
+      :dependencies [[org.clojure/core.match "1.0.0"]]
       :plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]]
     } }
   :cljsbuild {
