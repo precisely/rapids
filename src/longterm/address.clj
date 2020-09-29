@@ -26,12 +26,14 @@
 ;;      :b              ; point = invalid
 ;;         (b)}))       ; point = "1/baz/0/{}/2"
 (defrecord Address
-  [flow ; Symbol
-   point]) ; Vector
+  [flow                                 ; Symbol
+   point]                               ; Vector
+  Object
+  (toString [o] (str "#<Address " flow ":" (string/join "/" point) ">")))
 
 (defn create
-  [symbol]
-  (Address. symbol []))
+  [symbol & points]
+  (Address. symbol (vec points)))
 
 (defmethod print-method Address
   [o w]
@@ -39,29 +41,33 @@
     (str "#<Address " (:flow o) ":" (string/join "/" (:point o)) ">")
     w))
 
-(defn to-string [a]
+(defn to-string
+  [a]
   (str (:flow a) ":" (string/join "/" (:point a))))
 
-(defn from-string [s]
+(defn from-string
+  [s]
   (let [[matched? name pointdefs] (re-find #"^([^\:\s]*)\:([^:\s]*)" s)]
     (if matched?
       (let [points (map #(if (re-find #"^\d" %) (int %) %) (string/split pointdefs "/"))]
         (Address. (symbol name) points))
       (throw (Exception. (format "Expecting Address string definition, but received %s" s))))))
 
-(defn child [address & point-elts]
-  (assoc address :point (concat (:point address) point-elts)))
+(defn child
+  [address & point-elts]
+  (assert (instance? Address address))
+  (assoc address :point (vec (concat (:point address) point-elts))))
 
 (defn increment
   ([address] (increment address 1))
 
   ([address step]
-  (let [point (:point address)
-        last (last point)]
-    (assoc address :point (conj (butlast point)
-                            (+ step last))))))
+   (let [point (:point address)
+         last  (last point)]
+     (assoc address :point (conj (pop point)
+                             (+ step last))))))
 
 (defn resolve-continuation [address]
-  (let [[flow point] address]
-    (-> (var-get (resolve flow)) :continuations point)))
+                           (let [[flow point] address]
+                             (-> (var-get (resolve flow)) :continuations point)))
 
