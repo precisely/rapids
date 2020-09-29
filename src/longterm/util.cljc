@@ -91,9 +91,9 @@
              (= :else (first cases))
              (recur (drop 2 cases) (conj ret :else (second cases)) nil)
 
-              (vector? (first cases))
+             (vector? (first cases))
              (let [condition (first cases)
-                   clause (second cases)
+                   clause    (second cases)
 
                    [case-expr prev-upper-bound]
                    (let [length (count condition)]
@@ -159,7 +159,8 @@
 (defn refers-to?
   "Dereferences a symbol or var and applies pred to the referenced value"
   [pred val]
-  (or (pred val)
-    (cond
-      (symbol? val) (recur pred (resolve val))
-      (var? val) (recur pred (var-get val)))))
+  (cond
+    (pred val)      true
+    (symbol? val)   (recur pred (ns-resolve *ns* val))
+    (var? val)      (recur pred (var-get val))
+    :else           false))
