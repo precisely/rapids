@@ -11,6 +11,6 @@
   (testing "Tests fully qualified symbol instance"
     (is (true? (refers-to? is-foo? `a))))
   (testing "Tests var instance"
-    (is (true? (refers-to? foo? #'a))))
+    (is (true? (refers-to? is-foo? #'a))))
   (testing "Testing instance directly"
-    (is (true? (refers-to? foo? a)))))
+    (is (true? (refers-to? is-foo? a)))))
