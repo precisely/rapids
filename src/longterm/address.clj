@@ -50,8 +50,7 @@
   (let [[matched? name pointdefs] (re-find #"^([^\:\s]*)\:([^:\s]*)" s)]
     (if matched?
       (let [points (map #(if (re-find #"^\d" %) (int %) %) (string/split pointdefs "/"))]
-        (Address. (symbol name) points))
-      (throw (Exception. (format "Expecting Address string definition, but received %s" s))))))
+        (throw (Exception. (format "Expecting Address string definition, but received %s" s)))))))
 
 (defn child
   [address & point-elts]
@@ -67,7 +66,8 @@
      (assoc address :point (conj (pop point)
                              (+ step last))))))
 
-(defn resolve-continuation [address]
-                           (let [[flow point] address]
-                             (-> (var-get (resolve flow)) :continuations point)))
+(defn resolve-continuation
+  [address]
+  (let [[flow point] address]
+    (-> (var-get (resolve flow)) :continuations point)))
 
