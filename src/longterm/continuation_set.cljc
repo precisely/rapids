@@ -1,4 +1,4 @@
-(ns longterm.continuation_set
+(ns longterm.continuation-set
   (:use longterm.stack))
 
 ;;;; ContinuationSet
@@ -12,12 +12,12 @@
 ;;; ContinuationSet
 
 (defn create []
-  {})
+  {:bodies {}})
 
 (defn add
   [cset address params body]
-   (assoc-in cset [:bodies address]
-     `(fn [& {:keys ~params}] ~@body)))
+  (assoc-in cset [:bodies address]
+    `(fn [& {:keys ~params}] ~@body)))
 
 (defn cdef
   "Gets the continuation definition at address"
@@ -25,9 +25,15 @@
   (get-in cset [:bodies address]))
 
 (defn combine
-  [cset1 cset2]
-  (if cset1
-    (if cset2
-      (merge cset1 cset2))
-      cset1)
-    cset2)
+  [cset & csets]
+  (if (> (count csets) 0)
+    (let [cset1    cset
+          [cset2 & rest-csets] csets
+          new-cset (if cset1
+                     (if cset2
+                       (assoc cset1
+                         :bodies (merge (:bodies cset1) (:bodies cset2)))
+                       cset1)
+                     cset2)]
+      (recur new-cset rest-csets))
+    cset))
