@@ -1,4 +1,5 @@
 (ns longterm.flow
+  (:require [longterm.address :as address])
   (:import (clojure.lang Symbol IFn IPersistentMap)))
 
 (defrecord Flow
@@ -12,8 +13,11 @@
 (defn flow? [o] (instance? Flow o))
 
 (defn continue
-  [flow point bindings]
-  (apply (-> flow :continuations point) bindings))
+  ([address bindings]
+   (let [flow (address/resolved-flow address)]
+     (continue flow bindings)))
+  ([flow point bindings]
+   (apply (-> flow :continuations point) bindings)))
 
 (defn start
   [flow & args]

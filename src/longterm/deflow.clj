@@ -3,7 +3,7 @@
             [longterm.address :as address]
             [longterm.run-store :as rs]
             [longterm.partition :as p]
-            [longterm.continuation_set :as cset])
+            [longterm.continuation-set :as cset])
   (:import (longterm.flow Flow)))
 
 (declare params-from-args params-to-continuation-args)
@@ -14,7 +14,7 @@
   (if-not (string? docstring?)
     `(deflow ~name "" ~docstring? args ~@code)
     (let [params        (params-from-args args)
-          address       (address/create name)
+          address       (address/create (str name))
           entry-address (address/child address 0)
           [start-body, cset, _] (p/partition-body code address params)
           cset          (cset/add cset entry-address params start-body)

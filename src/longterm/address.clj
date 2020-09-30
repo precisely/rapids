@@ -25,32 +25,34 @@
 ;;         (a)          ; point = "1/baz/0/{}/1"
 ;;      :b              ; point = invalid
 ;;         (b)}))       ; point = "1/baz/0/{}/2"
+(declare to-string)
 (defrecord Address
   [flow                                 ; Symbol
    point]                               ; Vector
   Object
-  (toString [_] (str "#<Address " flow ":" (string/join "/" point) ">")))
+  (toString [o] (throw "foo") (str "<" (to-string o) ">")))
 
 (defn create
   [symbol & points]
   (Address. symbol (vec points)))
 
-(defmethod print-method Address
-  [o w]
-  (print-simple
-    (str "#<Address " (:flow o) ":" (string/join "/" (:point o)) ">")
-    w))
-
 (defn to-string
   [a]
-  (str (:flow a) ":" (string/join "/" (:point a))))
+  (str (:flow a) ":" (string/join ";" (:point a))))
+
+(defmethod print-method Address
+  [o w]
+  ([print-simple]
+    (str "<" (to-string o) ">")
+    w))
 
 (defn from-string
   [s]
-  (let [[matched? name pointdefs] (re-find #"^([^\:\s]*)\:([^:\s]*)" s)]
+  (let [[matched? name pointdefs] (re-find #"^([^;:\s]*)\:([^:\s]*)" s)]
     (if matched?
-      (let [points (map #(if (re-find #"^\d" %) (int %) %) (string/split pointdefs "/"))]
-        (throw (Exception. (format "Expecting Address string definition, but received %s" s)))))))
+      (let [points (map #(if (re-find #"^\d" %) (int %) (symbol %)) (string/split pointdefs ";"))]
+        (apply create (symbol name) points))
+      (throw (Exception. (format "Expecting Address string definition, but received %s" s))))))
 
 (defn child
   [address & point-elts]
@@ -71,3 +73,6 @@
   (let [[flow point] address]
     (-> (var-get (resolve flow)) :continuations point)))
 
+(defn resolved-flow
+  [address]
+  (-> address :flow resolve var-get))

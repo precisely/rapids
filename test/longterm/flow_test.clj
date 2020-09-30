@@ -9,3 +9,4 @@
     (is (false? (flow? 1)))
     (is (false? (flow? true)))
     (is (false? (flow? nil)))))
+
