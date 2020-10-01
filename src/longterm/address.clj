@@ -42,7 +42,7 @@
 
 (defmethod print-method Address
   [o w]
-  ([print-simple]
+  (print-simple
     (str "<" (to-string o) ">")
     w))
 
