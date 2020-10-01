@@ -11,18 +11,20 @@
 
 ;;; ContinuationSet
 
+(defrecord ContinuationDef [params body])
+
 (defn create []
-  {:bodies {}})
+  {})
 
 (defn add
   [cset address params body]
-  (assoc-in cset [:bodies address]
-    `(fn [& {:keys ~params}] ~@body)))
+  (assoc cset address (ContinuationDef. params body)))
 
 (defn cdef
   "Gets the continuation definition at address"
   [cset address]
-  (get-in cset [:bodies address]))
+  (let [[params body] (get cset address)]
+    `(fn [& {:keys ~params}] ~@body)))
 
 (defn combine
   [cset & csets]
@@ -31,8 +33,7 @@
           [cset2 & rest-csets] csets
           new-cset (if cset1
                      (if cset2
-                       (assoc cset1
-                         :bodies (merge (:bodies cset1) (:bodies cset2)))
+                       (merge cset1 cset2)
                        cset1)
                      cset2)]
       (recur new-cset rest-csets))

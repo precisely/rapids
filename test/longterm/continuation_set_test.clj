@@ -20,12 +20,12 @@
   (testing "combines addresses of 2 csets"
     (let [combination (combine cset1 cset2)]
       (is (map? combination))
-      (is (= (set (keys (:bodies combination)))
+      (is (= (set (keys combination))
             (set [addr1 addr2])))))
 
   (testing "combines addresses of 3 csets"
     (let [combination (combine cset1 cset2 cset3)]
       (is (map? combination))
-      (is (= (set (keys (:bodies combination)))
+      (is (= (set (keys combination))
             (set [addr1 addr2 addr3])))))))
 
