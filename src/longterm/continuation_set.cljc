@@ -20,11 +20,11 @@
   [cset address params body]
   (assoc cset address (ContinuationDef. params body)))
 
-(defn cdef
-  "Gets the continuation definition at address"
+(defn continuation-definition
+  "Returns the s-expr representing the continuation at address"
   [cset address]
-  (let [[params body] (get cset address)]
-    `(fn [& {:keys ~params}] ~@body)))
+  (let [cdef (get cset address)]
+    `(fn [& {:keys ~(:params cdef)}] ~@(:body cdef))))
 
 (defn combine
   [cset & csets]

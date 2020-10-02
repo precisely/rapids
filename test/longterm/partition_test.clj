@@ -4,10 +4,8 @@
             [longterm.partition :refer :all]
             [longterm.address :as address]
             [longterm.stack :as stack]
-            [longterm.flow :as flow]
-            [longterm.continuation-set :as cset])
-  (:import (longterm.flow Flow)
-           (clojure.lang PersistentHashMap)))
+            [longterm.flow :as flow])
+  (:import (longterm.flow Flow)))
 
 (def fl1 (Flow. 'fl1 #() {}))
 (def fl2 (Flow. 'fl2 #() {}))
@@ -51,16 +49,17 @@
             next-address (address/child address `fl1 1)] ; fl1/0 is arg0, fl1/1 => "(fl1 ~arg0)"
         (is (true? suspend?))
         (is (match [start]
-              [([`stack/resume-at [next-address [`z] _]
+              [([`stack/resume-at [next-address ['z] _]
                  ([`flow/start `fl2 ([`a] :seq)] :seq)] :seq)] true
               [_] false))
         (is (map? cset))
         (is (= (count cset) 1))
-        (let [continuation-def (cset/cdef cset next-address)]
-          (is (not (nil? continuation-def)))
-          (is (match [continuation-def]
-                [([`fn [`& {:keys [`z]}] ([`flow/start `fl1 _] :seq)] :seq)] true
-                [_] false)))))))
+        (let [cdef (get cset next-address)]
+          (is (not (nil? cdef)))
+          (is (= (:params cdef) '[z]))
+          (is (= (match [(:body cdef)]
+                   [([`flow/start `fl1 _] :seq)] true
+                   [_] false))))))))
 
 (deftest ^:unit PartitionBody
   (testing "body without forms"

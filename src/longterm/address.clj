@@ -30,7 +30,7 @@
   [flow                                 ; Symbol
    point]                               ; Vector
   Object
-  (toString [o] (throw "foo") (str "<" (to-string o) ">")))
+  (toString [o] (str "<" (to-string o) ">")))
 
 (defn create
   [symbol & points]

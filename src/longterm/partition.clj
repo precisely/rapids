@@ -12,16 +12,29 @@
   partition-if-expr partition-let-expr partition-fn-expr
   partition-do-expr partition-loop-expr partition-special-expr partition-recur-expr
   partition-vector-expr partition-map-expr macroexpand-keeping-metadata
-  bindings-expr-from-params
+  bindings-expr-from-params with-tail-position with-binding-point
   nsymbols)
 
 (def ^:dynamic *recur-binding-point* nil)
+(def ^:dynamic *tail-position*
+  "Can be nil, false or true; nil = undefined; false = non-tail; true=tail"
+  nil)
+;;
+;; For partitioning loop/recur
+;;
+
+(defmacro with-tail-position [[state] & body]
+  `(let [state# ~state]
+     (binding [*tail-position* (cond
+                                 (false? state#) false
+                                 (nil? *tail-position*) state#
+                                 :else (and state# *tail-position*))]
+       ~@body)))
 
 (defmacro with-binding-point
   [[address params] & body]
-  `(binding [*recur-binding-point* {:address address :params params}]
+  `(binding [*recur-binding-point* {:address ~address :params ~params}]
      ~@body))
-
 ;;;; Partitioner
 
 ;;;
