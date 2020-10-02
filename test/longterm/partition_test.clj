@@ -39,9 +39,9 @@
 
 (deftest ^:unit PartitionSuspendingFunctionalExpressions
   (testing "suspending expressions"
-    #_(testing "flow with non-suspending args"
-        (is (= (partition-expr `(fl1 3 4) nil address [])
-              [`(longterm.flow/start fl1 3 4), nil, true])))
+    (testing "flow with non-suspending args"
+      (is (= (partition-expr `(fl1 3 4) nil address [])
+            [`(longterm.flow/start fl1 3 4), nil, true])))
     (testing "flow with suspending args"
       (let [[start, cset, suspend?]
             (partition-expr `(fl1 (fl2 (a))) address address '[z])
@@ -75,7 +75,7 @@
       (is (false? suspend?))))
 
   (testing "body with a single suspending form"
-    (let [[start, cset, suspend?] (partition-body `[(fl1)] nil address [])]
+    (let [[start, cset, suspend?] (partition-body `[(fl1)] :partition-address address [])]
       (is (match [start]
             [[([`flow/start `fl1] :seq)]] true
             [_] false))
@@ -100,8 +100,12 @@
           (is (= (get cdef :params) '[]))
           (is (= (get cdef :body) `[(b)])))))))
 
-(deftest ^:unit PartitionConditional
-  (testing ""))
+(deftest ^:unit PartitionConditionalExpression)
+
+(deftest ^:unit PartitionLetExpression)
+
+(deftest ^:unit PartitionLoopExpression)
+
 
 
 

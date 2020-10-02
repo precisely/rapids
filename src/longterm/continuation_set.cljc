@@ -20,6 +20,10 @@
   [cset address params body]
   (assoc cset address (ContinuationDef. params body)))
 
+(defn delete
+  [cset address]
+  (dissoc cset address))
+
 (defn continuation-definition
   "Returns the s-expr representing the continuation at address"
   [cset address]
