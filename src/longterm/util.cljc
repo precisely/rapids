@@ -1,5 +1,14 @@
 (ns longterm.util)
 
+(defn refers-to?
+  "Dereferences a symbol or var and applies pred to the referenced value"
+  [pred val]
+  (cond
+    (pred val)      true
+    (symbol? val)   (recur pred (ns-resolve *ns* val))
+    (var? val)      (recur pred (var-get val))
+    :else           false))
+
 (defn dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
   nested structure. keys is a sequence of keys. Any empty maps that result
@@ -155,12 +164,3 @@
              (let [[condition clause]
                    `[(= ~target ~(first cases)) ~(second cases)]]
                (recur (drop 2 cases) (conj ret condition clause) nil)))))))
-
-(defn refers-to?
-  "Dereferences a symbol or var and applies pred to the referenced value"
-  [pred val]
-  (cond
-    (pred val)      true
-    (symbol? val)   (recur pred (ns-resolve *ns* val))
-    (var? val)      (recur pred (var-get val))
-    :else           false))
