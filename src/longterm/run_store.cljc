@@ -1,76 +1,65 @@
 (ns longterm.run-store
-  (:require
-    [longterm.stack :as stack]))
+  (:require [longterm.stack :as stack]
+            [longterm.util :refer [new-uuid]]))
+
+(defrecord Run
+  [id stack state result])
+
+(def ^:const RunStates '(:suspended :running :complete))
+(defn run-state? [x] (contains? RunStates x))
 
 (defprotocol IRunStore
-  (rs-start! [rs])
-  (rs-save-stack! [rs run-id stack])
-  (rs-get [rs run-id])
-  (rs-finalize! [rs run-id result]))
-
-(defn assert-imrs-state [run-id rs state msg]
-  (let [rs-state (:state rs)]
-    (if-not (= state rs-state)
-      (throw (Exception. (format "%s for Run %s which is not in state %s" msg run-id state))))))
-
-(defn new-uuid []
-  (str #?(:clj  (java.util.UUID/randomUUID)
-          :cljs (random-uuid))))
+  (rs-create! [rs])
+  (rs-update! [rs run])
+  (rs-get [rs run-id]))
 
 (defrecord InMemoryRunStore [processes]
   IRunStore
-  (rs-start! [rs]
+  (rs-create! [rs]
     (let [run-id (str (new-uuid))]
-      (swap! rs assoc run-id {:stack [] :state :running :result nil})))
-  (rs-save-stack! [rs run-id stack]
-    (swap! rs
-      (fn [rs]
-        (assert-imrs-state run-id rs :running "Attempt to update stack")
-        (assoc-in rs [run-id :stack] stack))))
+      (swap! rs assoc run-id (Run. run-id [] :suspended nil))))
+  (rs-update! [rs run]
+    (let [run-id (:id run)]
+      (swap! rs
+        (fn [rs]
+          (assoc-in rs run-id run)))))
   (rs-get [rs run-id]
-    (get @rs run-id))
-  (rs-finalize! [rs run-id result]
-    (swap! rs
-      (fn [rs]
-        (assert-imrs-state run-id rs :running "Attempt to finalize")
-        (assoc-in rs [run-id :result] result)))))
+    (get @rs run-id)))
 
 (defn make-in-memory-run-store []
   (InMemoryRunStore. (atom {})))
 
 (def ^:dynamic *run-store* (make-in-memory-run-store))
-(def ^:dynamic *run-id* nil)
 
 ;;
 ;; Public API based on *run-store* *run-id* and stack/*stack* globals
 ;;
-(defmacro start-run! [flow-form]
-  `(binding [*run-id* (rs-start! *run-store*)]
-     ;; code that starts the first flow
-     ))
+(declare with-run! create-run! save-run! get-run)
 
-(defn save-stack! []
-  (rs-save-stack! *run-store* *run-id* stack/*stack*))
+(defn with-run!
+  "Takes a Run instance and executes forms in body. The final form of body
+  returns stack/SUSPEND to put the run in :suspended state. If it returns
+  a value, the run state will change to :complete, and the value
+  will be stored in the Run's `result` field."
+  ([[run] & body]
+   `(let [run# ~run]
+      (if-not (= (:state run#) :suspended)
+        (throw (Exception. (format "Attempt to start run %s when state is %s. Run must be in :suspended state"
+                             (:id run#) (:state run#)))))
+      (save-run! (assoc run# :state :running))
+      (binding [stack/*stack* (:stack run#)]
+        (let [result# (do ~@body)
+              state#  (if (stack/suspend-signal? result#) :suspended :complete)]
+          (save-run! (assoc run# :state state# :result result# :stack stack/*stack*)))))))
+
+(defn create-run!
+  [] (rs-create! *run-store*))
+
+(defn save-run! [run]
+  (rs-update! *run-store* run))
 
 (defn get-run
-  ([] (get-run *run-id*))
   ([run-id] (rs-get *run-store* run-id)))
 
-(defn finalize-run!
-  ([result] (rs-finalize! *run-store* *run-id* result)))
 
-(defn process-event
-  "Processes an external event, causing the appropriate continuation to fire.
-   Event is a map containing {:id event-id :result value}"
-  [event]
-  (let [run-id    (:run-id event)
-        event-id  (:event-id event)
-        result    (:result event)
-        stack     (get-run run-id)
-        top-frame (first stack)]
-    (if-not stack
-      (throw (Exception. (format "Event received with unrecognized run-id: %s" run-id))))
-    (if-not (and top-frame (= (:event-id top-frame) event-id))
-      (throw (Exception. (format "Unrecognized event %s for process %s" event-id run-id))))
-    ; return the result
-    (stack/return-with top-frame result)))
+

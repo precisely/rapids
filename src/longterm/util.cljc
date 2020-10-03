@@ -1,4 +1,5 @@
-(ns longterm.util)
+(ns longterm.util
+  (:import (java.util UUID)))
 
 (defn refers-to?
   "Dereferences a symbol or var and applies pred to the referenced value"
@@ -13,7 +14,7 @@
   "Dissociates an entry from a nested associative structure returning a new
   nested structure. keys is a sequence of keys. Any empty maps that result
   will not be present in the new structure."
-  [m [k & ks :as keys]]
+  [m [k & ks]]
   (if ks
     (if-let [nextmap (get m k)]
       (let [newmap (dissoc-in nextmap ks)]
@@ -164,3 +165,7 @@
              (let [[condition clause]
                    `[(= ~target ~(first cases)) ~(second cases)]]
                (recur (drop 2 cases) (conj ret condition clause) nil)))))))
+
+(defn new-uuid []
+  (str #?(:clj  (UUID/randomUUID)
+          :cljs (random-uuid))))

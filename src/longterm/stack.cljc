@@ -40,6 +40,27 @@
 
 (defn suspend-signal? [x] (= x SUSPEND))
 
+(defn next-continuation!
+  "This function destructively changes stack and requires a binding context for stack"
+  [event-id]
+  (let [[frame & rest-frames] *stack*
+        continuation (fn [result]
+                       (let [address              (:address frame)
+                             result-key           (:result-key frame)
+                             bindings             (:bindings frame)
+                             bindings-with-result (if result-key
+                                                    (assoc bindings
+                                                      result-key result)
+                                                    bindings)]
+                         (flow/continue address bindings-with-result)))]
+    ;; for now, only allow responding to the event-id at the top of the stack
+    (if-not (or (nil? event-id) (= event-id (:eventid frame)))
+        (Exception. (format "Mismatched event-id %s in top frame. Expecting %s"
+                      event-id (:event-id frame))))
+
+    (set! *stack* rest-frames)
+    continuation))
+
 (defmacro resume-at
   "Generates code that continues execution at address after flow-form is complete.
   address - names the continuation

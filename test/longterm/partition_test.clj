@@ -43,7 +43,7 @@
       (is (= (partition-expr `(fl1 3 4) nil address [])
             [`(longterm.flow/start fl1 3 4), nil, true])))
     (testing "flow with suspending args"
-      (let [[start, cset, suspend?]
+      (let [[start, pset, suspend?]
             (partition-expr `(fl1 (fl2 (a))) address address '[z])
             next-address (address/child address `fl1 1)] ; fl1/0 is arg0, fl1/1 => "(fl1 ~arg0)"
         (is (true? suspend?))
@@ -51,9 +51,9 @@
               [([`stack/resume-at [next-address ['z] _]
                  ([`flow/start `fl2 ([`a] :seq)] :seq)] :seq)] true
               [_] false))
-        (is (map? cset))
-        (is (= (count cset) 1))
-        (let [cdef (get cset next-address)]
+        (is (map? pset))
+        (is (= (count pset) 1))
+        (let [cdef (get pset next-address)]
           (is (not (nil? cdef)))
           (is (= (:params cdef) '[z]))
           (is (= (match [(:body cdef)]
@@ -67,23 +67,23 @@
           [_] false)))
 
   (testing "body with non-suspending forms"
-    (let [[start, cset, suspend?] (partition-body `[(a) (b)] nil address [])]
+    (let [[start, pset, suspend?] (partition-body `[(a) (b)] nil address [])]
       (is (match [start]
             [[([`a] :seq), ([`b] :seq)]] true
             [_] false))
-      (is (= (count cset) 0))
+      (is (= (count pset) 0))
       (is (false? suspend?))))
 
   (testing "body with a single suspending form"
-    (let [[start, cset, suspend?] (partition-body `[(fl1)] :partition-address address [])]
+    (let [[start, pset, suspend?] (partition-body `[(fl1)] :partition-address address [])]
       (is (match [start]
             [[([`flow/start `fl1] :seq)]] true
             [_] false))
-      (is (= (count cset) 0))
+      (is (= (count pset) 0))
       (is (true? suspend?))))
 
   (testing "body split by a suspending form"
-    (let [[start, cset, suspend?] (partition-body `[(a) (fl1) (b)] nil address [])
+    (let [[start, pset, suspend?] (partition-body `[(a) (fl1) (b)] nil address [])
           part2-address (address/child address 2)]
 
       (testing "initial form first two forms, resuming at the second partition address"
@@ -95,8 +95,8 @@
         (is (true? suspend?)))
 
       (testing "there should be one continuation with the final expr"
-        (is (= (count cset) 1))
-        (let [cdef (get cset part2-address)]
+        (is (= (count pset) 1))
+        (let [cdef (get pset part2-address)]
           (is (= (get cdef :params) '[]))
           (is (= (get cdef :body) `[(b)])))))))
 

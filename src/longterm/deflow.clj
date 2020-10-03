@@ -3,7 +3,7 @@
             [longterm.address :as address]
             [longterm.run-store :as rs]
             [longterm.partition :as p]
-            [longterm.continuation-set :as cset])
+            [longterm.partition-set :as pset])
   (:import (longterm.flow Flow)))
 
 (declare params-from-args params-to-continuation-args)
@@ -16,16 +16,16 @@
     (let [params        (params-from-args args)
           address       (address/create (str name))
           entry-address (address/child address 0)
-          [start-body, cset, _] (p/partition-body code address params)
-          cset          (cset/add cset entry-address params start-body)
+          [start-body, pset, _] (p/partition-body code address params)
+          pset          (pset/add pset entry-address params start-body)
           c-args        (params-to-continuation-args params)]
-      `(let [cset#        ~cset         ; compiles the fndefs in the cset
-             entry-point# (fn [~@args] ((get cset# entry-address) ~@c-args))]
+      `(let [pset#        ~pset         ; compiles the fndefs in the pset
+             entry-point# (fn [~@args] ((get pset# entry-address) ~@c-args))]
          (letfn [(~(symbol "wait-for") [event-id# expiry#]
                      (rs/save event-id# expiry#)
                    stack/SUSPEND)]
            (def ~name ~docstring?
-             (Flow. '~name entry-point# cset#)))))))
+             (Flow. '~name entry-point# pset#)))))))
 
 ;;
 ;; HELPERS

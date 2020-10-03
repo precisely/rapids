@@ -1,5 +1,6 @@
 (ns longterm.integration_test
   (:require  [clojure.test :refer :all]
-             [longterm.deflow :refer :all]))
+             [longterm :refer :all]))
 
-(deftest ^:integration Flows)
+(deftest ^:integration SystemTest
+  (testing ""))

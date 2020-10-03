@@ -1,5 +1,6 @@
 (ns longterm.address
-  (:require [clojure.string :as string]))
+  (:require [clojure.string :as string]
+            [clojure.data.json :as json]))
 
 ;; Address identifies a point in a flow.
 ;; While addresses can be generated for any point in the tree,
