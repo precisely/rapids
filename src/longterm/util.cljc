@@ -169,3 +169,6 @@
 (defn new-uuid []
   (str #?(:clj  (UUID/randomUUID)
           :cljs (random-uuid))))
+
+(defn suspend-op? [op]
+  (some #(= op %) '[suspend longterm/suspend longterm.runner/suspend]))

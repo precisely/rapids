@@ -1,9 +1,9 @@
 (ns longterm.partition_test
   (:require [clojure.test :refer :all]
+            [longterm.runner :as runner]
             [clojure.core.match :refer [match]]
             [longterm.partition :refer :all]
             [longterm.address :as address]
-            [longterm.stack :as stack]
             [longterm.flow :as flow])
   (:import (longterm.flow Flow)))
 
@@ -48,7 +48,7 @@
             next-address (address/child address `fl1 1)] ; fl1/0 is arg0, fl1/1 => "(fl1 ~arg0)"
         (is (true? suspend?))
         (is (match [start]
-              [([`stack/resume-at [next-address ['z] _]
+              [([`runner/resume-at [next-address ['z] _]
                  ([`flow/start `fl2 ([`a] :seq)] :seq)] :seq)] true
               [_] false))
         (is (map? pset))
@@ -89,7 +89,7 @@
       (testing "initial form first two forms, resuming at the second partition address"
         (is (match [start]
               [[([`a] :seq)
-                ([`stack/resume-at [part2-address []]
+                ([`longterm.runner/resume-at [part2-address [] true]
                   ([`flow/start `fl1] :seq)] :seq)]] true
               [_] false))
         (is (true? suspend?)))

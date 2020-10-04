@@ -25,7 +25,7 @@
     (symbol? flow) (recur (resolve flow) args)
     (var? flow) (recur (var-get flow) args)
     (flow? flow) (apply (get flow :entry-point) args)
-    :else (throw (Exception. "Invalid flow %s" flow))))
+    :else (throw (Exception. (format "Invalid flow %s" flow)))))
 
 (defmethod print-method Flow
   [o w]

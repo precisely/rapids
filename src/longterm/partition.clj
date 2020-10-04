@@ -4,8 +4,9 @@
             [longterm.flow :as flow]
             [longterm.util :refer [dissoc-in]]
             [longterm.recur :refer [with-tail-position with-binding-point]]
-            [longterm.partition-set :as pset])
-  (:use longterm.stack))
+            [longterm.partition-set :as pset]
+            [longterm.runner :refer [resume-at]]
+            [longterm.recur :refer :all]))
 
 ;;;; Partitioner
 
@@ -57,6 +58,7 @@
   partition-if-expr partition-let-expr partition-fn-expr
   partition-do-expr partition-loop-expr partition-special-expr partition-recur-expr
   partition-vector-expr partition-map-expr macroexpand-keeping-metadata
+  partition-suspend-expr
   bindings-expr-from-params nsymbols)
 
 (defn partition-body
@@ -105,11 +107,11 @@
               pset         (pset/combine pset expr-pset)
               next-address (address/increment cur-address)]
           (if suspend?
-            (let [final-part-expr (if (> (count rest-body) 0) `(resume-at [~next-address ~params] ~pexpr) pexpr)
+            (let [final-part-expr (if (> (count rest-body) 0) `(resume-at [~next-address ~params ~suspend?] ~pexpr) pexpr)
                   part-body       (conj part-body final-part-expr)
                   pset            (pset/add pset partition-address params part-body)]
 
-              (recur rest-body, pset, next-address, next-address, [], (or start-body part-body), true))
+              (recur rest-body, pset, next-address, next-address, [], (or start-body part-body), suspend?))
             (recur rest-body, pset, next-address, partition-address, (conj part-body pexpr), start-body, any-suspend?)))
         ;; return result
         (let* [clean-pset (pset/delete pset dirty-address)
@@ -117,7 +119,7 @@
                             (pset/add clean-pset partition-address params part-body)
                             clean-pset)]
           (if any-suspend?
-            [start-body, pset, true]
+            [start-body, pset, any-suspend?]
             [body, nil, false]))))))
 
 ;;
@@ -155,6 +157,7 @@
   (let [op (first mexpr)]
     (cond
       (special-symbol? op) (partition-special-expr op expr mexpr partition-addr address params)
+      (util/suspend-op? op) (partition-suspend-expr expr mexpr)
       (util/refers-to? fn? op) (partition-fncall-expr op expr mexpr partition-addr address params)
       (util/refers-to? flow/flow? op) (partition-flow-expr op expr mexpr partition-addr address params)
       :else (throw (Exception. (format "Unrecognized operator %s in %s" op expr))))))
@@ -193,7 +196,7 @@
 
         test-result (gensym "test")
         start       (if test-suspend?
-                      `(resume-at [~branch-addr, ~params, ~test-result], test-start)
+                      `(resume-at [~branch-addr, ~params, ~test-result ~test-suspend?], test-start)
                       (with-meta `(if, test, then-start, else-start) (meta expr)))
         branch-pset (if test-suspend?
                       (pset/add (pset/create) branch-addr `[~@params ~test-result]
@@ -265,11 +268,11 @@
           [binding-start, bindings-pset, binding-suspend?]
           (partition-bindings loop-params, loop-initializers, binding-partition, binding-partition, params, loop-body)
 
-          any-suspend?     (or body-suspend? binding-suspend?)
+          any-suspend?     (or binding-suspend? body-suspend?)
 
           pset             (pset/combine body-pset bindings-pset)]
       (if any-suspend?
-        [binding-start, pset, true]
+        [binding-start, pset, any-suspend?]
         [expr, nil, false]))))
 
 (defn partition-recur-expr
@@ -298,10 +301,18 @@
       (if same-partition
         [expr, nil, false, true]        ; plain vanilla recur!
         (if suspend?
-          [start, pset, true]
+          [start, pset, suspend?]
           (if same-partition
             expr
             [recur-body]))))))
+
+;;
+;;
+;;
+(defn partition-suspend-expr
+  [expr mexpr]
+  (let [[_, event-id, expiry] mexpr]
+    [expr, nil, [event-id, expiry]]))
 
 ;;
 ;; Partitioning expressions with bindings
@@ -323,7 +334,7 @@
         (partition-bindings keys args partition-address address params
           `[~pcall-body])]
     (if suspend?
-      [start, pset, true]
+      [start, pset, suspend?]
       [(make-call-form args), nil, always-suspend?])))
 
 (defn partition-vector-expr
@@ -353,47 +364,47 @@
   Returns: [start, pset, suspend?]"
   [keys, args, partition-address, address, params, body]
   (let [dirty-address partition-address]
-  (with-tail-position [false]
-    (loop
-      [[key & rest-keys] keys
-       [arg & rest-args] args
-       current-bindings  []             ; the new bindings introduced to the partition
-       partition-address partition-address
-       arg-address       (address/child address 0) ; address of the arg
-       part-params       params         ; params provided to this partition
-       start             nil
-       any-suspend?      false
-       pset              (pset/create)]
-      (if key
-        (let [next-address (address/increment arg-address)
+    (with-tail-position [false]
+      (loop
+        [[key & rest-keys] keys
+         [arg & rest-args] args
+         current-bindings  []           ; the new bindings introduced to the partition
+         partition-address partition-address
+         arg-address       (address/child address 0) ; address of the arg
+         part-params       params       ; params provided to this partition
+         start             nil
+         any-suspend?      false
+         pset              (pset/create)]
+        (if key
+          (let [next-address (address/increment arg-address)
 
-              [arg-start, arg-pset, suspend?]
-              (partition-expr arg, partition-address, arg-address, params) ;
+                [arg-start, arg-pset, suspend?]
+                (partition-expr arg, partition-address, arg-address, params) ;
 
-              pset         (pset/combine pset arg-pset)]
-          (if suspend?
-            (let [cur-part-params (map first current-bindings)
-                  new-params      `[~@params ~@cur-part-params]
-                  resume-pbody    `(resume-at [~next-address ~new-params ~key]
-                                     ~arg-start)
-                  pbody           (if (> (count current-bindings) 0)
-                                    `(let [~@current-bindings] ~resume-pbody)
-                                    resume-pbody)
-                  pset            (pset/add pset partition-address part-params pbody)
-                  start           (or start pbody)]
-              (recur rest-keys, rest-args, [], next-address, next-address,
-                new-params, start, (or suspend? any-suspend?), pset))
-            (recur rest-keys, rest-args
-              (conj current-bindings [key arg]),
-              partition-address, next-address,
-              params, start, any-suspend?, pset)))
+                pset         (pset/combine pset arg-pset)]
+            (if suspend?
+              (let [cur-part-params (map first current-bindings)
+                    new-params      `[~@params ~@cur-part-params]
+                    resume-pbody    `(resume-at [~next-address ~new-params ~key]
+                                       ~arg-start)
+                    pbody           (if (> (count current-bindings) 0)
+                                      `(let [~@current-bindings] ~resume-pbody)
+                                      resume-pbody)
+                    pset            (pset/add pset partition-address part-params pbody)
+                    start           (or start pbody)]
+                (recur rest-keys, rest-args, [], next-address, next-address,
+                  new-params, start, (or suspend? any-suspend?), pset))
+              (recur rest-keys, rest-args
+                (conj current-bindings [key arg]),
+                partition-address, next-address,
+                params, start, any-suspend?, pset)))
 
-        ;; finalize the last partition by executing the body with the
-        ;; bound params
-        (let [final-body (if (> (count current-bindings) 0) `(let [~@current-bindings] ~@body) body)
-              clean-pset (pset/delete pset dirty-address)
-              pset       (pset/add clean-pset partition-address params final-body)]
-          [start, pset, any-suspend?]))))))
+          ;; finalize the last partition by executing the body with the
+          ;; bound params
+          (let [final-body (if (> (count current-bindings) 0) `(let [~@current-bindings] ~@body) body)
+                clean-pset (pset/delete pset dirty-address)
+                pset       (pset/add clean-pset partition-address params final-body)]
+            [start, pset, any-suspend?]))))))
 
 ;; HELPERS
 (defn macroexpand-keeping-metadata

@@ -1,5 +1,4 @@
-(ns longterm.partition-set
-  (:use longterm.stack))
+(ns longterm.partition-set)
 
 ;;;; ContinuationSet
 
@@ -9,8 +8,10 @@
 
 (declare add create combine)
 
-;;; ContinuationSet
+;;;; PartitionSet
 
+;;; A Partition is a body of code which defines a Continuation
+;;;
 (defrecord Partition [params body])
 
 (defn create []
@@ -18,17 +19,24 @@
 
 (defn add
   [pset address params body]
-  (assoc pset address (Partition. params body)))
+  (assoc pset address (->Partition params body)))
 
 (defn delete
   [pset address]
   (dissoc pset address))
 
-(defn continuation-definition
+(defn continuation-def
   "Returns the s-expr representing the continuation at address"
   [pset address]
   (let [cdef (get pset address)]
     `(fn [& {:keys ~(:params cdef)}] ~@(:body cdef))))
+
+(defn continuation-set-def
+  "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"
+  [pset]
+  (let [cdefs (map (fn [[address _]]
+                     [address (continuation-def pset address)]) pset)]
+    `(hash-map ~@(apply concat cdefs))))
 
 (defn combine
   [pset & psets]

@@ -87,7 +87,7 @@ Since these activities span a long time, it isn't feasible to dedicate an active
 
 {
  :p1 (fn [{:keys [z]}]
-       ;; resume-at pushes a Thunk record onto the stack - it contains the following info:
+       ;; resume-at pushes a StackFrame onto the stack - it contains the following info:
        (resume-at [:p2                  ; partition to resume at
                    'arg1                ; where the result should be stored
                    {z    z              ; a map of bindings

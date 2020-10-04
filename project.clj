@@ -9,8 +9,8 @@
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [org.clojure/clojurescript "1.10.773"]
                  [org.clojure/core.async "1.3.610"]
-                 [net.cgrand/macrovich "0.2.1"]
-                 [figwheel-sidecar "0.5.20"]]
+                 ; [net.cgrand/macrovich "0.2.1"]
+                 [potemkin "0.4.5"]]
   ; :profiles {:repl {:dependencies {}}}
   :figwheel {:open-file-command "bin/idea-open"}
   :clean-targets ^{:protect false} ["target"]
@@ -19,7 +19,8 @@
   :profiles {:dev
     {
       :source-paths ["scripts" "src"]
-      :dependencies [[org.clojure/core.match "1.0.0"]]
+      :dependencies [[org.clojure/tools.trace "0.7.10"]
+                     [org.clojure/core.match "1.0.0"]]
       :plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]]
     } }
   :cljsbuild {
