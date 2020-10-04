@@ -2,7 +2,8 @@
   (:require
     [longterm.runstore :as rs]
     [longterm.flow :as flow]
-    [longterm.address :as address]))
+    [longterm.address :as address])
+  (:import (longterm.address Address)))
 
 (declare start-run! process-event! resume-run!)
 (declare resume-at! next-continuation!)
@@ -94,6 +95,7 @@
      continuation)))
 
 (defn suspend
+  "Used within deflow body to suspend execution until event with id=event-id is received."
   ([event-id] SUSPEND)
   ([event-id expiry] SUSPEND))
 
@@ -102,10 +104,11 @@
   address - names the continuation
   params - list of parameters needed by the continuation
   result-key - the key to which the value of form will be bound in the continuation
+  suspend - parameters provided to a `(suspend ...)` form or `true`
   body - expression which invokes a flow"
   ;; this form is used for suspend
   ([[address params result-key suspend] & body]
-   (assert address)
+   (:pre (instance? Address address))
    (assert (vector? params))
    (let [[event-id expiry] (if (vec suspend) suspend [])]
      `(let [bindings#  (hash-map ~@(flatten (map (fn [p] `('~p p)) params)))

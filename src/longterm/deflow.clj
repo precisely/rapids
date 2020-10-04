@@ -12,7 +12,6 @@
   "Define a long term flow which suspends execution at (suspend ...) expressions.
   Flows are started with runner/start-run! and resumed "
   [name docstring? args & code]
-  ;(trace-form
   (if-not (string? docstring?)
     `(deflow ~name "" ~docstring? ~args ~@code)
     (let [params  (params-from-args args)
@@ -27,7 +26,6 @@
              entry-point#        (fn [~@args] (entry-continuation# ~@c-args))]
          (def ~name ~docstring?
            (Flow. `~name entry-point# cset#))))))
-;)
 
 ;;
 ;; HELPERS
@@ -35,10 +33,9 @@
 (defn- params-to-continuation-args
   "Takes a vector of symbols [p1 p2 p3...] and returns [:p1 p1 :p2 p2 :p3 p3 ...]"
   [params]
-  (let [r (map (fn [p]
-                 [(keyword p), p])
-            params)]
-    (flatten r)))
+  (flatten (map (fn [p]
+                  [(keyword p), p])
+             params)))
 
 (defn- params-from-args
   "given an argument vector, returns a vector of symbols"
