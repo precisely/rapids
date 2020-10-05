@@ -1,31 +1,39 @@
 (ns longterm.in-memory-runstore
   (:require [longterm.runstore :refer :all]
             [longterm.util :refer [new-uuid]]
-            [longterm.runstore :refer :all])
-  (:import (longterm.runstore Run)))
+            [longterm.runstore :refer :all]))
 
 (defrecord InMemoryRunStore [processes]
   IRunStore
-  (rs-create! [rs state]
-    (let [run-id (str (new-uuid))]
-      (swap! rs assoc run-id (Run. run-id [] state nil))))
-  (rs-update! [rs run]
-    (let [run-id (:id run)]
-      (swap! rs
-        (fn [rs]
-          (assoc-in rs run-id run)))))
-  (rs-unsuspend! [rs run-id]
-    (swap! rs (fn [rs]
-                (let [run (rs-get rs run-id)]
-                  (if run
-                    (if (= (:state run) :suspended)
-                      (assoc rs run-id :state :running)
-                      (throw (Exception. (format "Cannot unsuspend Run %s from state %s"
-                                           run-id (:state run)))))
-                    (throw (Exception. (format "Cannot unsuspend Run: %s not found."
-                                         run-id))))))))
-  (rs-get [rs run-id]
-    (get rs run-id)))
+  (rs-create! [this state]
+    (let [run-id    (str (new-uuid))
+          run       (->Run run-id [] state nil)
+          processes (:processes this)]
+      (swap! processes assoc run-id run)
+      run))
+  (rs-update! [this run]
+    (let [run-id (:id run)
+          processes (:processes this)]
+      (swap! processes
+        (fn [p]
+          (println "inside rs-update swap!, p=" p)
+          (assoc p run-id run)))
+      (get @processes run-id)))
+  (rs-unsuspend! [this run-id]
+    (swap! (:processes this)
+      (fn [processes]
+        (let [run (get processes run-id)]
+          (if run
+            (if (= (:state run) :suspended)
+              (assoc-in processes [run-id :state] :running)
+              (throw (Exception. (format "Cannot unsuspend Run %s from state %s"
+                                   run-id (:state run)))))
+            (throw (Exception. (format "Cannot unsuspend Run: %s not found."
+                                 run-id)))))))
+    (rs-get this run-id))
+  (rs-get [this run-id]
+    (get @(:processes this) run-id)))
 
-(defn create-in-memory-runstore []
+(defn create-in-memory-runstore
+  []
   (InMemoryRunStore. (atom {})))

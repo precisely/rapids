@@ -1,7 +1,9 @@
 (ns longterm
   ; macros must be explicitly referred to be available to ClojureScript
   #?@(:clj
-      ((:require longterm.deflow longterm.runner longterm.runstore
+      ((:require longterm.deflow
+                 longterm.runner
+                 [longterm.runstore :as runstore]
                  [longterm.in-memory-runstore :as imrs]
                  [potemkin :refer [import-vars]]))
       :cljs
@@ -10,6 +12,6 @@
 (import-vars
   [longterm.deflow deflow]
   [longterm.runner start-run! resume-run! process-event! suspend]
-  [longterm.runstore set-run-store! create-run! save-run! get-run unsuspend-run!])
+  [longterm.runstore set-runstore! create-run! save-run! get-run unsuspend-run!])
 
-(imrs/create-in-memory-runstore)
+(runstore/set-runstore! (imrs/create-in-memory-runstore))

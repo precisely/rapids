@@ -107,7 +107,7 @@
               pset         (pset/combine pset expr-pset)
               next-address (address/increment cur-address)]
           (if suspend?
-            (let [final-part-expr (if (> (count rest-body) 0) `(resume-at [~next-address ~params ~suspend?] ~pexpr) pexpr)
+            (let [final-part-expr (if (> (count rest-body) 0) `(resume-at [~next-address ~params nil ~suspend?] ~pexpr) pexpr)
                   part-body       (conj part-body final-part-expr)
                   pset            (pset/add pset partition-address params part-body)]
 
@@ -154,12 +154,21 @@
 
 (defn partition-list-expr
   [expr mexpr partition-addr address params]
-  (let [op (first mexpr)]
+  (let [op (first expr)
+        mop (first mexpr)]
     (cond
+      ;; attempt to detect operator in expression
       (special-symbol? op) (partition-special-expr op expr mexpr partition-addr address params)
       (util/suspend-op? op) (partition-suspend-expr expr mexpr)
       (util/refers-to? fn? op) (partition-fncall-expr op expr mexpr partition-addr address params)
       (util/refers-to? flow/flow? op) (partition-flow-expr op expr mexpr partition-addr address params)
+
+      ;; if that doesn't work, try the operator in the macroexpanded form
+      (special-symbol? mop) (partition-special-expr op expr mexpr partition-addr address params)
+      (util/suspend-op? mop) (partition-suspend-expr expr mexpr)
+      (util/refers-to? fn? mop) (partition-fncall-expr op expr mexpr partition-addr address params)
+      (util/refers-to? flow/flow? mop) (partition-flow-expr op expr mexpr partition-addr address params)
+
       :else (throw (Exception. (format "Unrecognized operator %s in %s" op expr))))))
 
 ;;
@@ -385,7 +394,7 @@
             (if suspend?
               (let [cur-part-params (map first current-bindings)
                     new-params      `[~@params ~@cur-part-params]
-                    resume-pbody    `(resume-at [~next-address ~new-params ~key]
+                    resume-pbody    `(resume-at [~next-address ~new-params ~key suspend?]
                                        ~arg-start)
                     pbody           (if (> (count current-bindings) 0)
                                       `(let [~@current-bindings] ~resume-pbody)

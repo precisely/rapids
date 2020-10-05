@@ -1,13 +1,16 @@
 (ns longterm.runstore
-  (:require [longterm.util :refer [new-uuid]]))
+  (:require [longterm.util :refer [in? new-uuid]]))
 
-(def ^:dynamic *run-store* (atom ()))
+(def runstore (atom nil))
 
 (defrecord Run
   [id stack state result])
 
 (def ^:const RunStates '(:suspended :running :complete))
-(defn run-state? [val] (contains? RunStates val))
+(defn run-state? [val] (some #(= % val) RunStates))
+(defn run-state?
+  [run & states]
+  (and (instance? Run run) (in? states (:state run))))
 
 (defprotocol IRunStore
   (rs-create! [rs state])
@@ -23,30 +26,39 @@
       RunState - if current run state is not :suspended"))
 
 ;;
-;; Public API based on *run-store* and stack/*stack* globals
+;; Public API based on runstore and stack/*stack* globals
 ;;
 
-(defn set-run-store! [rs]
-  "Call this to replace the default memory-based runstore."
-  (reset! *run-store* rs))
+(defn set-runstore! [rs]
+  (reset! runstore rs))
 
 (defn create-run!
   ([] (create-run! :suspended))
-  ([state] (rs-create! @*run-store* state)))
+  ([state]
+   {:pre [(in? RunStates state)]
+    :post [(run-state? % state)]}
+   (let [run (rs-create! @runstore state)]
+     (println "create-run! = " run)
+     run)))
 
 (defn save-run!
-  [run] (rs-update! @*run-store* run))
+  [run]
+  {:pre [(instance? Run run)]
+   :post [(instance? Run %)]}
+  (let [new  (rs-update! @runstore run)]
+    (println "new-run=" new)
+    new))
 
 (defn get-run
-  [run-id] (rs-get @*run-store* run-id))
+  [run-id]
+  {:pre [(not (nil? run-id))]
+   :post [(instance? Run %)]}
+  (rs-get @runstore run-id))
 
 (defn unsuspend-run!
   [run-id]
-  (let [result (rs-unsuspend! @*run-store* run-id)]
-    (if (run-state? result)
-      (throw (Exception. (format "Cannot unsuspend run %s in state %s" run-id result))))
-    (if-not result
-      (throw (Exception. (format "Cannot run %s not found" run-id))))
-    result))
+  {:pre [(not (nil? run-id))]
+   :post [(run-state? % :running)]}
+  (rs-unsuspend! @runstore run-id))
 
 

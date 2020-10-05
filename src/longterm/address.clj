@@ -26,7 +26,7 @@
 ;;         (a)          ; point = "1/baz/0/{}/1"
 ;;      :b              ; point = invalid
 ;;         (b)}))       ; point = "1/baz/0/{}/2"
-(declare to-string)
+(declare to-string valid-point?)
 (defrecord Address
   [flow                                 ; Symbol
    point]                               ; Vector
@@ -34,8 +34,9 @@
   (toString [o] (str "<" (to-string o) ">")))
 
 (defn create
-  [symbol & points]
-  (Address. symbol (vec points)))
+  [symbol & point]
+  {:pre [(symbol? symbol) (valid-point? point)]}
+  (Address. symbol (vec point)))
 
 (defn to-string
   [a]
@@ -56,9 +57,10 @@
       (throw (Exception. (format "Expecting Address string definition, but received %s" s))))))
 
 (defn child
-  [address & point-elts]
+  [address & point]
+  {:pre [(instance? Address address) (valid-point? point)]}
   (assert (instance? Address address))
-  (assoc address :point (vec (concat (:point address) point-elts))))
+  (assoc address :point (vec (concat (:point address) point))))
 
 (defn increment
   ([address] (increment address 1))
@@ -76,4 +78,10 @@
 
 (defn resolved-flow
   [address]
+  {:pre [(instance? Address address)]
+   :post [(or (nil? %) (.getName (type %)))]}
   (-> address :flow resolve var-get))
+
+(defn valid-point?
+  [elts]
+  (and (every? #(or (symbol? %) (number? %)) elts)))
