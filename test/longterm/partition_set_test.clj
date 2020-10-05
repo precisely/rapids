@@ -4,7 +4,7 @@
             [longterm.address :as address]))
 
 (deftest ^:unit PartitionSet
-  (let [addr  (address/create 'main)
+  (let [addr  (address/create `main)
         addr1 (address/child addr 1)
         addr2 (address/child addr 2)
         addr3 (address/child addr 3)

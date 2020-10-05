@@ -16,14 +16,19 @@
 
 (defn continue
   ([address bindings]
-   {:pre [(instance? Address address)]}
-   (let [flow (address/resolved-flow address)]
-     (continue flow bindings)))
-  ([flow point bindings]
-   {:pre [(flow? flow)
-          (vector? point)
+   {:pre [(instance? Address address)
           (map? bindings)]}
-   (apply (-> flow :continuations point) bindings)))
+   (let [flow (address/resolved-flow address)
+         continuation (get-in flow [:continuations address])
+         args (apply concat (map (fn [[key val]] [(keyword key) val]) bindings))]
+     (apply continuation args))))
+  ;([flow point bindings]
+  ; {:pre [(flow? flow)
+  ;        (vector? point)
+  ;        (map? bindings)]}
+  ; (let [continuation (-> flow :continuations address)
+  ;       ]
+  ;  (apply continuation continuation-args))))
 
 (defn start
   [flow & args]

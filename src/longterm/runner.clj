@@ -97,23 +97,27 @@
 
   ([event-id]
    (let [[frame & rest-frames] (:stack *run*)
+         address      (:address frame)
+         result-key   (:result-key frame)
+         bindings     (:bindings frame)
          continuation (fn [result]
-                        (let [address              (:address frame)
-                              result-key           (:result-key frame)
-                              bindings             (:bindings frame)
-                              bindings-with-result (if result-key
+                        (let [bindings-with-result (if result-key
                                                      (assoc bindings
                                                        result-key result)
                                                      bindings)]
                           (flow/continue address bindings-with-result)))]
      ;; for now, only allow responding to the event-id at the top of the stack
-     (if-not (and frame (= event-id (:event-id frame)))
-       (throw (Exception. (format "Received event with mismatched event-id %s in run %s. Expecting %s"
-                     event-id (:id *run*) (:event-id frame)))))
+     (if frame
+       (do
+         (if-not (= event-id (:event-id frame))
+           (throw (Exception. (format "Received event with mismatched event-id %s in run %s. Expecting %s"
+                                event-id (:id *run*) (:event-id frame)))))
 
-     (println "popping stack frame")
-     (set! *run* (assoc *run* :stack rest-frames))
-     continuation)))
+         (println "popping stack frame")
+         (set! *run* (assoc *run* :stack rest-frames))
+         continuation)
+       ;; return nil if there is no next-continuation
+       nil))))
 
 (defn suspend
   "Used within deflow body to suspend execution until event with id=event-id is received."

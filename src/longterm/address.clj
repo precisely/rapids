@@ -1,5 +1,6 @@
 (ns longterm.address
   (:require [clojure.string :as string]
+            [clojure.test :refer [is]]
             [clojure.data.json :as json]))
 
 ;; Address identifies a point in a flow.
@@ -35,7 +36,8 @@
 
 (defn create
   [symbol & point]
-  {:pre [(symbol? symbol) (valid-point? point)]}
+  {:pre [(is (qualified-symbol? symbol) "Address must flow must be a fully qualified symbol")
+         (is (valid-point? point) "Expecting varargs containing symbols or numbers")]}
   (Address. symbol (vec point)))
 
 (defn to-string
@@ -80,6 +82,7 @@
   [address]
   {:pre [(instance? Address address)]
    :post [(or (nil? %) (.getName (type %)))]}
+  (println "attempting to resolve " address)
   (-> address :flow resolve var-get))
 
 (defn valid-point?

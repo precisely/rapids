@@ -5,10 +5,10 @@
   "Dereferences a symbol or var and applies pred to the referenced value"
   [pred val]
   (cond
-    (pred val)      true
-    (symbol? val)   (recur pred (ns-resolve *ns* val))
-    (var? val)      (recur pred (var-get val))
-    :else           false))
+    (pred val) true
+    (symbol? val) (recur pred (ns-resolve *ns* val))
+    (var? val) (recur pred (var-get val))
+    :else false))
 
 (defn dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
@@ -178,3 +178,11 @@
   checks for existence of keys, not values."
   [array val]
   (some #(= % val) array))
+
+(defn qualify-symbol
+  ([s] (qualify-symbol s *ns*))
+
+  ([s ns]
+   {:pre  [(symbol? s) (instance? clojure.lang.Namespace ns)]
+    :post [(qualified-symbol? %)]}
+   (symbol (str (.getName ns)) (str (.getName s)))))

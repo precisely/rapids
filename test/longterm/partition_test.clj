@@ -12,7 +12,7 @@
 (defn a [])
 (defn b [])
 
-(def address (address/create 'MAIN))
+(def address (address/create `MAIN))
 
 (deftest ^:unit Helpers
   (testing 'macroexpand-keeping-metadata
@@ -48,7 +48,7 @@
             next-address (address/child address `fl1 1)] ; fl1/0 is arg0, fl1/1 => "(fl1 ~arg0)"
         (is (true? suspend?))
         (is (match [start]
-              [([`runner/resume-at [next-address ['z] _]
+              [([`runner/resume-at [next-address ['z] _ _]
                  ([`flow/start `fl2 ([`a] :seq)] :seq)] :seq)] true
               [_] false))
         (is (map? pset))
@@ -89,7 +89,7 @@
       (testing "initial form first two forms, resuming at the second partition address"
         (is (match [start]
               [[([`a] :seq)
-                ([`longterm.runner/resume-at [part2-address [] true]
+                ([`longterm.runner/resume-at [part2-address [] _ true]
                   ([`flow/start `fl1] :seq)] :seq)]] true
               [_] false))
         (is (true? suspend?)))

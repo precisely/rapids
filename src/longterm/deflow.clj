@@ -1,6 +1,7 @@
 (ns longterm.deflow
   (:require [longterm.address :as address]
             longterm.runner
+            [longterm.util :refer [qualify-symbol]]
             [longterm.partition :as p]
             [longterm.partition-set :as pset])
   (:use clojure.tools.trace)
@@ -15,7 +16,8 @@
   (if-not (string? docstring?)
     `(deflow ~name "" ~docstring? ~args ~@code)
     (let [params  (params-from-args args)
-          address (address/create (str name))
+          qualified (qualify-symbol name)
+          address (address/create qualified)
           [start-body, pset, suspend?] (p/partition-body code address address params)
           pset    (pset/add pset address params start-body)
           c-args  (params-to-continuation-args params)]

@@ -1,6 +1,5 @@
 (ns longterm.util_test
   (:require [clojure.test :refer :all]
-            [longterm.flow :as flow]
             [longterm.util :refer :all]))
 
 (defrecord Foo [a])
