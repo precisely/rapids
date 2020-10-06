@@ -169,7 +169,7 @@
       (util/refers-to? fn? mop) (partition-fncall-expr op expr mexpr partition-addr address params)
       (util/refers-to? flow/flow? mop) (partition-flow-expr op expr mexpr partition-addr address params)
 
-      :else (throw (Exception. (format "Unrecognized operator %s in %s" op expr))))))
+      :else (throw (Exception. (format "Unable to resolve symbol: %s in %s" op expr))))))
 
 ;;
 ;; Special Symbols

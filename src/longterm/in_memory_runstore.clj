@@ -16,7 +16,6 @@
           processes (:processes this)]
       (swap! processes
         (fn [p]
-          (println "inside rs-update swap!, p=" p)
           (assoc p run-id run)))
       (get @processes run-id)))
   (rs-unsuspend! [this run-id]

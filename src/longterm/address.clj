@@ -44,11 +44,11 @@
   [a]
   (str (:flow a) ":" (string/join ";" (:point a))))
 
-(defmethod print-method Address
-  [o w]
-  (print-simple
-    (str "<" (to-string o) ">")
-    w))
+;(defmethod print-method Address
+;  [o w]
+;  (print-simple
+;    (str "<" (to-string o) ">")
+;    w))
 
 (defn from-string
   [s]
@@ -82,7 +82,6 @@
   [address]
   {:pre [(instance? Address address)]
    :post [(or (nil? %) (.getName (type %)))]}
-  (println "attempting to resolve " address)
   (-> address :flow resolve var-get))
 
 (defn valid-point?

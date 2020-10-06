@@ -27,7 +27,7 @@
              entry-continuation# (get cset# ~address)
              entry-point#        (fn [~@args] (entry-continuation# ~@c-args))]
          (def ~name ~docstring?
-           (Flow. `~name entry-point# cset#))))))
+           (Flow. ~qualified, entry-point#, cset#))))))
 
 ;;
 ;; HELPERS

@@ -28,19 +28,16 @@
       (let [result# (do ~@body)
             state#  (if (suspend-signal? result#) :suspended :complete)]
         (set! *run* (assoc *run* :state state# :result result#))
-        (println "with-run! saving run" *run*)
         (rs/save-run! *run*)))))
 
 (defn start-run!
-  "Begins a new run"
-  [flow-form]
-  {:pre  [(list? flow-form)
-          (refers-to? flow/flow? (first flow-form))]
-   :post [(run-state? % :suspended :complete)]}
-  (let [[flow & args] flow-form]
-    (with-run! [(rs/create-run! :running)]
-      (resume-run! (fn [_]
-                     (apply flow/start flow args))))))
+  "Starts a run with the flow and given arguments. Returns the Run in :suspended state."
+  [flow & args]
+  {:pre  [(refers-to? flow/flow? flow)]
+   :post [(run-state? % :suspended)]}
+  (with-run! [(rs/create-run! :running)]
+    (resume-run! (fn [_]
+                   (apply flow/start flow args)))))
 
 (defn resume-run!
   "Evaluates a par-bound continuation, popping the stack and passing the result to the next
@@ -113,7 +110,6 @@
            (throw (Exception. (format "Received event with mismatched event-id %s in run %s. Expecting %s"
                                 event-id (:id *run*) (:event-id frame)))))
 
-         (println "popping stack frame")
          (set! *run* (assoc *run* :stack rest-frames))
          continuation)
        ;; return nil if there is no next-continuation
@@ -140,10 +136,9 @@
           (vector? params)
           (or (nil? result-key) (symbol? result-key))
           (or (= true suspend) (vector? suspend))])
-   (let [[event-id expiry] (if (vec suspend) suspend [])]
-     `(let [bindings#  (hash-map ~@(flatten (map (fn [p] `('~p p)) params)))
-            new-frame# (StackFrame. ~address bindings# '~result-key ~event-id ~expiry)]
-        (println "inside resume-at, before stack push: \n\t*run*=" *run* "\n\tnew-frame=" new-frame#)
+   (let [[event-id expiry] (if (vector? suspend) suspend [])
+         hashmap-args (apply concat (map #(vec `('~% ~%)) params))]
+     `(let [bindings# (hash-map ~@hashmap-args)
+            new-frame# (StackFrame. ~address bindings# ~result-key ~event-id ~expiry)]
         (set! *run* (assoc *run* :stack (cons new-frame# (:stack *run*))))
-        (println "inside resume-at, after stack push: *run*=" *run*)
         ~@body))))

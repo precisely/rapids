@@ -38,7 +38,6 @@
    {:pre [(in? RunStates state)]
     :post [(run-state? % state)]}
    (let [run (rs-create! @runstore state)]
-     (println "create-run! = " run)
      run)))
 
 (defn save-run!
@@ -46,7 +45,6 @@
   {:pre [(instance? Run run)]
    :post [(instance? Run %)]}
   (let [new  (rs-update! @runstore run)]
-    (println "new-run=" new)
     new))
 
 (defn get-run
