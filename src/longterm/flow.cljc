@@ -5,12 +5,14 @@
            (longterm.address Address)))
 
 (defrecord Flow
-  [; Global symbol defined as this flow
+  [;; Global symbol defined as this flow
    name
-   ; Function with arbitrary signature
+   ;; Function with arbitrary signature
    entry-point
-   ; A map of address-point strings to functions of the form (fn [& {:keys [...]}])
-   continuations])
+   ;; A map of address-point strings to functions of the form (fn [& {:keys [...]}])
+   continuations
+   ;; For debugging purposes:
+   partitions])
 
 (defn flow? [o] (instance? Flow o))
 

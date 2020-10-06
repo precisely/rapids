@@ -4,7 +4,7 @@
 (def runstore (atom nil))
 
 (defrecord Run
-  [id stack state result])
+  [id stack state result ])
 
 (def ^:const RunStates '(:suspended :running :complete))
 (defn run-state? [val] (some #(= % val) RunStates))
