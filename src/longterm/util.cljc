@@ -171,7 +171,7 @@
           :cljs (random-uuid))))
 
 (defn suspend-op? [op]
-  (some #(= op %) '[suspend longterm/suspend longterm.runner/suspend]))
+  (some #(= op %) '[suspend! longterm/suspend! longterm.runner/suspend!]))
 
 (defn in?
   "True if array contains val. Have to use this because Clojure contains?

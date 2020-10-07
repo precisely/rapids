@@ -1,7 +1,6 @@
 (ns longterm.address
   (:require [clojure.string :as string]
-            [clojure.test :refer [is]]
-            [clojure.data.json :as json]))
+            [clojure.test :refer [is]]))
 
 ;; Address identifies a point in a flow.
 ;; While addresses can be generated for any point in the tree,
@@ -29,8 +28,8 @@
 ;;         (b)}))       ; point = "1/baz/0/{}/2"
 (declare to-string valid-point?)
 (defrecord Address
-  [flow                                 ; Symbol
-   point]                               ; Vector
+  [flow                                                     ; Symbol
+   point]                                                   ; Vector
   Object
   (toString [o] (str "<" (to-string o) ">")))
 
@@ -60,18 +59,21 @@
 
 (defn child
   [address & point]
-  {:pre [(instance? Address address) (valid-point? point)]}
-  (assert (instance? Address address))
+  {:pre [(is (instance? Address address) "First arg to address/child should be an address")
+         (is (valid-point? point) "Varargs of address/child should be symbols or numbers")]}
   (assoc address :point (vec (concat (:point address) point))))
 
 (defn increment
   ([address] (increment address 1))
 
   ([address step]
+   {:pre [(instance? Address address)
+          (number? step)
+          (-> address :point last number?)]}
    (let [point (:point address)
-         last  (last point)]
+         last (last point)]
      (assoc address :point (conj (pop point)
-                             (+ step last))))))
+                                 (+ step last))))))
 
 (defn resolve-continuation
   [address]
@@ -80,7 +82,7 @@
 
 (defn resolved-flow
   [address]
-  {:pre [(instance? Address address)]
+  {:pre  [(instance? Address address)]
    :post [(or (nil? %) (.getName (type %)))]}
   (-> address :flow resolve var-get))
 

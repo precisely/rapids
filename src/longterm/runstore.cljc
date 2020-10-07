@@ -4,13 +4,15 @@
 (def runstore (atom nil))
 
 (defrecord Run
-  [id stack state result ])
+  [id stack state result])
 
 (def ^:const RunStates '(:suspended :running :complete))
 (defn run-state? [val] (some #(= % val) RunStates))
 (defn run-state?
   [run & states]
   (and (instance? Run run) (in? states (:state run))))
+
+(defn empty-stack? [run] (= 0 (-> run :stack count)))
 
 (defprotocol IRunStore
   (rs-create! [rs state])

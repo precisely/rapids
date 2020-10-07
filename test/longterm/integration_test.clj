@@ -1,10 +1,11 @@
 (ns longterm.integration_test
   (:require [clojure.test :refer :all]
             [longterm :refer :all]
-            [longterm.foo :refer :all]))
+            [longterm.foo :refer :all])
+  (:import (longterm.runstore Run)))
 
 (def ^:dynamic *log* (atom []))
-(defn clear!
+(defn clear-log!
   []
   (reset! *log* []))
 
@@ -19,22 +20,42 @@
 (deflow suspending-flow
   []
   (log! :before-suspend)
-  (suspend :test-event)
+  (suspend! :test-event)
   (log! :after-suspend))
 
-(deftest ^:unit SystemTest
+(deftest ^:unit BasicFlowTests
   (testing "Start and suspend"
-    (clear!)
+    (clear-log!)
     (let [run (start-run! suspending-flow)]
+      (is (instance? Run run))
       (is-log [:before-suspend])
 
-      (testing "handling event"
+      (testing "processing event"
         (let [pe (process-event! {:event-id :test-event :run-id (:id run)})]
-          (println "process-event" pe)
+          (is (instance? Run pe))
           (is-log [:before-suspend :after-suspend]))))))
 
+(deflow conditional-suspend [test]
+  (if test
+    (suspend! :then)
+    :else)
+  (log! :done)
+  :final-value)
 
-(deftest ^:unit Random
-  (testing "foo"
-    (let [run (start-run! hi "there")]
-      (process-event! {:event-id :abc :run-id (:id run)}))))
+(deftest ^:unit IfExpressions
+  (testing "conditional branch suspends"
+    (clear-log!)
+    (let [run (start-run! conditional-suspend true)]
+      (testing "before event")
+      (is (instance? Run run))
+      (is-log [])
+      (testing "after event"
+        (let [run (process-event! {:event-id :then :run-id (:id run)})]
+          (is (= (:result run) :final-value))
+          (is-log [:done])))))
+
+  (testing "conditional branch continues"
+    (clear-log!)
+    (let [run (start-run! conditional-suspend false)]
+      (is (= (:result run) :final-value))
+      (is-log [:done]))))

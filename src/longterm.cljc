@@ -11,7 +11,7 @@
 
 (import-vars
   [longterm.deflow deflow]
-  [longterm.runner start-run! resume-run! process-event! suspend]
+  [longterm.runner start-run! resume-run! process-event! suspend!]
   [longterm.runstore set-runstore! create-run! save-run! get-run unsuspend-run!])
 
 (runstore/set-runstore! (imrs/create-in-memory-runstore))
