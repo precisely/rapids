@@ -33,6 +33,8 @@
   (rs-get [this run-id]
     (get @(:processes this) run-id)))
 
+(defn in-memory-runstore? [x] (instance? InMemoryRunStore x))
+
 (defn create-in-memory-runstore
   []
   (InMemoryRunStore. (atom {})))

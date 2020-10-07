@@ -1,18 +1,18 @@
 (ns longterm.runstore
   (:require [longterm.util :refer [in? new-uuid]]))
 
+(declare run-in-state? set-runstore! create-run! save-run! get-run unsuspend-run!)
+
 (def runstore (atom nil))
 
 (defrecord Run
   [id stack state result])
 
 (def ^:const RunStates '(:suspended :running :complete))
-(defn run-state? [val] (some #(= % val) RunStates))
-(defn run-state?
+(defn run-in-state?
   [run & states]
-  (and (instance? Run run) (in? states (:state run))))
-
-(defn empty-stack? [run] (= 0 (-> run :stack count)))
+  (let [result  (and (instance? Run run) (in? states (:state run)))]
+    result))
 
 (defprotocol IRunStore
   (rs-create! [rs state])
@@ -38,7 +38,7 @@
   ([] (create-run! :suspended))
   ([state]
    {:pre [(in? RunStates state)]
-    :post [(run-state? % state)]}
+    :post [(run-in-state? % state)]}
    (let [run (rs-create! @runstore state)]
      run)))
 
@@ -58,7 +58,7 @@
 (defn unsuspend-run!
   [run-id]
   {:pre [(not (nil? run-id))]
-   :post [(run-state? % :running)]}
+   :post [(run-in-state? % :running)]}
   (rs-unsuspend! @runstore run-id))
 
 

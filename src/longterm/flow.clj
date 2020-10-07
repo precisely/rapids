@@ -1,8 +1,7 @@
 (ns longterm.flow
   (:require [longterm.address :as address]
             [longterm.util :refer [refers-to?]])
-  (:import (clojure.lang Symbol IFn IPersistentMap)
-           (longterm.address Address)))
+  (:import (longterm.address Address)))
 
 (defrecord Flow
   [;; Global symbol defined as this flow

@@ -1,6 +1,6 @@
 (ns longterm.runner
   (:require
-    [longterm.runstore :as rs :refer [run-state?]]
+    [longterm.runstore :as rs]
     [longterm.flow :as flow]
     [longterm.util :refer :all])
   (:import (longterm.address Address)
@@ -37,7 +37,7 @@
   Returns the Run in :suspended or :complete state."
   [flow & args]
   {:pre  [(refers-to? flow/flow? flow)]
-   :post [(run-state? % :suspended :complete)]}
+   :post [(rs/run-in-state? % :suspended :complete)]}
   (with-run! [(rs/create-run! :running)]
              (resume-run! (fn [_]
                             (apply flow/start flow args)))))
@@ -51,7 +51,7 @@
   ([continuation] (resume-run! continuation nil))
 
   ([continuation result]
-   {:pre [(run-state? *run* :running)
+   {:pre [(rs/run-in-state? *run* :running)
           (fn? continuation)]}
    (let [next-result (continuation result)]
      (if (suspend-signal? next-result)
@@ -74,7 +74,7 @@
   [event]
   {:pre  [(-> event :run-id nil? not)
           (-> event :event-id nil? not)]
-   :post [(run-state? % :suspended :complete)]}
+   :post [(rs/run-in-state? % :suspended :complete)]}
   (let [run-id (:run-id event)
         event-id (:event-id event)
         result (:data event)]
