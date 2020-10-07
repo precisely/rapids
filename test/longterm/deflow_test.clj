@@ -3,8 +3,8 @@
             [longterm :refer :all]
             [longterm.flow :refer [flow?]]))
 
-(deflow suspending-flow [] (suspend :a))
-
+(deflow suspending-flow [] (suspend! :a))
+(deflow flow-calling-flow [] (suspending-flow))
 (deftest deflow-macro
   (testing "it should create a Flow object"
 
@@ -12,7 +12,6 @@
       (is (flow? suspending-flow)))
 
     (testing "when a flow expression is in the body"
-      (deflow flow-calling-flow [] (suspending-flow))
       (is (flow? flow-calling-flow))))
 
   (testing "should raise an exception if it doesn't contain a suspending operation"

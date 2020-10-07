@@ -13,7 +13,8 @@
    ;; For debugging purposes:
    partitions])
 
-(defn flow? [o] (instance? Flow o))
+(defn flow? [o]
+  (instance? Flow o))
 
 (defn continue
   ([address bindings]
