@@ -15,4 +15,4 @@
       (is (flow? flow-calling-flow))))
 
   (testing "should raise an exception if it doesn't contain a suspending operation"
-    (is (thrown? Exception (macroexpand '(deflow NoSuspend [a b] (* a b)))))))
+    (is (thrown? Exception (macroexpand `(deflow NoSuspend [a b] (* a b)))))))

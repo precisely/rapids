@@ -18,7 +18,7 @@
     (let [params  (params-from-args args)
           qualified (qualify-symbol name)
           address (address/create qualified)
-          [start-body, pset, suspend?] (p/partition-body code address address params)
+          [start-body, pset, suspend?] (p/partition-body (vec code) address address params)
           pset    (pset/add pset address params start-body)
           c-args  (params-to-continuation-args params)]
       (if-not suspend?

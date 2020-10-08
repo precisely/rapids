@@ -8,9 +8,9 @@
         addr1 (address/child addr 1)
         addr2 (address/child addr 2)
         addr3 (address/child addr 3)
-        pset1 (add (create) addr1 [] '(1))
-        pset2 (add (create) addr2 [] '(2))
-        pset3 (add (create) addr3 [] '(3))]
+        pset1 (add (create) addr1 [] '[1])
+        pset2 (add (create) addr2 [] '[2])
+        pset3 (add (create) addr3 [] '[3])]
 
     (testing "combine"
       (testing "takes nil as argument"

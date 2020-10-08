@@ -119,7 +119,6 @@
                pset (if (> (count part-body) 0)
                       (pset/add clean-pset partition-address params part-body)
                       clean-pset)]
-          (println "deflow pset:\n" pset)
           (if any-suspend?
             [start-body, pset, any-suspend?]
             [body, nil, false]))))))
@@ -388,9 +387,7 @@
   Args:
   Returns: [start, pset, suspend?]"
   [keys, args, partition-address, address, params, body]
-  {:pre [(seq? keys)
-         (seq? args)
-         (address/address? partition-address)
+  {:pre [(address/address? partition-address)
          (address/address? address)
          (vector? params)
          (vector? body)]}
@@ -416,7 +413,7 @@
                               (if suspend?
                                 (let [cur-part-params (map first current-bindings)
                                       new-params `[~@params ~@cur-part-params]
-                                      resume-pbody [`(resume-at [~next-address ~new-params ~key suspend?]
+                                      resume-pbody [`(resume-at [~next-address ~new-params ~key ~suspend?]
                                                                ~arg-start)]
                                       pbody (if (> (count current-bindings) 0)
                                               [`(let [~@current-bindings] ~@resume-pbody)]

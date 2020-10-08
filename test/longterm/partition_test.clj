@@ -12,7 +12,8 @@
 (defn a [])
 (defn b [])
 
-(def address (address/create (symbol *ns* "MAIN")))
+(def partition-address (address/create `PARTITION-ADDRESS))
+(def address (address/create `MAIN))
 
 (deftest ^:unit Helpers
   (testing 'macroexpand-keeping-metadata
@@ -23,33 +24,33 @@
 (deftest ^:unit PartitionLiterals
   (testing "literals"
     (testing "number"
-      (is (= (partition-expr 123 address address [])
+      (is (= (partition-expr 123 partition-address address [])
              [123, nil, nil])))
     (testing "string"
-      (is (= (partition-expr "foo" address address [])
+      (is (= (partition-expr "foo" partition-address address [])
              ["foo", nil, nil])))))
 
 (deftest ^:unit PartitionNonSuspendingFunctionalExpressions
   (testing "simple expression"
-    (is (= (partition-expr '(+ 3 4) address address [])
+    (is (= (partition-expr '(+ 3 4) partition-address address [])
            ['(+ 3 4), nil, false])))
   (testing "nested expression"
-    (is (= (partition-expr '(+ (* 3 4) 6) address address [])
+    (is (= (partition-expr '(+ (* 3 4) 6) partition-address address [])
            ['(+ (* 3 4) 6), nil, false]))))
 
 (deftest ^:unit PartitionSuspendingFunctionalExpressions
   (testing "suspending expressions"
     (testing "flow with non-suspending args"
-      (is (= (partition-expr `(fl1 3 4) nil address [])
+      (is (= (partition-expr `(fl1 3 4) partition-address address [])
              [`(longterm.flow/start fl1 3 4), nil, true])))
     (testing "flow with suspending args"
       (let [[start, pset, suspend?]
-            (partition-expr `(fl1 (fl2 (a))) address address '[z])
+            (partition-expr `(fl1 (fl2 (a))) partition-address address '[z])
             next-address (address/child address `fl1 1)]    ; fl1/0 is arg0, fl1/1 => "(fl1 ~arg0)"
         (is (true? suspend?))
         (is (match [start]
-                   [([`runloop/resume-at [next-address ['z] _ _]
-                      ([`flow/start `fl2 ([`a] :seq)] :seq)] :seq)] true
+                   [[([`runloop/resume-at [next-address ['z] _ true]
+                       ([`flow/start `fl2 ([`a] :seq)] :seq)] :seq)]] true
                    [_] false))
         (is (map? pset))
         (is (= (count pset) 1))
@@ -62,12 +63,12 @@
 
 (deftest ^:unit PartitionBody
   (testing "body without forms"
-    (is (match [(partition-body [] address address [])]
+    (is (match [(partition-body [] partition-address address [])]
                [[[], nil false]] true
                [_] false)))
 
   (testing "body with non-suspending forms"
-    (let [[start, pset, suspend?] (partition-body `[(a) (b)] nil address [])]
+    (let [[start, pset, suspend?] (partition-body `[(a) (b)] partition-address address [])]
       (is (match [start]
                  [[([`a] :seq), ([`b] :seq)]] true
                  [_] false))
@@ -75,7 +76,7 @@
       (is (false? suspend?))))
 
   (testing "body with a single suspending form"
-    (let [[start, pset, suspend?] (partition-body `[(fl1)] :partition-address address [])]
+    (let [[start, pset, suspend?] (partition-body `[(fl1)] partition-address address [])]
       (is (match [start]
                  [[([`flow/start `fl1] :seq)]] true
                  [_] false))
@@ -83,7 +84,7 @@
       (is (true? suspend?))))
 
   (testing "body split by a suspending form"
-    (let [[start, pset, suspend?] (partition-body `[(a) (fl1) (b)] nil address [])
+    (let [[start, pset, suspend?] (partition-body `[(a) (fl1) (b)] partition-address address [])
           part2-address (address/child address 2)]
 
       (testing "initial form first two forms, resuming at the second partition address"
