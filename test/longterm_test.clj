@@ -22,22 +22,26 @@
   `(is (= ~expected @*log*)))
 
 (deflow suspending-flow
-  []
+  [val]
   (log! :before-suspend)
   (suspend! :test-event)
-  (log! :after-suspend))
+  (log! :after-suspend)
+  val)
 
 (deftest ^:unit BasicFlowTests
   (testing "Start and suspend"
     (clear-log!)
-    (let [run (start-run! suspending-flow)]
+    (let [run (start-run! suspending-flow :foo)]
       (is (run-in-state? run :suspended))
       (is-log [:before-suspend])
 
       (testing "processing event"
         (let [pe (process-event! {:event-id :test-event :run-id (:id run)})]
           (is (instance? Run pe))
-          (is-log [:before-suspend :after-suspend]))))))
+          (is-log [:before-suspend :after-suspend])
+
+          (testing "it returns the correct value"
+            (is (= (:result pe) :foo))))))))
 
 (deflow conditional-suspend [test]
   (if test
@@ -95,4 +99,28 @@
         (is (run-in-state? run-after-process-event :complete))
         (is-log [:done])))))
 
+(deflow conditional-with-suspending-test [val]
+  (if (suspending-flow val)
+    :then-val
+    :else-val))
+
+(deftest ^:unit SuspendingTest
+  (testing "if expression where the test suspends, "
+    (testing "when test is truthy"
+      (let [run (start-run! conditional-with-suspending-test true)]
+        (testing "the expression should suspend, and"
+          (is (run-in-state? run :suspended)))
+
+        (let [run (process-event! {:event-id :test-event :run-id (:id run)})]
+          (testing "it should return the then expression value"
+          (is (= (:result run) :then-val))))))
+
+    (testing "when test is falsey"
+      (let [run (start-run! conditional-with-suspending-test false)]
+        (testing "the expression should suspend, and"
+          (is (run-in-state? run :suspended)))
+
+        (let [run (process-event! {:event-id :test-event :run-id (:id run)})]
+          (testing "it should return the else expression value"
+            (is (= (:result run) :else-val))))))))
 

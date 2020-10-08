@@ -1,6 +1,6 @@
 (ns longterm.deflow
   (:require [longterm.address :as address]
-            longterm.runner
+            longterm.runloop
             [longterm.util :refer [qualify-symbol]]
             [longterm.partition :as p]
             [longterm.partition-set :as pset])

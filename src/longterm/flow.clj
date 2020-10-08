@@ -11,7 +11,9 @@
    ;; A map of address-point strings to functions of the form (fn [& {:keys [...]}])
    continuations
    ;; For debugging purposes:
-   partitions])
+   partitions]
+  Object
+  (toString [_] (format "#<Flow %s (%d partitions)>" name (count continuations))))
 
 (defn flow? [o]
   (instance? Flow o))

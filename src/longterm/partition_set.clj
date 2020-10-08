@@ -1,4 +1,5 @@
-(ns longterm.partition-set)
+(ns longterm.partition-set
+  (:require [longterm.address :refer [address?]]))
 
 ;;;; ContinuationSet
 
@@ -14,11 +15,17 @@
 ;;;
 (defrecord Partition [params body])
 
+(defn partition-set? [o] (map? o))
+
 (defn create []
   {})
 
 (defn add
   [pset address params body]
+  {:pre [(partition-set? pset)
+         (address? address)
+         (vector? params)
+         (vector? body)]}
   (assoc pset address (->Partition params body)))
 
 (defn delete

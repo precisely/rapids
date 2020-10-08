@@ -167,11 +167,10 @@
                (recur (drop 2 cases) (conj ret condition clause) nil)))))))
 
 (defn new-uuid []
-  (str #?(:clj  (UUID/randomUUID)
-          :cljs (random-uuid))))
+  (str (UUID/randomUUID)))
 
 (defn suspend-op? [op]
-  (some #(= op %) '[suspend! longterm/suspend! longterm.runner/suspend!]))
+  (some #(= op %) '[suspend! longterm/suspend! longterm.runloop/suspend!]))
 
 (defn in?
   "True if array contains val. Have to use this because Clojure contains?

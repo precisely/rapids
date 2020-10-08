@@ -33,6 +33,7 @@
   Object
   (toString [o] (str "<" (to-string o) ">")))
 
+(defn address? [o] (instance? Address o))
 (defn create
   [symbol & point]
   {:pre [(is (qualified-symbol? symbol) "Address must flow must be a fully qualified symbol")

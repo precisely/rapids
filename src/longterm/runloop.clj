@@ -1,4 +1,4 @@
-(ns longterm.runner
+(ns longterm.runloop
   (:require
     [longterm.runstore :as rs]
     [longterm.flow :as flow]
@@ -123,15 +123,14 @@
   body - expression which invokes a flow
 
   Returns:
-  value of body
-  "
+  value of body"
   ([[address params result-key] & body]
    (:pre [(instance? Address address)
           (vector? params)
           (or (nil? result-key) (symbol? result-key))])
    (let [hashmap-args (apply concat (map #(vec `('~% ~%)) params))]
      `(let [bindings# (hash-map ~@hashmap-args)
-            new-frame# (StackFrame. ~address bindings# ~result-key)]
+            new-frame# (StackFrame. ~address bindings# '~result-key)]
         (set! *run* (assoc *run* :stack (cons new-frame# (:stack *run*))))
         ~@body))))
 
