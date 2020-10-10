@@ -1,5 +1,6 @@
 (ns longterm.util
-  (:import (java.util UUID)))
+  (:import (java.util UUID)
+           (clojure.lang Namespace)))
 
 (defn refers-to?
   "Dereferences a symbol or var and applies pred to the referenced value"
@@ -182,6 +183,6 @@
   ([s] (qualify-symbol s *ns*))
 
   ([s ns]
-   {:pre  [(symbol? s) (instance? clojure.lang.Namespace ns)]
+   {:pre  [(symbol? s) (instance? Namespace ns)]
     :post [(qualified-symbol? %)]}
    (symbol (str (.getName ns)) (str (.getName s)))))

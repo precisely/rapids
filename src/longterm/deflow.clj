@@ -20,14 +20,15 @@
           address (address/create qualified)
           [start-body, pset, suspend?] (p/partition-body (vec code) address address params)
           pset    (pset/add pset address params start-body)
-          c-args  (params-to-continuation-args params)]
+          c-args  (params-to-continuation-args params)
+          entry-point-name (symbol (str name "__entry-point"))]
       (if-not suspend?
         (throw (Exception. (format "Flow %s doesn't suspend. Consider using defn instead." name))))
       `(let [cset#               ~(pset/continuation-set-def pset) ; compiles the fndefs in the pset
              entry-continuation# (get cset# ~address)
-             entry-point#        (fn [~@args] (entry-continuation# ~@c-args))]
+             entry-point#        (fn ~entry-point-name [~@args] (entry-continuation# ~@c-args))]
          (def ~name ~docstring?
-           (Flow. ~qualified, entry-point#, cset#, ~pset))))))
+           (Flow. '~qualified, entry-point#, cset#, ~pset))))))
 
 ;;
 ;; HELPERS

@@ -7,8 +7,12 @@
            (longterm.runstore Run)))
 
 (declare start-run! process-event! resume-run!)
-(declare resume-at! next-continuation!)
+(declare resume-at next-continuation!)
 (declare suspend-signal?)
+
+(declare process-run-result! with-run!)
+
+(defrecord StackFrame [address bindings result-key])
 
 (def ^:dynamic *run*)
 
@@ -24,13 +28,8 @@
     run - Run instance in :suspended or :complete state"
   ([[run-form] & body]
    `(binding [*run* ~run-form]
-      (let [value# (do ~@body)
-            current-stack# (:stack *run*)
-            [state#, stack#, result#] (if (suspend-signal? value#)
-                                        [:suspended, (cons value#, current-stack#), nil]
-                                        [:complete, current-stack#, value#])]
-        (set! *run* (assoc *run* :state state# :result result# :stack stack#))
-        (rs/save-run! *run*)))))
+      (let [value# (do ~@body)]
+        (process-run-result! value#)))))
 
 (defn start-run!
   "Starts a run with the flow and given arguments.
@@ -52,14 +51,13 @@
 
   ([continuation result]
    {:pre [(rs/run-in-state? *run* :running)
-          (fn? continuation)]}
-   (let [next-result (continuation result)]
-     (if (suspend-signal? next-result)
-       next-result
-       (let [next-continuation (next-continuation!)]
-         (if next-continuation                              ;
-           (recur next-continuation next-result)
-           next-result))))))                                ; final result returned
+          (or (fn? continuation) (nil? continuation))]}
+   (if continuation
+     (let [next-result (continuation result)]
+       (if (suspend-signal? next-result)
+         next-result
+         (recur (next-continuation!) next-result)))
+     result))) ; return the final result (to be stored in run.result)
 
 (defn process-event!
   "Processes an external event, finds the associated run and calls the continuation at the
@@ -80,8 +78,6 @@
         result (:data event)]
     (with-run! [(rs/unsuspend-run! run-id)]
                (resume-run! (next-continuation! event-id) result))))
-
-(defrecord StackFrame [address bindings result-key])
 
 (defn- continuation-from-frame [frame]
   {:pre [(instance? StackFrame frame)]}
@@ -151,3 +147,28 @@
      (throw (Exception. (format "Invalid run context while evaluating (suspend! %s %s)"
                                 event-id expiry))))
    (Suspend. event-id expiry)))
+
+;;
+;; Helpers
+;;
+
+(defn- run-is-valid?
+  [run]
+  (let [stack (:stack run)
+        state (:state run)
+        top (first stack)
+        result (and (every? #(or (instance? StackFrame %) (suspend-signal? %)) stack)
+                    (case state
+                      :suspended (suspend-signal? top)
+                      :running  (instance? StackFrame top)
+                      :complete (empty? stack)))]
+    result))
+
+(defn- process-run-result! [value]
+  {:post [(run-is-valid? *run*) "Failure in `process-run-result!`"]}
+  (let [current-stack (:stack *run*)
+        [state, stack, result] (if (suspend-signal? value)
+                                 [:suspended, (cons value, current-stack), nil]
+                                 [:complete, current-stack, value])]
+    (set! *run* (assoc *run* :state state :result result :stack stack))
+    (rs/save-run! *run*)))

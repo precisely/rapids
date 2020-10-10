@@ -23,9 +23,8 @@
 (defn add
   [pset address params body]
   {:pre [(address? address)
-         (vector? params)
          (vector? body)]}
-  (assoc pset address (->Partition params body)))
+  (assoc pset address (->Partition (vec params) body)))
 
 (defn delete
   [pset address]

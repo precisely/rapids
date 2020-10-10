@@ -1,4 +1,4 @@
-(ns longterm.deflow_test
+(ns ^:language longterm.deflow_test
   (:require [clojure.test :refer :all]
             [longterm :refer :all]
             [longterm.flow :refer [flow?]]))
@@ -16,3 +16,4 @@
 
   (testing "should raise an exception if it doesn't contain a suspending operation"
     (is (thrown? Exception (macroexpand `(deflow NoSuspend [a b] (* a b)))))))
+

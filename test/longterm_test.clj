@@ -21,12 +21,23 @@
   [expected]
   `(is (= ~expected @*log*)))
 
+(defn simulate-event!
+  ([run event-id]
+   (simulate-event! run event-id nil))
+  ([run event-id value]
+   {:pre [(instance? Run run)]}
+   (process-event! {:event-id event-id :run-id (:id run) :data value})))
+
 (deflow suspending-flow
   [val]
   (log! :before-suspend)
   (suspend! :test-event)
   (log! :after-suspend)
   val)
+
+(deflow event-value-flow
+  "Just returns an event value"
+  [event-id] (suspend! event-id))
 
 (deftest ^:unit BasicFlowTests
   (testing "Start and suspend"
@@ -35,13 +46,17 @@
       (is (run-in-state? run :suspended))
       (is-log [:before-suspend])
 
-      (testing "processing event"
-        (let [pe (process-event! {:event-id :test-event :run-id (:id run)})]
-          (is (instance? Run pe))
+      (testing "send event"
+        (let [ev-result (simulate-event! run :test-event)]
+          (is (instance? Run ev-result))
           (is-log [:before-suspend :after-suspend])
 
           (testing "it returns the correct value"
-            (is (= (:result pe) :foo))))))))
+            (is (= (:result ev-result) :foo)))))))
+
+  (testing "suspend! event provides a value"
+    (let [run (simulate-event! (start-run! event-value-flow :foo) :foo "foo-result")]
+      (is (= (:result run) "foo-result")))))
 
 (deflow conditional-suspend [test]
   (if test
@@ -58,7 +73,7 @@
       (is (instance? Run run))
       (is-log [])
       (testing "after event"
-        (let [run (process-event! {:event-id :then :run-id (:id run)})]
+        (let [run (simulate-event! run :then)]
           (is (= (:result run) :final-value))
           (is-log [:done])))))
 
@@ -85,18 +100,17 @@
           run-id (:id run)]
 
       (is (run-in-state? run :suspended))
-      (let [run-after-process-event (process-event! {:event-id :then-else :run-id run-id})]
-        (is (run-in-state? run-after-process-event :complete))
+      (let [run-after-event (simulate-event! run :then-else)]
+        (is (run-in-state? run-after-event :complete))
         (is-log [:done]))))
 
   (testing "suspend! correctly suspends inside nested else"
     (clear-log!)
-    (let [run (start-run! nested-conditional-suspend false false false)
-          run-id (:id run)]
+    (let [run (start-run! nested-conditional-suspend false false false)]
 
       (is (run-in-state? run :suspended))
-      (let [run-after-process-event (process-event! {:event-id :then-else :run-id run-id})]
-        (is (run-in-state? run-after-process-event :complete))
+      (let [run-after-event (simulate-event! run :then-else)]
+        (is (run-in-state? run-after-event :complete))
         (is-log [:done])))))
 
 (deflow conditional-with-suspending-test [val]
@@ -111,16 +125,35 @@
         (testing "the expression should suspend, and"
           (is (run-in-state? run :suspended)))
 
-        (let [run (process-event! {:event-id :test-event :run-id (:id run)})]
+        (let [run (simulate-event! run :test-event)]
           (testing "it should return the then expression value"
-          (is (= (:result run) :then-val))))))
+            (is (= (:result run) :then-val))))))
 
     (testing "when test is falsey"
       (let [run (start-run! conditional-with-suspending-test false)]
         (testing "the expression should suspend, and"
           (is (run-in-state? run :suspended)))
 
-        (let [run (process-event! {:event-id :test-event :run-id (:id run)})]
+        (let [run (simulate-event! run :test-event)]
           (testing "it should return the else expression value"
             (is (= (:result run) :else-val))))))))
 
+(deflow non-suspending-let-flow [a]
+  (let [b (+ 1 a)
+        c (* b a)]
+    (if false (suspend! :foo))                              ; satisfy deflow suspend requirement but do nothing
+    [a b c]))
+
+(deflow suspending-let-initial-binding-flow [arg]
+  (let [suspend-value (suspend! :initial-binding)
+        arg-value (* arg arg)]
+    [suspend-value arg-value]))
+
+(deftest ^:unit LetTest
+  (testing "non-suspending let expressions work"
+    (let [run (start-run! non-suspending-let-flow 2)]
+      (is (= (-> run :result) [2 3 6]))))
+
+  (testing "correctly binds a suspending initial value"
+    (let [run (simulate-event! (start-run! suspending-let-initial-binding-flow 3) :initial-binding "event-data")]
+      (is (= (:result run) ["event-data", 9])))))
