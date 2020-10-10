@@ -21,7 +21,8 @@
       :source-paths ["scripts" "src"]
       :dependencies [[org.clojure/tools.trace "0.7.10"]
                      [org.clojure/core.match "1.0.0"]]
-      :plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]]
+      :plugins [[com.jakemccrary/lein-test-refresh "0.24.1"]
+                [lein-cloverage "1.1.2"]]
     } }
   :cljsbuild {
               :builds [{:id "dev"             ; development configuration
