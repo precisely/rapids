@@ -72,13 +72,12 @@
   Returns:
     run - in :suspended or :complete state
   "
-  [event]
-  {:pre  [(-> event :run-id nil? not)
-          (-> event :event-id nil? not)]
+  ([run-id event-id] (process-event! run-id event-id nil))
+
+  ([run-id event-id result]
+  {:pre  [(not (nil? run-id))
+          (not (nil? event-id))]
    :post [(rs/run-in-state? % :suspended :complete)]}
-  (let [run-id (:run-id event)
-        event-id (:event-id event)
-        result (:data event)]
     (with-run! [(rs/unsuspend-run! run-id)]
                (resume-run! (next-continuation! event-id) result))))
 

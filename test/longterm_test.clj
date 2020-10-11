@@ -26,7 +26,7 @@
    (simulate-event! run event-id nil))
   ([run event-id value]
    {:pre [(instance? Run run)]}
-   (process-event! {:event-id event-id :run-id (:id run) :data value})))
+   (process-event! (:id run) event-id value)))
 
 (deflow suspending-flow
   [val]
