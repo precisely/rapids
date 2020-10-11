@@ -101,14 +101,16 @@
   ([] (next-continuation! nil))
 
   ([event-id]
-   (let [[frame & rest-frames] (:stack *run*)]
-     (when frame
+   (let [[top & rest-frames] (:stack *run*)]
+     (when top
        (set! *run* (assoc *run* :stack rest-frames))
        (cond
-         (nil? event-id) (continuation-from-frame frame)
+         (nil? event-id) (continuation-from-frame top)
          :else (do
-                 (if-not (suspend-signal? frame)
-                   (throw (Exception. (format "Invalid stack for run %s; expecting Suspend but received %s" frame))))
+                 (if-not (suspend-signal? top)
+                   (throw (Exception. (format "Invalid stack for run %s; expecting Suspend but received %s" top))))
+                 (if-not (= (:event-id top) event-id)
+                   (throw (Exception. (format "Unexpected event %s received. Expecting %s" event-id (:event-id top)))))
                  (recur nil)))))))
 
 (defmacro resume-at

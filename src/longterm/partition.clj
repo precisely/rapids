@@ -59,7 +59,7 @@
          partition-do-expr partition-loop-expr partition-special-expr partition-recur-expr
          partition-vector-expr partition-map-expr macroexpand-keeping-metadata
          partition-suspend-expr
-         bindings-expr-from-params nsymbols)
+         nsymbols)
 
 (defn partition-body
   "Partitions a list of expressions, e.g., for do, let and deflow forms
@@ -493,14 +493,3 @@
   ([n start]
    (map #(gensym (str "arg" %)) (range start n))))
 
-(defn bindings-expr-from-params
-  [params]
-  `(hash-map ~@(flatten (map #([(key %) %]) params))))
-
-;
-;(defn constant?
-;  "True if x represents a constant value"
-;  [x]
-;  (or (string? x) (keyword? x) (number? x) (char? x)
-;    (contains? [true false nil ##Inf ##-Inf ##NaN] x)
-;    (and (list? x) (= (first x) 'quote))))

@@ -56,7 +56,24 @@
 
   (testing "suspend! event provides a value"
     (let [run (simulate-event! (start-run! event-value-flow :foo) :foo "foo-result")]
-      (is (= (:result run) "foo-result")))))
+      (is (= (:result run) "foo-result"))))
+
+  (testing "providing a mismatched event-id throws an exception"
+    (is (thrown? Exception (simulate-event! (start-run! event-value-flow :expecting) :actual)))))
+
+(deflow fl-nest [arg event-id]
+  (* arg (suspend! event-id)))
+
+(deflow nested-flow-args [a]
+  (fl-nest (fl-nest (fl-nest a :first) :second) :third))
+
+(deftest ^:unit FunctionalExpressionTest
+  (testing "nested flow arguments"
+    (let [run (start-run! nested-flow-args 2)
+          run2 (simulate-event! run :first 3)
+          run3 (simulate-event! run2 :second 5)
+          run4 (simulate-event! run3 :third 7)]
+      (is (= (:result run4) (* 2 3 5 7))))))
 
 (deflow conditional-suspend [test]
   (if test
@@ -83,33 +100,44 @@
       (is (= (:result run) :final-value))
       (is-log [:else :done]))))
 
-(deflow nested-conditional-suspend [test then-test else-test]
-  (if test
-    (if then-test
-      (suspend! :then-else)
-      (log! :else-else))
-    (if else-test
-      (log! :else-then)
-      (suspend! :else-else)))
+(deflow nested-conditional-suspend [level1 level2]
+  (if level1
+    (if level2
+      (suspend! :true-true)
+      (log! :true-false))
+    (if level2
+      (log! :false-true)
+      (suspend! :false-false)))
   (log! :done))
 
 (deftest ^:unit NestedConditionals
   (testing "suspend! correctly suspends inside nested then"
     (clear-log!)
-    (let [run (start-run! nested-conditional-suspend true true false)
-          run-id (:id run)]
+    (let [run (start-run! nested-conditional-suspend true true)]
 
       (is (run-in-state? run :suspended))
-      (let [run-after-event (simulate-event! run :then-else)]
+      (let [run-after-event (simulate-event! run :true-true)]
         (is (run-in-state? run-after-event :complete))
         (is-log [:done]))))
 
+  (testing "non-suspending expression in nested else returns immediately"
+    (clear-log!)
+    (let [run (start-run! nested-conditional-suspend true false)]
+      (is (run-in-state? run :complete))
+      (is-log [:true-false :done])))
+
+  (testing "non-suspending expression in nested then returns immediately"
+    (clear-log!)
+    (let [run (start-run! nested-conditional-suspend false true)]
+      (is (run-in-state? run :complete))
+      (is-log [:false-true :done])))
+
   (testing "suspend! correctly suspends inside nested else"
     (clear-log!)
-    (let [run (start-run! nested-conditional-suspend false false false)]
+    (let [run (start-run! nested-conditional-suspend false false)]
 
       (is (run-in-state? run :suspended))
-      (let [run-after-event (simulate-event! run :then-else)]
+      (let [run-after-event (simulate-event! run :false-false)]
         (is (run-in-state? run-after-event :complete))
         (is-log [:done])))))
 
@@ -186,5 +214,4 @@
   (testing "correctly handles body with suspending value"
     (let [run (simulate-event! (start-run! suspending-let-body-flow 3) :body "body-event-data")]
       (is (= (:result run) [9, 27, "body-event-data"])))))
-
 
