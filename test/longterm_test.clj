@@ -216,8 +216,11 @@
       (is (= (:result run) [9, 27, "body-event-data"])))))
 
 (deflow simple-loop [n]
-  (suspend! :foo)
+  (log! :before-suspend)
+  (suspend! :initial-wait)
+  (log! :after-suspend)
   (loop [a 1]
+    (log! :looped)
     (if (< a n)
       (recur (+ a 1))
       n)))
@@ -231,6 +234,16 @@
       a)))
 
 (deftest ^:unit LoopTest
+  (testing "simple loop with no suspending operations works like a normal loop"
+    (clear-log!)
+    (let [run (start-run! simple-loop 3)]
+      (is (run-in-state? run :suspended))
+      (is-log [:before-suspend])
+      (let [run (simulate-event! run :initial-wait)]
+        (is (run-in-state? run :complete))
+        (is-log [:before-suspend :after-suspend :looped :looped :looped])
+        (is (:result run) 3))))
+
   (testing "loop with suspend in body"
     (testing "single iteration"
       (clear-log!)
