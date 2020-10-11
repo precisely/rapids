@@ -146,8 +146,25 @@
 
 (deflow suspending-let-initial-binding-flow [arg]
   (let [suspend-value (suspend! :initial-binding)
-        arg-value (* arg arg)]
-    [suspend-value arg-value]))
+        square (* arg arg)]
+    [suspend-value square]))
+
+(deflow suspending-let-internal-binding-flow [arg]
+  (let [square (* arg arg)
+        suspend-value (suspend! :internal-binding)
+        cube (* arg arg arg)]
+    [square suspend-value cube]))
+
+(deflow suspending-let-final-binding-flow [arg]
+  (let [square (* arg arg)
+        cube (* arg arg arg)
+        suspend-value (suspend! :final-binding)]
+    [square cube suspend-value]))
+
+(deflow suspending-let-body-flow [arg]
+  (let [square (* arg arg)
+        cube (* arg arg arg)]
+    [square cube (suspend! :body)]))
 
 (deftest ^:unit LetTest
   (testing "non-suspending let expressions work"
@@ -156,4 +173,18 @@
 
   (testing "correctly binds a suspending initial value"
     (let [run (simulate-event! (start-run! suspending-let-initial-binding-flow 3) :initial-binding "event-data")]
-      (is (= (:result run) ["event-data", 9])))))
+      (is (= (:result run) ["event-data", 9]))))
+
+  (testing "correctly binds a suspending internal value"
+    (let [run (simulate-event! (start-run! suspending-let-internal-binding-flow 3) :internal-binding "event-data")]
+      (is (= (:result run) [9, "event-data", 27]))))
+
+  (testing "correctly binds a suspending final value"
+    (let [run (simulate-event! (start-run! suspending-let-final-binding-flow 3) :final-binding "event-data")]
+      (is (= (:result run) [9, 27, "event-data"]))))
+
+  (testing "correctly handles body with suspending value"
+    (let [run (simulate-event! (start-run! suspending-let-body-flow 3) :body "body-event-data")]
+      (is (= (:result run) [9, 27, "body-event-data"])))))
+
+

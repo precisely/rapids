@@ -119,12 +119,21 @@
       (is (false? suspend?))
       (is (empty? pset))
       (is (= start ["str" :key 1]))))
-  (testing "normal vector"
+
+  (testing "vector with function calls"
     (let [[start, pset, suspend?] (partition-vector-expr `[(a) (b) 3] partition-address address [])]
       (is (= 0 (count pset)))
       (is (false? suspend?))
       (is (match [start]
                  [[([a] :seq) ([b] :seq) 3]] true
+                 [_] false))))
+
+  (testing "vector with suspending expressions"
+    (let [[start, pset, suspend?] (partition-vector-expr `[(fl1) (fl2) 3] partition-address address [])]
+      (is (= 2 (count pset)))
+      (is (true? suspend?))
+      (is (match [start]
+                 [([`runloop/resume-at [_ [] _] ([`flow/start `fl1] :seq)] :seq)] true
                  [_] false)))))
 
 
