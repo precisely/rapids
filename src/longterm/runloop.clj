@@ -6,7 +6,7 @@
   (:import (longterm.address Address)
            (longterm.runstore Run)))
 
-(declare start-run! process-event! resume-run!)
+(declare start-flow! process-event! resume-run!)
 (declare resume-at next-continuation!)
 (declare suspend-signal?)
 
@@ -34,7 +34,7 @@
       (let [value# (do ~@body)]
         (process-run-result! value#)))))
 
-(defn start-run!
+(defn start-flow!
   "Starts a run with the flow and given arguments.
   Returns the Run in :suspended or :complete state."
   [flow & args]
