@@ -173,6 +173,10 @@
 (defn suspend-op? [op]
   (some #(= op %) '[suspend! longterm/suspend! longterm.runloop/suspend!]))
 
+(defn reverse-interleave [s n]
+  "Reverses interleave of sequence s, into n lists"
+  (apply map vector (partition-all n s)))
+
 (defn in?
   "True if array contains val. Have to use this because Clojure contains?
   checks for existence of keys, not values."

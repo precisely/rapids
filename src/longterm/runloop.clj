@@ -12,6 +12,9 @@
 
 (declare process-run-result! with-run!)
 
+;; helpers
+(declare bindings-expr-from-params)
+
 (defrecord StackFrame [address bindings result-key])
 
 (def ^:dynamic *run*)
@@ -126,8 +129,8 @@
    (:pre [(instance? Address address)
           (vector? params)
           (or (nil? result-key) (symbol? result-key))])
-   (let [hashmap-args (apply concat (map #(vec `('~% ~%)) params))]
-     `(let [bindings# (hash-map ~@hashmap-args)
+   (let [bindings-expr  (bindings-expr-from-params params)]
+     `(let [bindings# ~bindings-expr
             new-frame# (StackFrame. ~address bindings# '~result-key)]
         (set! *run* (assoc *run* :stack (cons new-frame# (:stack *run*))))
         ~@body))))
@@ -174,3 +177,6 @@
                                  [:complete, current-stack, value])]
     (set! *run* (assoc *run* :state state :result result :stack stack))
     (rs/save-run! *run*)))
+
+(defn bindings-expr-from-params [params]
+  `(hash-map ~@(apply concat (map #(vec `('~% ~%)) params))))

@@ -25,14 +25,9 @@
    (let [flow (address/resolved-flow address)
          continuation (get-in flow [:continuations address])
          args (apply concat (map (fn [[key val]] [(keyword key) val]) bindings))]
+     (if-not (fn? continuation)
+       (throw (Exception. (format "Attempt to continue flow at undefined partition %s" address))))
      (apply continuation args))))
-  ;([flow point bindings]
-  ; {:pre [(flow? flow)
-  ;        (vector? point)
-  ;        (map? bindings)]}
-  ; (let [continuation (-> flow :continuations address)
-  ;       ]
-  ;  (apply continuation continuation-args))))
 
 (defn start
   [flow & args]
