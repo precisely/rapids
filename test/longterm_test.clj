@@ -67,13 +67,30 @@
 (deflow nested-flow-args [a]
   (fl-nest (fl-nest (fl-nest a :first) :second) :third))
 
+(defn a [n] (* n 10))
+(deflow fl-alternating []
+  (+ (suspend! :first-arg) (a 2) (fl-nest 100 :third)))
+
+(deflow fl-keywords [& {:keys [a b c]}]
+  (+ a b c (suspend! :event)))
+
 (deftest ^:unit FunctionalExpressionTest
   (testing "nested flow arguments"
     (let [run (start-run! nested-flow-args 2)
           run2 (simulate-event! run :first 3)
           run3 (simulate-event! run2 :second 5)
           run4 (simulate-event! run3 :third 7)]
-      (is (= (:result run4) (* 2 3 5 7))))))
+      (is (= (:result run4) (* 2 3 5 7)))))
+
+  (testing "various suspending and non-suspending args"
+    (let [run (simulate-event! (simulate-event! (start-run! fl-alternating) :first-arg 1) :third 3)]
+      (is (run-in-state? run :complete))
+      (is (= (:result run) 321))))
+
+  (testing "accepts keywords"
+    (let [run (simulate-event! (start-run! fl-keywords :a 1 :b 10 :c 100) :event 1000)]
+      (is (run-in-state? run :complete))
+      (is (= (:result run) 1111)))))
 
 (deflow conditional-suspend [test]
   (if test

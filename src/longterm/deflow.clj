@@ -47,7 +47,7 @@
    (let [arg (first args)]
      (cond
        (= arg '&) (recur (rest args) params)
-       (map? arg) (recur (rest args) (concat params (:keys args)))
+       (map? arg) (recur (rest args) (concat params (:keys arg)))
        (symbol? arg) (recur (rest args) (conj params arg))
-       (= arg nil) params
+       (nil? arg) (vec params)
        :else (throw (Exception. (str "Unexpected argument " arg)))))))
