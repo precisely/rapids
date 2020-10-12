@@ -20,8 +20,8 @@
 (def ^:dynamic *run*)
 
 (defmacro with-run!
-  "Takes a run-id, and obtains a run, transitions it to running state and executes forms in body,
-  then saves the run in :suspended or :complete state.
+  "Takes a run-id, and obtains a run, transitions it to running state, clears the response list,
+   and executes forms in body, then saves the run in :suspended or :complete state.
 
   The final form of body returns a Suspend record to put the run in :suspended state. If it returns
   a value, the run state will change to :complete, and the value will be stored in the
@@ -30,9 +30,15 @@
   Returns:
     run - Run instance in :suspended or :complete state"
   ([[run-form] & body]
-   `(binding [*run* ~run-form]
+   `(binding [*run* (assoc ~run-form :response [])]
       (let [value# (do ~@body)]
         (process-run-result! value#)))))
+
+(defn respond!
+  "Adds an element to the current run response: returns nil"
+  [& responses]
+  (set! *run* (assoc *run* :response (concat (:response *run*) (vec responses))))
+  nil)
 
 (defn start-flow!
   "Starts a run with the flow and given arguments.
@@ -41,8 +47,8 @@
   {:pre  [(refers-to? flow/flow? flow)]
    :post [(rs/run-in-state? % :suspended :complete)]}
   (with-run! [(rs/create-run! :running)]
-             (resume-run! (fn [_]
-                            (apply flow/start flow args)))))
+    (resume-run! (fn [_]
+                   (apply flow/start flow args)))))
 
 (defn resume-run!
   "Evaluates a par-bound continuation, popping the stack and passing the result to the next
@@ -60,7 +66,7 @@
        (if (suspend-signal? next-result)
          next-result
          (recur (next-continuation!) next-result)))
-     result))) ; return the final result (to be stored in run.result)
+     result)))                                              ; return the final result (to be stored in run.result)
 
 (defn process-event!
   "Processes an external event, finds the associated run and calls the continuation at the
@@ -75,11 +81,11 @@
   ([run-id event-id] (process-event! run-id event-id nil))
 
   ([run-id event-id result]
-  {:pre  [(not (nil? run-id))
-          (not (nil? event-id))]
-   :post [(rs/run-in-state? % :suspended :complete)]}
-    (with-run! [(rs/unsuspend-run! run-id)]
-               (resume-run! (next-continuation! event-id) result))))
+   {:pre  [(not (nil? run-id))
+           (not (nil? event-id))]
+    :post [(rs/run-in-state? % :suspended :complete)]}
+   (with-run! [(rs/unsuspend-run! run-id)]
+     (resume-run! (next-continuation! event-id) result))))
 
 (defn- continuation-from-frame [frame]
   {:pre [(instance? StackFrame frame)]}
@@ -128,7 +134,7 @@
    (:pre [(instance? Address address)
           (vector? params)
           (or (nil? result-key) (symbol? result-key))])
-   (let [bindings-expr  (bindings-expr-from-params params)]
+   (let [bindings-expr (bindings-expr-from-params params)]
      `(let [bindings# ~bindings-expr
             new-frame# (StackFrame. ~address bindings# '~result-key)]
         (set! *run* (assoc *run* :stack (cons new-frame# (:stack *run*))))
@@ -164,7 +170,7 @@
         result (and (every? #(or (instance? StackFrame %) (suspend-signal? %)) stack)
                     (case state
                       :suspended (suspend-signal? top)
-                      :running  (instance? StackFrame top)
+                      :running (instance? StackFrame top)
                       :complete (empty? stack)))]
     result))
 

@@ -273,10 +273,31 @@
 
     (testing "multiple iterations"
       (clear-log!)
-      (let [run (start-flow! loop-with-suspending-body)
-            run (simulate-event! run :continue-loop true)             ; a + 1 = 2
-            run (simulate-event! run :continue-loop true)             ; a + 1 = 3
-            run (simulate-event! run :continue-loop false)]           ; a + 1 = 4
+      (let [run (start-flow! loop-with-suspending-body)     ; a = 1
+            run (simulate-event! run :continue-loop true)   ; a + 1 = 2
+            run (simulate-event! run :continue-loop true)   ; a + 1 = 3
+            run (simulate-event! run :continue-loop false)] ; a + 1 = 4
         (is (run-in-state? run :complete))
         (is (:result run) 4)
         (is-log [:before-loop :inside-loop :inside-loop :inside-loop])))))
+
+(deflow responding-flow []
+  (respond! :r1)
+  (suspend! :s1)
+  (respond! :r2)
+  (respond! :r3)
+  (suspend! :s2)
+  (respond! :r4 :r5))
+
+(deftest ^:unit Respond
+  (letfn [(response? [run x] (= (:response run) x))]
+    (testing "respond! adds to an element to the current run's response"
+      (let [run1 (start-flow! responding-flow)
+            run2 (simulate-event! run1 :s1)
+            run3 (simulate-event! run2 :s2)]
+        (testing "responds during start flow"
+          (is (response? run1 [:r1])))
+        (testing "Each run starts a new response, and responses accumulate during a runlet"
+          (is (response? run2 [:r2 :r3])))
+        (testing "respond! treats multiple arguments as separate responses")
+          (is (response? run3 [:r4 :r5]))))))
