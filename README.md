@@ -7,6 +7,7 @@ Longterm defines a new macro, `deflow`, akin to `defn`, but which  permits suspe
 Execution is restarted using `(process-event! run-id event-id optional-result)`. The result provided to `process-event!` becomes the value of the `suspend!` expression in the ensuing computation, which continues until complete or another `suspend!` is encountered.  
 
 ## Basic Usage
+Also see `tests/longterm_test.clj`.
 
 ### Define a flow
 ```clojure
@@ -38,5 +39,25 @@ Execution is restarted using `(process-event! run-id event-id optional-result)`.
    (return-result-to-caller {:run-id (:id run) :response (:response run)}))
 ```
 
-Also see `tests/longterm_test.clj`.
+## Implementing a custom storage backend
+
+### Import IRun and IRunStore from longterm.runstore
+
+```clojure
+(ns my.package
+  (:require [longterm.runstore :as rs]))
+
+...
+
+(extend MyDBAdapter
+  rs/IRunStore ; 
+  (rs/rs-create! [rs state] ...) ; return an object implementing rs/IRun in the given state in the db 
+  (rs/rs-get [rs run-id] ...) ; find and return the run
+  (rs/rs-unsuspend! [rs run-id] ...) ; atomically changing existing run from :suspended to :running state and return it
+  (rs/rs-update! [rs run] ...) ; save the given run to the db  
+```
+
+
+
+
 
