@@ -1,5 +1,6 @@
 (ns longterm.util
-  (:import (java.util UUID)
+  (:require [clojure.java.io :as io])
+  (:import (java.util UUID Properties)
            (clojure.lang Namespace)))
 
 (defn refers-to?
@@ -190,3 +191,9 @@
    {:pre  [(symbol? s) (instance? Namespace ns)]
     :post [(qualified-symbol? %)]}
    (symbol (str (.getName ns)) (str (.getName s)))))
+
+(defn get-project-info []
+  "Gets the MAVEN groupId, artifactId, version and the version (the git hash)"
+  (with-open [pom-properties-reader (io/reader (io/resource "META-INF/maven/longterm/longterm/pom.properties"))]
+    (doto (Properties.)
+      (.load pom-properties-reader))))
