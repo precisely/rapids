@@ -12,10 +12,14 @@
   (run-result [run])
   (run-response [run]))
 
+(defn irun? [run]
+  (satisfies? IRun run))
+
 (def ^:const RunStates '(:suspended :running :complete))
 (defn run-in-state?
   [run & states]
-  (let [result  (and (satisfies? IRun run) (in? states (run-state run)))]
+  (let [state   (run-state run)
+        result  (and (satisfies? IRun run) (or (in? states state) (in? states :any)))]
     result))
 
 (defprotocol IRunStore
@@ -41,7 +45,7 @@
 (defn create-run!
   ([] (create-run! :suspended))
   ([state]
-   {:pre [(in? RunStates state)]
+   {:pre [(satisfies? IRunStore @runstore) (in? RunStates state)]
     :post [(run-in-state? % state)]}
    (let [run (rs-create! @runstore state)]
      run)))

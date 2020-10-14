@@ -4,7 +4,6 @@
             [longterm.util :refer [qualify-symbol]]
             [longterm.partition :as p]
             [longterm.partition-set :as pset])
-  (:use clojure.tools.trace)
   (:import (longterm.flow Flow)))
 
 (declare params-from-args params-to-continuation-args)

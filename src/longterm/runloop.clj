@@ -153,7 +153,8 @@
   ([event-id] (suspend! event-id nil))
   ([event-id expiry]
    {:pre [(not (nil? event-id))]}
-   (if-not (and (bound? #'*run*) (satisfies? IRun *run*))
+   (if-not (and (bound? #'*run*)
+                (rs/irun? *run*))
      (throw (Exception. (format "Invalid run context while evaluating (suspend! %s %s)"
                                 event-id expiry))))
    (Suspend. event-id expiry)))
