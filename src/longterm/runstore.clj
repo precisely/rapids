@@ -5,21 +5,19 @@
 
 (def runstore (atom nil))
 
-(defprotocol IRun
-  (run-id [run])
-  (run-stack [run])
-  (run-state [run])
-  (run-result [run])
-  (run-response [run]))
 
-(defn irun? [run]
-  (satisfies? IRun run))
+(defrecord Run
+  [id
+   stack ; list of StackFrame or Suspend instances
+   state ; one of RunStates
+   result ; final result (when state=complete)
+   response]) ; runlet response (cleared by process-event!)
 
 (def ^:const RunStates '(:suspended :running :complete))
 (defn run-in-state?
   [run & states]
-  (let [state   (run-state run)
-        result  (and (satisfies? IRun run) (or (in? states state) (in? states :any)))]
+  (let [state   (:state run)
+        result  (and (instance? Run run) (or (in? states state) (in? states :any)))]
     result))
 
 (defprotocol IRunStore
@@ -52,15 +50,15 @@
 
 (defn save-run!
   [run]
-  {:pre [(satisfies? IRun run)]
-   :post [(satisfies? IRun %)]}
+  {:pre [(instance? Run run)]
+   :post [(instance? Run %)]}
   (let [new  (rs-update! @runstore run)]
     new))
 
 (defn get-run
   [run-id]
   {:pre [(not (nil? run-id))]
-   :post [(satisfies? IRun %)]}
+   :post [(instance? Run %)]}
   (rs-get @runstore run-id))
 
 (defn unsuspend-run!

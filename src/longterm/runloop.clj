@@ -3,8 +3,7 @@
     [longterm.runstore :as rs]
     [longterm.flow :as flow]
     [longterm.util :refer :all])
-  (:import (longterm.address Address)
-           (longterm.runstore IRun)))
+  (:import (longterm.address Address)))
 
 (declare start-flow! process-event! resume-run!)
 (declare resume-at next-continuation!)
@@ -37,7 +36,7 @@
 (defn respond!
   "Adds an element to the current run response: returns nil"
   [& responses]
-  (set! *run* (assoc *run* :response (concat (rs/run-response *run*) (vec responses))))
+  (set! *run* (assoc *run* :response (concat (:response *run*) (vec responses))))
   nil)
 
 (defn start-flow!
@@ -109,7 +108,7 @@
   ([] (next-continuation! nil))
 
   ([event-id]
-   (let [[top & rest-frames] (rs/run-stack *run*)]
+   (let [[top & rest-frames] (:stack *run*)]
      (when top
        (set! *run* (assoc *run* :stack rest-frames))
        (cond
@@ -137,7 +136,7 @@
    (let [bindings-expr (bindings-expr-from-params params)]
      `(let [bindings# ~bindings-expr
             new-frame# (StackFrame. ~address bindings# '~result-key)]
-        (set! *run* (assoc *run* :stack (cons new-frame# (rs/run-stack *run*))))
+        (set! *run* (assoc *run* :stack (cons new-frame# (:stack *run*))))
         ~@body))))
 
 ;;
@@ -154,7 +153,7 @@
   ([event-id expiry]
    {:pre [(not (nil? event-id))]}
    (if-not (and (bound? #'*run*)
-                (rs/irun? *run*))
+                (rs/run-in-state? *run* :any))
      (throw (Exception. (format "Invalid run context while evaluating (suspend! %s %s)"
                                 event-id expiry))))
    (Suspend. event-id expiry)))
@@ -165,8 +164,8 @@
 
 (defn- run-is-valid?
   [run]
-  (let [stack (rs/run-stack run)
-        state (rs/run-state run)
+  (let [stack (:stack run)
+        state (:state run)
         top (first stack)
         result (and (every? #(or (instance? StackFrame %) (suspend-signal? %)) stack)
                     (case state
@@ -177,7 +176,7 @@
 
 (defn- process-run-result! [value]
   {:post [(run-is-valid? *run*) "Failure in `process-run-result!`"]}
-  (let [current-stack (rs/run-stack *run*)
+  (let [current-stack (:stack *run*)
         [state, stack, result] (if (suspend-signal? value)
                                  [:suspended, (cons value, current-stack), nil]
                                  [:complete, current-stack, value])]

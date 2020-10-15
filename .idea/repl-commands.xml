@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="ReplProjectCommandManager">
-    <repl-command name="Run All Tests" executionType="EXPRESSION" commandText="(require 'clojure.test &#10;         'longterm &#10;         'longterm_test &#10;         'longterm.flow_test &#10;         'longterm.deflow_test&#10;         'longterm.util_test&#10;         'longterm.recur_test&#10;         'longterm.partition_set_test&#10;         'longterm.partition_test&#10;         'longterm.address_test)&#10;(clojure.test/run-all-tests)" executeBefore="SYNC_ALL" executionNs="EXPLICIT_NS" inNamespace="longterm" saveAll="true" />
-  </component>
-</project>
