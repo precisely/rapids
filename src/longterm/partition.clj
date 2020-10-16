@@ -55,10 +55,10 @@
 (declare partition-body partition-expr partition-fncall-expr
          partition-list-expr partition-flow-expr
          partition-functional-expr partition-bindings
-         partition-if-expr partition-let-expr partition-fn-expr
+         partition-if-expr partition-let-expr partition-fn*-expr
          partition-do-expr partition-loop-expr partition-special-expr partition-recur-expr
          partition-vector-expr partition-map-expr macroexpand-keeping-metadata
-         partition-suspend-expr
+         partition-suspend-expr throw-partition-error
          nsymbols)
 
 (defn partition-body
@@ -154,28 +154,19 @@
       (map? mexpr) (partition-map-expr expr partition-addr address params)
       :otherwise [expr, nil, nil])))
 
+(defn special-form-op? [x] (in? '[if do let let* fn fn* loop loop* quote recur] x))
 (defn partition-list-expr
   [expr mexpr partition-addr address params]
   (let [op (first expr)
-        mop (first mexpr)]
+        mop (first mexpr)
+        ops [op mop]]
     (cond
       ;; attempt to detect operator in expression
-      (special-symbol? op) (partition-special-expr op expr mexpr partition-addr address params)
+      (some special-form-op? ops) (partition-special-expr mop expr mexpr partition-addr address params)
       ;; note: the following are not special-symbols, though the docs list them as special forms:
-      (= op 'let) (partition-let-expr expr mexpr partition-addr address params)
-      (= op 'loop) (partition-loop-expr expr mexpr address params) ; partition address is only used to identify the recur binding point, so not needed here
-      (= op 'fn) (partition-fn-expr expr mexpr partition-addr address params)
-      (suspend-op? op) (partition-suspend-expr expr mexpr partition-addr address params)
-      (refers-to? fn? op) (partition-fncall-expr op expr mexpr partition-addr address params)
-      (refers-to? flow/flow? op) (partition-flow-expr op expr mexpr partition-addr address params)
-
-      ;; if that doesn't work, try the operator in the macroexpanded form
-      (special-symbol? mop) (partition-special-expr op expr mexpr partition-addr address params)
-      (suspend-op? mop) (partition-suspend-expr expr mexpr partition-addr address params)
-      (refers-to? fn? mop) (partition-fncall-expr op expr mexpr partition-addr address params)
-      (refers-to? flow/flow? mop) (partition-flow-expr op expr mexpr partition-addr address params)
-
-      :else (throw (Exception. (format "Unable to resolve symbol: %s in %s" op expr))))))
+      (some suspend-op? ops) (partition-suspend-expr expr mexpr partition-addr address params)
+      (some #(refers-to? flow/flow? %) ops) (partition-flow-expr mop expr mexpr partition-addr address params)
+      :else (partition-fncall-expr mop expr mexpr partition-addr address params))))
 
 ;;
 ;; Special Symbols
@@ -185,12 +176,38 @@
   (case op
     if (partition-if-expr expr mexpr partition-addr address params)
     do (partition-do-expr expr mexpr partition-addr address params)
+    let (partition-let-expr expr mexpr partition-addr address params)
     let* (partition-let-expr expr mexpr partition-addr address params)
-    fn* (partition-fn-expr expr mexpr partition-addr address params)
+    fn (partition-fn*-expr expr mexpr partition-addr address params)
+    fn* (partition-fn*-expr expr mexpr partition-addr address params)
+    loop (partition-loop-expr expr mexpr address params)
     loop* (partition-loop-expr expr mexpr address params)
     quote [expr, nil, false]
     recur (partition-recur-expr expr mexpr partition-addr address params)
-    (throw (Exception. (format "Special operator %s not yet available in Flows in %s" op expr)))))
+    (throw-partition-error "Special operator not yet available in flows" expr "Operator: %s" op)))
+
+(defn partition-fn*-expr
+  "Throws if fn* contain suspending ops - this partitioner acts as a guard
+  against knowing or inadvertent inclusion of a suspending operation inside a fn.
+  This might happen inadvertently if the user uses a macro (like for) which
+  expands into a (fn ...) expression. This is a bit of a blunt instrument,
+  but not sure what else to do right now."
+  [expr mexpr partition-addr address params]
+  (letfn [(sig-suspends? [sig]
+            (let [body (rest sig)
+                  [_, _, suspend?] (partition-body body partition-addr address params)]
+              (if suspend?
+                (throw-partition-error "Illegal attempt to suspend in function body" expr))
+              suspend?))]
+    (let [sigs (rest mexpr)
+          name (if (symbol? (first sigs)) (first sigs) nil)
+          sigs (if name (next sigs) sigs)
+          sigs (if (vector? (first sigs))
+                 (list sigs)
+                 sigs)
+          suspending? (some #(sig-suspends? %) sigs)]
+      (assert (not suspending?))
+      [expr, nil, false])))
 
 (defn partition-let-expr
   [expr mexpr partition-addr address params]
@@ -331,14 +348,14 @@
             (let [loop-params (:params *recur-binding-point*)
                   bindings `(hash-map ~@(interleave (map #(list 'quote %) loop-params) params))]
               (if-not (= (count params) (count loop-params))
-                (throw (Exception. (format "Mismatched argument count to recur, expected: %s args, got: %s"
-                              (count params) (count loop-params)))))
+                (throw-partition-error "Mismatched argument count to recur" expr "expected: %s args, got: %s"
+                                       (count params) (count loop-params)))
               `(flow/continue ~(:address *recur-binding-point*)
                               ~bindings)))]
     (if-not *recur-binding-point*
-      (throw (Exception. (format "No binding point for %s" expr))))
+      (throw-partition-error "No binding point" expr))
     (if-not *tail-position*
-      (throw (Exception. (format "Can only recur from tail position: %s" expr))))
+      (throw-partition-error "Can only recur from tail position" expr))
 
     (let [[op & args] mexpr
           loop-address (:address *recur-binding-point*)
@@ -413,8 +430,6 @@
     ;[start, pset, suspend?]
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
                                #(vec %))))
-;(if suspend? [start, pset, suspend?]
-;             [expr, nil, false])))
 
 (defn partition-flow-expr
   [op, expr, mexpr, partition-addr, address, params]
@@ -503,4 +518,11 @@
 
   ([address n start]
    (let [base (str "p|" (clojure.string/join "-" (:point address)))]
-    (map #(symbol (str base "|" %)) (range start n)))))
+     (map #(symbol (str base "|" %)) (range start n)))))
+
+(defn throw-partition-error
+  ([name expr] (throw-partition-error name expr nil))
+  ([name expr msg & args]
+   (let [loc (ifit (:line (meta expr)) (format " (line %s)" it) "")
+         extra-info (if msg (str ". " (apply format msg args)) "")]
+     (throw (Exception. (format "%s%s%s: %s" name loc extra-info expr))))))

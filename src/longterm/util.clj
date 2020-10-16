@@ -197,3 +197,8 @@
   (with-open [pom-properties-reader (io/reader (io/resource "META-INF/maven/longterm/longterm/pom.properties"))]
     (doto (Properties.)
       (.load pom-properties-reader))))
+
+(defmacro ifit
+  ([test then] `(ifit ~test ~then nil))
+  ([test then else]
+    `(let [~'it ~test] (if ~'it ~then ~else))))
