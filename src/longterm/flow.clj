@@ -1,9 +1,12 @@
 (ns longterm.flow
   (:require [longterm.address :as address]
-            [longterm.util :refer [refers-to?]])
+            [longterm.util :refer [refers-to?]]
+            [longterm.defrecordfn :refer [defrecordfn]])
   (:import (longterm.address Address)))
 
-(defrecord Flow
+(defonce start-with-run-context! nil)
+
+(defrecordfn Flow
   [;; Global symbol defined as this flow
    name
    ;; Function with arbitrary signature
@@ -12,6 +15,7 @@
    continuations
    ;; For debugging purposes:
    partitions]
+  (fn [this & args] (apply start-with-run-context! this args))
   Object
   (toString [_] (format "#<Flow %s (%d partitions)>" name (count continuations))))
 
@@ -29,7 +33,7 @@
        (throw (Exception. (format "Attempt to continue flow at undefined partition %s" address))))
      (apply continuation args))))
 
-(defn start
+(defn entry-point
   [flow & args]
   (cond
     (flow? flow) (apply (get flow :entry-point) args)

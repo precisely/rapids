@@ -426,8 +426,6 @@
   [expr partition-addr address params]
   (let [fake-op (symbol "[]")
         expr-with-op (with-meta `(~fake-op ~@expr) (meta expr))]
-
-    ;[start, pset, suspend?]
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
                                #(vec %))))
 
@@ -435,7 +433,7 @@
   [op, expr, mexpr, partition-addr, address, params]
   (let [[start, pset, _] (partition-functional-expr op expr mexpr partition-addr address params
                                                     (fn [args]
-                                                      `(flow/start ~op ~@args)))]
+                                                      `(flow/entry-point ~op ~@args)))]
     [start, pset, true]))
 
 (defn partition-fncall-expr

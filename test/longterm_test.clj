@@ -334,3 +334,7 @@
     (let [run (simulate-event! (start! flow-with-anonymous-fn) :list '(1 2 3))]
       (is (run-in-state? run :complete))
       (is (= (:result run) '(1 4 9))))))
+
+(deftest ^:unit FlowsAsFunctions
+  (testing "flows can be started like normal functions and return a run"
+    (is (run-in-state? (suspending-flow :foo) :suspended))))

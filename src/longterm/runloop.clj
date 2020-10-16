@@ -47,7 +47,9 @@
    :post [(rs/run-in-state? % :suspended :complete)]}
   (with-run! [(rs/create-run! :running)]
     (resume-run! (fn [_]
-                   (apply flow/start flow args)))))
+                   (apply flow/entry-point flow args)))))
+
+(alter-var-root #'flow/start-with-run-context! (constantly start!))
 
 (defn resume-run!
   "Evaluates a par-bound continuation, popping the stack and passing the result to the next
