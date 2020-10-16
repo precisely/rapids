@@ -397,9 +397,10 @@
          (instance? Address address)
          (vector? params)]}
   ;; TODO: this could be simplified...
-  (let [args (apply concat (map identity expr))
-        [start, pset, suspend?] (partition-functional-expr (symbol "{}") args args partition-addr address params
-                                                           #(into {} %))]
+  (let [fake-op (symbol "_map_")
+        pseudo-expr (cons fake-op (apply concat (map identity expr)))
+        [start, pset, suspend?] (partition-functional-expr fake-op pseudo-expr pseudo-expr partition-addr address params
+                                                           (fn [args] (into {} (map vec (partition 2 args)))))]
     (if suspend?
       [start, pset suspend?]
       [expr, nil, false])))

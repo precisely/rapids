@@ -300,3 +300,13 @@
           (is (response? run2 [:r2 :r3])))
         (testing "respond! treats multiple arguments as separate responses")
           (is (response? run3 [:r4 :r5]))))))
+
+(deflow datastructures []
+  {:a (suspend! :data) :b (suspend! :data) :c [(suspend! :data) {:d (suspend! :data)}]})
+
+(deftest ^:unit DataStructures
+  (testing "nested data structure with multiple suspending operations"
+    (let [run (reduce #(simulate-event! %1 :data %2) (start-flow! datastructures) [1 2 3 4])]
+      (is (run-in-state? run :complete))
+      (is (= (:result run)
+             {:a 1 :b 2 :c [3 {:d 4}]})))))
