@@ -14,9 +14,13 @@
          - e.g., may want to store a global channel representing user-activities
     * launch, wait & resume subflows according to suspend context
       ... the suspend "context" is what is currently the event-id
-      (defer-while [:user] run) ; defers control to run while it remains suspended in :user context
+      `(defer-while [:user] run) ; defers control to run while it remains suspended in :user context`
         - returns either run suspended in alternate state or  
-        - alternates: (wait-while [:user] run) or (wait-on run :user)
+        - alternates: 
+                * `(wait-while [:user] run)` 
+                * `(wait-on run :user)` 
+                * `(cede [:user] run)`
+                * `(cede run :user)`
           perhaps we start the process with `(wait-on (start-flow! flow 1 2 3) :user)`
 * add expiry mechanism
   - an API on the runstore - expired-suspensions, plus index the expiry 
