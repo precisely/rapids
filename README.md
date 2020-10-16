@@ -25,7 +25,7 @@ Also see `tests/longterm_test.clj`.
 ;; a call to an API initiates a run, requesting the flow to start
 ;; the following code starts the flow and returns a response to the caller
 
-(let [run (start-flow! multiply-by-user-input 4)]
+(let [run (start! multiply-by-user-input 4)]
   ;; somehow return the result to the caller 
   (return-result-to-caller {:run-id (:id run) :response (:response run)})
   ...)

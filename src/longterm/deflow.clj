@@ -10,7 +10,7 @@
 
 (defmacro deflow
   "Define a long term flow which suspends execution at (suspend ...) expressions.
-  Flows are started with runner/start-flow! and resumed "
+  Flows are started with runloop/start! and resumed "
   [name docstring? args & code]
   (if-not (string? docstring?)
     `(deflow ~name "" ~docstring? ~args ~@code)

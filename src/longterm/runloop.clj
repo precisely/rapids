@@ -5,7 +5,7 @@
     [longterm.util :refer :all])
   (:import (longterm.address Address)))
 
-(declare start-flow! process-event! resume-run!)
+(declare start! process-event! resume-run!)
 (declare resume-at next-continuation!)
 (declare suspend-signal?)
 
@@ -39,7 +39,7 @@
   (set! *run* (assoc *run* :response (concat (:response *run*) (vec responses))))
   nil)
 
-(defn start-flow!
+(defn start!
   "Starts a run with the flow and given arguments.
   Returns the Run in :suspended or :complete state."
   [flow & args]

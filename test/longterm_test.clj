@@ -41,7 +41,7 @@
 (deftest ^:unit BasicFlowTests
   (testing "Start and suspend"
     (clear-log!)
-    (let [run (start-flow! suspending-flow :foo)]
+    (let [run (start! suspending-flow :foo)]
       (is (run-in-state? run :suspended))
       (is-log [:before-suspend])
 
@@ -54,11 +54,11 @@
             (is (= (:result ev-result) :foo)))))))
 
   (testing "suspend! event provides a value"
-    (let [run (simulate-event! (start-flow! event-value-flow :foo) :foo "foo-result")]
+    (let [run (simulate-event! (start! event-value-flow :foo) :foo "foo-result")]
       (is (= (:result run) "foo-result"))))
 
   (testing "providing a mismatched event-id throws an exception"
-    (is (thrown? Exception (simulate-event! (start-flow! event-value-flow :expecting) :actual)))))
+    (is (thrown? Exception (simulate-event! (start! event-value-flow :expecting) :actual)))))
 
 (deflow fl-nest [arg event-id]
   (* arg (suspend! event-id)))
@@ -75,19 +75,19 @@
 
 (deftest ^:unit FunctionalExpressionTest
   (testing "nested flow arguments"
-    (let [run (start-flow! nested-flow-args 2)
+    (let [run (start! nested-flow-args 2)
           run2 (simulate-event! run :first 3)
           run3 (simulate-event! run2 :second 5)
           run4 (simulate-event! run3 :third 7)]
       (is (= (:result run4) (* 2 3 5 7)))))
 
   (testing "various suspending and non-suspending args"
-    (let [run (simulate-event! (simulate-event! (start-flow! fl-alternating) :first-arg 1) :third 3)]
+    (let [run (simulate-event! (simulate-event! (start! fl-alternating) :first-arg 1) :third 3)]
       (is (run-in-state? run :complete))
       (is (= (:result run) 321))))
 
   (testing "accepts keywords"
-    (let [run (simulate-event! (start-flow! fl-keywords :a 1 :b 10 :c 100) :event 1000)]
+    (let [run (simulate-event! (start! fl-keywords :a 1 :b 10 :c 100) :event 1000)]
       (is (run-in-state? run :complete))
       (is (= (:result run) 1111)))))
 
@@ -101,7 +101,7 @@
 (deftest ^:unit SimpleConditionals
   (testing "conditional suspends in then expr"
     (clear-log!)
-    (let [run (start-flow! conditional-suspend true)]
+    (let [run (start! conditional-suspend true)]
       (testing "before event")
       (is (run-in-state? run :suspended))
       (is-log [])
@@ -112,7 +112,7 @@
 
   (testing "but conditional does not suspend in else expr"
     (clear-log!)
-    (let [run (start-flow! conditional-suspend false)]
+    (let [run (start! conditional-suspend false)]
       (is (= (:result run) :final-value))
       (is-log [:else :done]))))
 
@@ -129,7 +129,7 @@
 (deftest ^:unit NestedConditionals
   (testing "suspend! correctly suspends inside nested then"
     (clear-log!)
-    (let [run (start-flow! nested-conditional-suspend true true)]
+    (let [run (start! nested-conditional-suspend true true)]
 
       (is (run-in-state? run :suspended))
       (let [run-after-event (simulate-event! run :true-true)]
@@ -138,19 +138,19 @@
 
   (testing "non-suspending expression in nested else returns immediately"
     (clear-log!)
-    (let [run (start-flow! nested-conditional-suspend true false)]
+    (let [run (start! nested-conditional-suspend true false)]
       (is (run-in-state? run :complete))
       (is-log [:true-false :done])))
 
   (testing "non-suspending expression in nested then returns immediately"
     (clear-log!)
-    (let [run (start-flow! nested-conditional-suspend false true)]
+    (let [run (start! nested-conditional-suspend false true)]
       (is (run-in-state? run :complete))
       (is-log [:false-true :done])))
 
   (testing "suspend! correctly suspends inside nested else"
     (clear-log!)
-    (let [run (start-flow! nested-conditional-suspend false false)]
+    (let [run (start! nested-conditional-suspend false false)]
 
       (is (run-in-state? run :suspended))
       (let [run-after-event (simulate-event! run :false-false)]
@@ -165,7 +165,7 @@
 (deftest ^:unit SuspendingTest
   (testing "if expression where the test suspends, "
     (testing "when test is truthy"
-      (let [run (start-flow! conditional-with-suspending-test true)]
+      (let [run (start! conditional-with-suspending-test true)]
         (testing "the expression should suspend, and"
           (is (run-in-state? run :suspended)))
 
@@ -174,7 +174,7 @@
             (is (= (:result run) :then-val))))))
 
     (testing "when test is falsey"
-      (let [run (start-flow! conditional-with-suspending-test false)]
+      (let [run (start! conditional-with-suspending-test false)]
         (testing "the expression should suspend, and"
           (is (run-in-state? run :suspended)))
 
@@ -212,23 +212,23 @@
 
 (deftest ^:unit LetTest
   (testing "non-suspending let expressions work"
-    (let [run (start-flow! non-suspending-let-flow 2)]
+    (let [run (start! non-suspending-let-flow 2)]
       (is (= (-> run :result) [2 3 6]))))
 
   (testing "correctly binds a suspending initial value"
-    (let [run (simulate-event! (start-flow! suspending-let-initial-binding-flow 3) :initial-binding "event-data")]
+    (let [run (simulate-event! (start! suspending-let-initial-binding-flow 3) :initial-binding "event-data")]
       (is (= (:result run) ["event-data", 9]))))
 
   (testing "correctly binds a suspending internal value"
-    (let [run (simulate-event! (start-flow! suspending-let-internal-binding-flow 3) :internal-binding "event-data")]
+    (let [run (simulate-event! (start! suspending-let-internal-binding-flow 3) :internal-binding "event-data")]
       (is (= (:result run) [9, "event-data", 27]))))
 
   (testing "correctly binds a suspending final value"
-    (let [run (simulate-event! (start-flow! suspending-let-final-binding-flow 3) :final-binding "event-data")]
+    (let [run (simulate-event! (start! suspending-let-final-binding-flow 3) :final-binding "event-data")]
       (is (= (:result run) [9, 27, "event-data"]))))
 
   (testing "correctly handles body with suspending value"
-    (let [run (simulate-event! (start-flow! suspending-let-body-flow 3) :body "body-event-data")]
+    (let [run (simulate-event! (start! suspending-let-body-flow 3) :body "body-event-data")]
       (is (= (:result run) [9, 27, "body-event-data"])))))
 
 (deflow simple-loop [n]
@@ -252,7 +252,7 @@
 (deftest ^:unit LoopTest
   (testing "simple loop with no suspending operations works like a normal loop"
     (clear-log!)
-    (let [run (start-flow! simple-loop 3)]
+    (let [run (start! simple-loop 3)]
       (is (run-in-state? run :suspended))
       (is-log [:before-suspend])
       (let [run (simulate-event! run :initial-wait)]
@@ -263,7 +263,7 @@
   (testing "loop with suspend in body"
     (testing "single iteration"
       (clear-log!)
-      (let [run (start-flow! loop-with-suspending-body)]
+      (let [run (start! loop-with-suspending-body)]
         (is (run-in-state? run :suspended))
         (let [run (simulate-event! run :continue-loop false)]
           (is (run-in-state? run :complete))
@@ -272,7 +272,7 @@
 
     (testing "multiple iterations"
       (clear-log!)
-      (let [run (start-flow! loop-with-suspending-body)     ; a = 1
+      (let [run (start! loop-with-suspending-body)     ; a = 1
             run (simulate-event! run :continue-loop true)   ; a + 1 = 2
             run (simulate-event! run :continue-loop true)   ; a + 1 = 3
             run (simulate-event! run :continue-loop false)] ; a + 1 = 4
@@ -295,7 +295,7 @@
 (deftest ^:unit Respond
   (letfn [(response? [run x] (= (:response run) x))]
     (testing "respond! adds to an element to the current run's response"
-      (let [run1 (start-flow! responding-flow)
+      (let [run1 (start! responding-flow)
             run2 (simulate-event! run1 :s1)
             run3 (simulate-event! run2 :s2)]
         (testing "responds during start flow"
@@ -310,7 +310,7 @@
 
 (deftest ^:unit DataStructures
   (testing "nested data structure with multiple suspending operations"
-    (let [run (reduce #(simulate-event! %1 :data %2) (start-flow! datastructures) [1 2 3 4])]
+    (let [run (reduce #(simulate-event! %1 :data %2) (start! datastructures) [1 2 3 4])]
       (is (run-in-state? run :complete))
       (is (= (:result run)
              {:a 1 :b 2 :c [3 {:d 4}]})))))
@@ -320,7 +320,7 @@
 
 (deftest ^:unit MacroexpansionTest
   (testing "macroexpansion with suspending forms"
-    (let [run (reduce #(simulate-event! %1 :data %2) (start-flow! macroexpansion) [false true "foo"])]
+    (let [run (reduce #(simulate-event! %1 :data %2) (start! macroexpansion) [false true "foo"])]
       (is (run-in-state? run :complete))
       (is (= (:result run) "foo")))))
 
@@ -331,6 +331,6 @@
     (is (thrown? Exception (macroexpand `(deflow fn-with-suspend [] (fn [] (suspend! :boo)))))))
 
   (testing "should successfully partition when a normal fn is present in the body"
-    (let [run (simulate-event! (start-flow! flow-with-anonymous-fn) :list '(1 2 3))]
+    (let [run (simulate-event! (start! flow-with-anonymous-fn) :list '(1 2 3))]
       (is (run-in-state? run :complete))
       (is (= (:result run) '(1 4 9))))))
