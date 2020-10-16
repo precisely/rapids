@@ -1,7 +1,4 @@
-; setup according to: https://8thlight.com/blog/eric-smith/2016/10/05/a-testable-clojurescript-setup.html
-
-; also https://github.com/bhauman/lein-figwheel/wiki/Running-figwheel-in-a-Cursive-Clojure-REPL
-(defproject longterm "0.1.3"
+(defproject longterm "0.1.4-SNAPSHOT"
   :description "FIXME: write description"
   ; :url "http://example.com/FIXME"
   :license {:name "All Rights Reserved"
