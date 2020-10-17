@@ -12,15 +12,14 @@
          - waiting - marked true when receiver is halted and waiting for results from channel
     * globals - provided to start! and accessible to all runs and sub-runs
          - e.g., may want to store a global channel representing user-activities
-    * launch, wait & resume subflows according to suspend context
-      ... the suspend "context" is what is currently the event-id
+    * launch, wait & resume subflows according to the suspend context
       `(defer-while [:user] run) ; defers control to run while it remains suspended in :user context`
         - returns either run suspended in alternate state or  
         - alternates: 
                 * `(wait-while [:user] run)` 
                 * `(wait-on run :user)` 
-                * `(cede [:user] run)`
-                * `(cede run :user)`
+                * `(cede! [:user] run)`
+                * `(cede! run :user)`
           perhaps we start the process with `(wait-on (start! flow 1 2 3) :user)`
 * add expiry mechanism
   - an API on the runstore - expired-suspensions, plus index the expiry 

@@ -21,11 +21,11 @@
   `(is (= ~expected @*log*)))
 
 (defn simulate-event!
-  ([run event-id]
-   (simulate-event! run event-id nil))
-  ([run event-id value]
+  ([run context]
+   (simulate-event! run context nil))
+  ([run context value]
    {:pre [(run-in-state? run :any)]}
-   (process-event! (:id run) event-id value)))
+   (continue! (:id run) context value)))
 
 (deflow suspending-flow
   [val]
@@ -36,7 +36,7 @@
 
 (deflow event-value-flow
   "Just returns an event value"
-  [event-id] (suspend! event-id))
+  [context] (suspend! context))
 
 (deftest ^:unit BasicFlowTests
   (testing "Start and suspend"
@@ -57,11 +57,11 @@
     (let [run (simulate-event! (start! event-value-flow :foo) :foo "foo-result")]
       (is (= (:result run) "foo-result"))))
 
-  (testing "providing a mismatched event-id throws an exception"
+  (testing "providing a mismatched context throws an exception"
     (is (thrown? Exception (simulate-event! (start! event-value-flow :expecting) :actual)))))
 
-(deflow fl-nest [arg event-id]
-  (* arg (suspend! event-id)))
+(deflow fl-nest [arg context]
+  (* arg (suspend! context)))
 
 (deflow nested-flow-args [a]
   (fl-nest (fl-nest (fl-nest a :first) :second) :third))

@@ -5,7 +5,7 @@
     [longterm.util :refer :all])
   (:import (longterm.address Address)))
 
-(declare start! process-event! resume-run!)
+(declare start! continue! resume-run!)
 (declare resume-at next-continuation!)
 (declare suspend-signal?)
 
@@ -69,25 +69,29 @@
          (recur (next-continuation!) next-result)))
      result)))                                              ; return the final result (to be stored in run.result)
 
-(defn process-event!
+(defn continue!
   "Processes an external event, finds the associated run and calls the continuation at the
-  top of the stack, passing the event data.
+  top of the stack, passing a result, which gets injected into the flow as the
+  value of the (suspend! ) call.
 
   Args:
-    event - a map of the form {:event-id event-id :run-id: run-id :data value}
+    event - a map of the form {:context context :run-id: run-id :data value}
 
   Returns:
     run - in :suspended or :complete state
   "
-  ([run-id event-id] (process-event! run-id event-id nil))
+  ([run-id context] (continue! run-id context nil))
 
-  ([run-id event-id result]
+  ([run-id context result]
    {:pre  [(not (nil? run-id))
-           (not (nil? event-id))]
+           (not (nil? context))]
     :post [(rs/run-in-state? % :suspended :complete)]}
    (with-run! [(rs/unsuspend-run! run-id)]
-     (resume-run! (next-continuation! event-id) result))))
+     (resume-run! (next-continuation! context) result))))
 
+;;
+;; Helpers
+;;
 (defn- continuation-from-frame [frame]
   {:pre [(instance? StackFrame frame)]}
   (let [address (:address frame)
@@ -98,7 +102,7 @@
                                    (assoc bindings
                                      result-key result)
                                    bindings)]
-        (flow/continue address bindings-with-result)))))
+        (flow/exec address bindings-with-result)))))
 
 (defn next-continuation!
   "This function destructively updates the current run (popping the stack), so should
@@ -109,17 +113,17 @@
    or nil if stack is empty"
   ([] (next-continuation! nil))
 
-  ([event-id]
+  ([context]
    (let [[top & rest-frames] (:stack *run*)]
      (when top
        (set! *run* (assoc *run* :stack rest-frames))
        (cond
-         (nil? event-id) (continuation-from-frame top)
+         (nil? context) (continuation-from-frame top)
          :else (do
                  (if-not (suspend-signal? top)
                    (throw (Exception. (format "Invalid stack for run %s; expecting Suspend but received %s" top))))
-                 (if-not (= (:event-id top) event-id)
-                   (throw (Exception. (format "Unexpected event %s received. Expecting %s" event-id (:event-id top)))))
+                 (if-not (= (:context top) context)
+                   (throw (Exception. (format "Unexpected event %s received. Expecting %s" context (:context top)))))
                  (recur nil)))))))
 
 (defmacro resume-at
@@ -145,20 +149,20 @@
 ;; SUSPEND
 ;;
 
-(defrecord Suspend [event-id expiry])
+(defrecord Suspend [context expiry])
 
 (defn suspend-signal? [x] (instance? Suspend x))
 
 (defn suspend!
-  "Used within deflow body to suspend execution until event with id=event-id is received."
-  ([event-id] (suspend! event-id nil))
-  ([event-id expiry]
-   {:pre [(not (nil? event-id))]}
+  "Used within deflow body to suspend execution until event with id=context is received."
+  ([context] (suspend! context nil))
+  ([context expiry]
+   {:pre [(not (nil? context))]}
    (if-not (and (bound? #'*run*)
                 (rs/run-in-state? *run* :any))
      (throw (Exception. (format "Invalid run context while evaluating (suspend! %s %s)"
-                                event-id expiry))))
-   (Suspend. event-id expiry)))
+                                context expiry))))
+   (Suspend. context expiry)))
 
 ;;
 ;; Helpers

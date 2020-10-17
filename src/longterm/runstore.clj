@@ -11,7 +11,7 @@
    stack ; list of StackFrame or Suspend instances
    state ; one of RunStates
    result ; final result (when state=complete)
-   response]) ; runlet response (cleared by process-event!)
+   response]) ; runlet response (cleared by continue!)
 
 (def ^:const RunStates '(:suspended :running :complete))
 (defn run-in-state?

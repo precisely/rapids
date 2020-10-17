@@ -19,10 +19,10 @@
 ;;; flow bodies.
 ;;;
 ;;; When a flow is called, a StackFrame is created which captures the bindings
-;;; and the address where execution should resume. When a `(wait-for event-id)`
+;;; and the address where execution should resume. When a `(wait-for context)`
 ;;; expression is encountered, the stack of thunks is persisted
 ;;; to a non-volatile storage and associated with these values. When an event
-;;; matching the current `*run-id*` and `event-id` is received, the thunk stack is
+;;; matching the current `*run-id*` and `context` is received, the thunk stack is
 ;;; retrieved, and execution is resumed at the point in the flow after the
 ;;; `(wait-for)` call, with the bindings that were present when `(wait-for...)`
 ;;; was invoked. At the end of each continuation, the thunk at the top of
@@ -296,7 +296,7 @@
   ;;                    calls behave normally
   ;; form-partition/n = any partitions following suspensions in loop-partition/1
   ;;                    recur expressions in these partitions are wrappers
-  ;;                    around (flow/continue <loop-partition/1> ...) where
+  ;;                    around (flow/exec <loop-partition/1> ...) where
   ;;                    the bindings contain the updated loop variables
   [expr mexpr address params]
   (let [op (first expr)
@@ -327,7 +327,7 @@
           loop-pset (pset/add (pset/create) loop-partition loop-partition-params loop-partition-body)
 
           flow-continue-bindings (bindings-expr-from-params loop-partition-params)
-          binding-body `[(flow/continue ~loop-partition ~flow-continue-bindings)]
+          binding-body `[(flow/exec ~loop-partition ~flow-continue-bindings)]
 
           ;; now we can compute the initializers and give it the partitioned loop start...
           [binding-start, bindings-pset, binding-suspend?]
@@ -350,7 +350,7 @@
               (if-not (= (count params) (count loop-params))
                 (throw-partition-error "Mismatched argument count to recur" expr "expected: %s args, got: %s"
                                        (count params) (count loop-params)))
-              `(flow/continue ~(:address *recur-binding-point*)
+              `(flow/exec ~(:address *recur-binding-point*)
                               ~bindings)))]
     (if-not *recur-binding-point*
       (throw-partition-error "No binding point" expr))
