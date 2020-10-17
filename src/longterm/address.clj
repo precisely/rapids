@@ -36,8 +36,8 @@
 (defn address? [o] (instance? Address o))
 (defn create
   [symbol & point]
-  {:pre [(is (qualified-symbol? symbol) "Address must flow must be a fully qualified symbol")
-         (is (valid-point? point) "Expecting varargs containing symbols or numbers")]}
+  {:pre [(qualified-symbol? symbol)
+         (valid-point? point)]}
   (Address. symbol (vec point)))
 
 (defn to-string
@@ -60,8 +60,8 @@
 
 (defn child
   [address & point]
-  {:pre [(is (instance? Address address) "First arg to address/child should be an address")
-         (is (valid-point? point) "Varargs of address/child should be symbols or numbers")]}
+  {:pre [(instance? Address address)
+         (valid-point? point)]}
   (assoc address :point (vec (concat (:point address) point))))
 
 (defn increment
@@ -75,11 +75,6 @@
          last (last point)]
      (assoc address :point (conj (pop point)
                                  (+ step last))))))
-
-(defn resolve-continuation
-  [address]
-  (let [[flow point] address]
-    (-> (var-get (resolve flow)) :continuations point)))
 
 (defn resolved-flow
   [address]
