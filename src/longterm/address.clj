@@ -7,25 +7,25 @@
 ;; not every point is a valid location for a continuation.
 ;; Addresses are meant to be human readable for debugging purposes
 ;; E.g., in
-;; (deflow foo []       ; flow = 'foo
-;;   (if                ; point = "0"
-;;     (test-something) ; point = "0/if/0"
-;;     (then-clause)    ; point = "0/if/1"
-;;     (do              ; point = "0/if/2"
-;;        (fee          ; point = "0/if/2/do/0"
-;;            (fi)      ; point = "0/if/2/do/0/fee/0" (the 0th arg of fee)
+;; (deflow foo []       ; flow = myns/foo
+;;   (if                ; point = [0]
+;;     (test-something) ; point = [0,if,0]
+;;     (then-clause)    ; point = [0,if,1]
+;;     (do              ; point = [0,if,2]
+;;        (fee          ; point = [0,if,2,do,0]
+;;            (fi)      ; point = [0,if,2,do,0,fee,0] (the 0th arg of fee)
 ;;            :keyarg   ; point = invalid
-;;            (fo))     ; point = "0/if/2/do/0/fee/2
-;;        (fum          ; point = "0/if/2/do/1"
-;;          [           ; point = "0/if/2/do/1/fum/0"
-;;            (x)       ; point = "0/if/2/do/1/fum/0/[]/0"
-;;            (y)])))   ; point = "0/if/2/do/1/fum/0/[]/1"
-;;   (baz               ; point = "1"
-;;     {                ; point = "1/baz/0"
+;;            (fo))     ; point = [0,if,2,do,0,fee,2]
+;;        (fum          ; point = [0,if,2,do,1]
+;;          [           ; point = [0,if,2,do,1,fum,0]
+;;            (x)       ; point = [0,if,2,do,1,fum,0,vec,0]
+;;            (y)])))   ; point = [0,if,2,do,1,fum,0,vec,1]
+;;   (baz               ; point = [1]
+;;     {                ; point = [1,baz,0]
 ;;      :a              ; point = invalid
-;;         (a)          ; point = "1/baz/0/{}/1"
+;;         (a)          ; point = [1,baz,0,map,1]
 ;;      :b              ; point = invalid
-;;         (b)}))       ; point = "1/baz/0/{}/2"
+;;         (b)}))       ; point = [1,baz,0,map,2]
 (declare to-string valid-point?)
 (defrecord Address
   [flow                                                     ; Symbol
@@ -42,13 +42,7 @@
 
 (defn to-string
   [a]
-  (str (:flow a) ":" (string/join ";" (:point a))))
-
-;(defmethod print-method Address
-;  [o w]
-;  (print-simple
-;    (str "<" (to-string o) ">")
-;    w))
+  (str (:flow a) ":" (string/join "/" (:point a))))
 
 (defn from-string
   [s]
