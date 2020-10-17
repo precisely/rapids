@@ -48,7 +48,7 @@
   [s]
   (let [[matched? name pointdefs] (re-find #"^([^;:\s]*)\:([^:\s]*)" s)]
     (if matched?
-      (let [points (map #(if (re-find #"^\d" %) (int %) (symbol %)) (string/split pointdefs ";"))]
+      (let [points (map #(if (re-find #"^\d" %) (int %) (symbol %)) (string/split pointdefs "/"))]
         (apply create (symbol name) points))
       (throw (Exception. (format "Expecting Address string definition, but received %s" s))))))
 
