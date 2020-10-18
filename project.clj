@@ -1,6 +1,5 @@
 (defproject longterm "0.1.5--SNAPSHOT"
-  :description "FIXME: write description"
-  ; :url "http://example.com/FIXME"
+  :description "A library for scripting long term real world processes"
   :license {:name "All Rights Reserved"
             :url ""}
   :dependencies [[org.clojure/clojure "1.10.1"]
