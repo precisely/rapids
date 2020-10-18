@@ -2,9 +2,9 @@
 
 A DSL for programming long running flows, involving interactions with the real world which may occur over minutes, days, or months. This library is intended to make it easy to write sophisticated user flows. 
 
-Longterm defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `(suspend! context)` special form. The system uses a user-definable RunStore which stores the state of the computation when a `suspend!` is encountered. A default in memory runstore is provided, but the system is intended to be used with persistent storage. 
+Longterm defines a new macro, `deflow`, akin to `defn`, but which  permits listening execution until an external event is received. This is done with the `(listen! :permit :permit context)` special form. The system uses a user-definable RunStore which stores the state of the computation when a `listen!` is encountered. A default in memory runstore is provided, but the system is intended to be used with persistent storage. 
 
-Execution is restarted using `(continue! run-id context optional-result)`. The result provided to `continue!` becomes the value of the `suspend!` expression in the ensuing computation, which continues until complete or another `suspend!` is encountered.  
+Execution is restarted using `(continue! run-id context optional-result)`. The result provided to `continue!` becomes the value of the `listen!` expression in the ensuing computation, which continues until complete or another `listen!` is encountered.  
 
 ## Basic Usage
 Also see `tests/longterm_test.clj`.
@@ -17,7 +17,7 @@ Also see `tests/longterm_test.clj`.
   (respond! {:type :number-input          ;\__ interpreted by caller to display
              :type :number            ;/   user input UI
              :context :user-number}) ; caller uses this when sending event
-  (* (suspend :user-number) x))       ; returns the value the user entered multiplied by x
+  (* (listen :user-number) x))       ; returns the value the user entered multiplied by x
 ```
 
 ### Start the flow
@@ -53,7 +53,7 @@ Also see `tests/longterm_test.clj`.
   rs/IRunStore ; 
   (rs/rs-create! [rs state] ...) ; return an object implementing rs/IRun in the given state in the db 
   (rs/rs-get [rs run-id] ...) ; find and return the run
-  (rs/rs-unsuspend! [rs run-id] ...) ; atomically changing existing run from :suspended to :running state and return it
+  (rs/rs-unlisten! [rs run-id] ...) ; atomically changing existing run from :listening to :running state and return it
   (rs/rs-update! [rs run] ...) ; save the given run to the db
 ```
 The methods of IRunStore should return Run instances. If additional fields are needed, simply `assoc` them onto this object. 

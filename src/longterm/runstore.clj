@@ -1,19 +1,19 @@
 (ns longterm.runstore
   (:require [longterm.util :refer [in? new-uuid]]))
 
-(declare run-in-state? set-runstore! create-run! save-run! get-run unsuspend-run!)
+(declare run-in-state? set-runstore! create-run! save-run! get-run unlisten-run!)
 
 (def runstore (atom nil))
 
 
 (defrecord Run
   [id
-   stack ; list of StackFrame or Suspend instances
+   stack ; list of StackFrame or Listen instances
    state ; one of RunStates
    result ; final result (when state=complete)
-   response]) ; runlet response (cleared by continue!)
+   response]); runlet response (cleared by continue!)
 
-(def ^:const RunStates '(:suspended :running :complete))
+(def ^:const RunStates '(:listening :running :complete))
 (defn run-in-state?
   [run & states]
   (let [state   (:state run)
@@ -24,14 +24,14 @@
   (rs-create! [rs state])
   (rs-update! [rs run]
     "Saves the run to storage. Implementations should error if an attempt is
-    made to update the state from :suspended. Callers should use the rs-unsuspend method instead.")
+    made to update the state from :listening. Callers should use the rs-unlisten method instead.")
   (rs-get [rs run-id])
-  (rs-unsuspend! [rs run-id]
-    "Retrieves a Run, atomically transitioning it from :suspended to :running
+  (rs-unlisten! [rs run-id]
+    "Retrieves a Run, atomically transitioning it from :listening to :running
     Implementations should return:
       Run instance - if successful
       nil - if run not found
-      RunState - if current run state is not :suspended"))
+      RunState - if current run state is not :listening"))
 
 ;;
 ;; Public API based on runstore and stack/*stack* globals
@@ -41,7 +41,7 @@
   (reset! runstore rs))
 
 (defn create-run!
-  ([] (create-run! :suspended))
+  ([] (create-run! :listening))
   ([state]
    {:pre [(satisfies? IRunStore @runstore) (in? RunStates state)]
     :post [(run-in-state? % state)]}
@@ -61,10 +61,10 @@
    :post [(instance? Run %)]}
   (rs-get @runstore run-id))
 
-(defn unsuspend-run!
+(defn unlisten-run!
   [run-id]
   {:pre [(not (nil? run-id))]
    :post [(run-in-state? % :running)]}
-  (rs-unsuspend! @runstore run-id))
+  (rs-unlisten! @runstore run-id))
 
 

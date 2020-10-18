@@ -9,7 +9,7 @@
 (declare params-from-args params-to-continuation-args)
 
 (defmacro deflow
-  "Define a long term flow which suspends execution at (suspend ...) expressions.
+  "Define a long term flow which listens execution at (listen ...) expressions.
   Flows are started with runloop/start! and resumed "
   [name docstring? args & code]
   (if-not (string? docstring?)
@@ -17,12 +17,12 @@
     (let [params  (params-from-args args)
           qualified (qualify-symbol name)
           address (address/create qualified)
-          [start-body, pset, suspend?] (p/partition-body (vec code) address address params)
+          [start-body, pset, listen?] (p/partition-body (vec code) address address params)
           pset    (pset/add pset address params start-body)
           c-args  (params-to-continuation-args params)
           entry-point-name (symbol (str name "__entry-point"))]
-      (if-not suspend?
-        (throw (Exception. (format "Flow %s doesn't suspend. Consider using defn instead." name))))
+      (if-not listen?
+        (throw (Exception. (format "Flow %s doesn't listen. Consider using defn instead." name))))
       `(let [cset#               ~(pset/continuation-set-def pset) ; compiles the fndefs in the pset
              entry-continuation# (get cset# ~address)
              entry-point#        (fn ~entry-point-name [~@args] (entry-continuation# ~@c-args))]

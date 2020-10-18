@@ -12,9 +12,9 @@
          - waiting - marked true when receiver is halted and waiting for results from channel
     * globals - provided to start! and accessible to all runs and sub-runs
          - e.g., may want to store a global channel representing user-activities
-    * launch, wait & resume subflows according to the suspend context
-      `(defer-while [:user] run) ; defers control to run while it remains suspended in :user context`
-        - returns either run suspended in alternate state or  
+    * launch, wait & resume subflows according to the listen context
+      `(defer-while [:user] run) ; defers control to run while it remains listening in :user context`
+        - returns either run listening in alternate state or  
         - alternates: 
                 * `(wait-while [:user] run)` 
                 * `(wait-on run :user)` 
@@ -31,7 +31,7 @@
 * add support for try/catch
 * add support for fn/letfn
     - may require generalized support for object persistence across runlets
-* consider constraint mechanism for unsuspend - (fn [suspend, event] ) => boolean
+* consider constraint mechanism for unlisten - (fn [listen, event] ) => boolean
   - or perhaps raise error to indicate reason for failure
 * finish loop tests in longterm_test.clj 
 * documentation

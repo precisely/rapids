@@ -171,8 +171,8 @@
 (defn new-uuid []
   (str (UUID/randomUUID)))
 
-(defn suspend-op? [op]
-  (some #(= op %) '[suspend! longterm/suspend! longterm.runloop/suspend!]))
+(defn listen-op? [op]
+  (some #(= op %) '[listen! longterm/listen! longterm.runloop/listen!]))
 
 (defn reverse-interleave [s n]
   "Reverses interleave of sequence s, into n lists"

@@ -20,15 +20,15 @@ Since these activities span a long time, it isn't feasible to dedicate an active
    * partition - block of code from a (deflow ...) expression
    * address - a Clojure record which identifies a location in a flow
    * continuation - Clojure function associated with an address that implements the partition. In practice, this also includes code which pushes and pops frames onto/off of the stack
-   * suspend - stop execution of a run due to encountering the suspend! command with a flow. The state of the flow is saved to the stack and can be resumed when an event is received.
+   * listen - stop execution of a run due to encountering the listen! command with a flow. The state of the flow is saved to the stack and can be resumed when an event is received.
    * stack frame - a Clojure record which contains information required for resuming a flow it contains an address which identifies the next continuation, plus any bindings
    * stack - a FIFO stack of thunks; the most recent represents the next continuation
    * run - a sequence of execution involving multiple runlets and the events that trigger them.        also the object stored in the database that tracks the run
-   * runlet - a sequence of continuations which are invoked while handling an event, representing partitions from potentially many flows. A runlet begins when a flow is started or continued and ends when a suspend! operation is encountered. 
+   * runlet - a sequence of continuations which are invoked while handling an event, representing partitions from potentially many flows. A runlet begins when a flow is started or continued and ends when a listen! operation is encountered. 
    * child run - a run started by another run. Moral equivalent of a subprocess.
-   * event - a real world event which causes the run to resume executing after being suspended
+   * event - a real world event which causes the run to resume executing after being listening
    * cede - relinquish control to a child run 
-   * context - value provided to suspend! which identifies the type of event which may continue the run. Sometimes referred to as the "suspend context". Runs may cede control to child runs until the child run leaves a particular context. For example, a run responding to a user may cede to a child run to initiate an activity with them. At some point, the child run switches context from gathering input from the user to suspending for some other real world event, like results from a lab. When the child flow's suspend context
+   * context - value provided to listen! which identifies the type of event which may continue the run. Sometimes referred to as the "listen context". Runs may cede control to child runs until the child run leaves a particular context. For example, a run responding to a user may cede to a child run to initiate an activity with them. At some point, the child run switches context from gathering input from the user to listening for some other real world event, like results from a lab. When the child flow's listen context
 
  ### Mechanism
  1) During the partitioning phase, inside the deflow macro, code is analyzed and flow expressions are identified - expressions like `(myflow ...)`, where `myflow` is a global var bound to a flow.

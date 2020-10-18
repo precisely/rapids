@@ -7,7 +7,7 @@
 
 (declare start! continue! resume-run!)
 (declare resume-at next-continuation!)
-(declare suspend-signal?)
+(declare listen-signal?)
 
 (declare process-run-result! with-run!)
 
@@ -20,14 +20,14 @@
 
 (defmacro with-run!
   "Takes a run-id, and obtains a run, transitions it to running state, clears the response list,
-   and executes forms in body, then saves the run in :suspended or :complete state.
+   and executes forms in body, then saves the run in :listening or :complete state.
 
-  The final form of body returns a Suspend record to put the run in :suspended state. If it returns
+  The final form of body returns a Listen record to put the run in :listening state. If it returns
   a value, the run state will change to :complete, and the value will be stored in the
   Run's `result` field.
 
   Returns:
-    run - Run instance in :suspended or :complete state"
+    run - Run instance in :listening or :complete state"
   ([[run-form] & body]
    `(binding [*run* (assoc ~run-form :response [])]
       (let [value# (do ~@body)]
@@ -41,10 +41,10 @@
 
 (defn start!
   "Starts a run with the flow and given arguments.
-  Returns the Run in :suspended or :complete state."
+  Returns the Run in :listening or :complete state."
   [flow & args]
   {:pre  [(refers-to? flow/flow? flow)]
-   :post [(rs/run-in-state? % :suspended :complete)]}
+   :post [(rs/run-in-state? % :listening :complete)]}
   (with-run! [(rs/create-run! :running)]
     (resume-run! (fn [_]
                    (apply flow/entry-point flow args)))))
@@ -53,7 +53,7 @@
 
 (defn resume-run!
   "Evaluates a par-bound continuation, popping the stack and passing the result to the next
-   continuation until either a continuation returns SUSPEND or the stack is empty.
+   continuation until either a continuation returns a Listen instance or the stack is empty.
 
    This function destructively modifies the run, but DOES NOT save it. It should
    be wrapped inside a with-run! block."
@@ -64,30 +64,49 @@
           (or (fn? continuation) (nil? continuation))]}
    (if continuation
      (let [next-result (continuation result)]
-       (if (suspend-signal? next-result)
-         next-result
+       (if (listen-signal? next-result)
+         next-result                                        ; return the listen signal, which ends the runlet
          (recur (next-continuation!) next-result)))
      result)))                                              ; return the final result (to be stored in run.result)
+
+(defn check-permit [listen-permit event-permit]
+  (if listen-permit
+    (if (fn? listen-permit)
+      (throw (Exception. "Function permits not yet supported"))
+      (if-not (= listen-permit event-permit)
+        (throw (Exception.
+                 (format "Run is listening for event with permit %s but received %s"
+                         listen-permit event-permit)))))))
 
 (defn continue!
   "Processes an external event, finds the associated run and calls the continuation at the
   top of the stack, passing a result, which gets injected into the flow as the
-  value of the (suspend! ) call.
+  value of the (listen!...) call.
 
   Args:
-    event - a map of the form {:context context :run-id: run-id :data value}
+    run-id - id the run to continue
+    permit - if a listen! :permit value was provided, it must match
+    result - optional result that will be provided as the result of the listen! expression
 
   Returns:
-    run - in :suspended or :complete state
+    run - in :listening or :complete state
   "
-  ([run-id context] (continue! run-id context nil))
+  ([run-id] (continue! run-id nil nil))
 
-  ([run-id context result]
-   {:pre  [(not (nil? run-id))
-           (not (nil? context))]
-    :post [(rs/run-in-state? % :suspended :complete)]}
-   (with-run! [(rs/unsuspend-run! run-id)]
-     (resume-run! (next-continuation! context) result))))
+  ([run-id permit] (continue! run-id permit nil))
+
+  ([run-id permit result]
+   {:pre  [(not (nil? run-id))]
+    :post [(rs/run-in-state? % :listening :complete)]}
+   (with-run! [(rs/unlisten-run! run-id)]
+     (let [stack (:stack *run*)
+           top (first stack)]
+       (if-not (listen-signal? top)
+         (throw (Exception. (format "Invalid stack for run %s; expecting Listen frame but found %s" top))))
+       (check-permit (:permit top) permit)
+       ;; pop the Listen object at the top of the stack and continue executing
+       (set! *run* (assoc *run* :stack (rest stack)))
+       (resume-run! (next-continuation!) result)))))
 
 ;;
 ;; Helpers
@@ -111,20 +130,11 @@
   Returns:
    function (fn [result] ...) which returns result to the continuation at the top of the stack
    or nil if stack is empty"
-  ([] (next-continuation! nil))
-
-  ([context]
-   (let [[top & rest-frames] (:stack *run*)]
-     (when top
-       (set! *run* (assoc *run* :stack rest-frames))
-       (cond
-         (nil? context) (continuation-from-frame top)
-         :else (do
-                 (if-not (suspend-signal? top)
-                   (throw (Exception. (format "Invalid stack for run %s; expecting Suspend but received %s" top))))
-                 (if-not (= (:context top) context)
-                   (throw (Exception. (format "Unexpected event %s received. Expecting %s" context (:context top)))))
-                 (recur nil)))))))
+  []
+  (let [[top & rest-frames] (:stack *run*)]
+    (when top
+      (set! *run* (assoc *run* :stack rest-frames))
+      (continuation-from-frame top))))
 
 (defmacro resume-at
   "Generates code that continues execution at address after flow-form is complete.
@@ -146,23 +156,41 @@
         ~@body))))
 
 ;;
-;; SUSPEND
+;; Listen
 ;;
 
-(defrecord Suspend [context expiry])
+(defrecord Listen [permit expires result])
 
-(defn suspend-signal? [x] (instance? Suspend x))
+(defn listen-signal? [x] (instance? Listen x))
 
-(defn suspend!
-  "Used within deflow body to suspend execution until event with id=context is received."
-  ([context] (suspend! context nil))
-  ([context expiry]
-   {:pre [(not (nil? context))]}
-   (if-not (and (bound? #'*run*)
-                (rs/run-in-state? *run* :any))
-     (throw (Exception. (format "Invalid run context while evaluating (suspend! %s %s)"
-                                context expiry))))
-   (Suspend. context expiry)))
+(defn listen!
+  "Used within deflow body to listen execution until event with id=context is received.
+  Args:
+    permit - a keyword or a permit function
+       a permit function tests the permit value provided by a continue! call
+       it has the form  (fn [permit-val {:keys [...params...]})
+       where params are variables from the current lexical context needed
+       to verify the continue! permit value.
+       NOTE: permit functions are not yet implemented
+    expires - when listening should expire
+              a Java LocalDateTime or a vector [JavaLocalDateTime, result]
+              where result = the result returned by the (listen!..) expr
+              on expiry
+  Examples:
+  (deflow foo [z]
+     (let [no-permit-required (listen!)
+           only-allow-button-press (listen! :permit :button-press)
+           expire-in-10-min (listen! :expires (-> 10 minutes from-now))
+           expire-with-value (listen! :expires [(-> 10 minutes from-now), :expiry-result])]
+       ... do something))"
+  [& {:keys [permit expires]}]
+  (if-not (and (bound? #'*run*)
+               (rs/run-in-state? *run* :any))
+    (throw (Exception. (format "Invalid run context while evaluating (listen!%s%s)"
+                               (if permit (str " :permit " permit))
+                               (if expires (str " :expiry " expires)))))
+    (let [[expire-time, result] (if (vector? expires) expires [expires, nil])]
+      (Listen. permit expire-time result))))
 
 ;;
 ;; Helpers
@@ -173,9 +201,9 @@
   (let [stack (:stack run)
         state (:state run)
         top (first stack)
-        result (and (every? #(or (instance? StackFrame %) (suspend-signal? %)) stack)
+        result (and (every? #(or (instance? StackFrame %) (listen-signal? %)) stack)
                     (case state
-                      :suspended (suspend-signal? top)
+                      :listening (listen-signal? top)
                       :running (instance? StackFrame top)
                       :complete (empty? stack)))]
     result))
@@ -183,8 +211,8 @@
 (defn- process-run-result! [value]
   {:post [(run-is-valid? *run*) "Failure in `process-run-result!`"]}
   (let [current-stack (:stack *run*)
-        [state, stack, result] (if (suspend-signal? value)
-                                 [:suspended, (cons value, current-stack), nil]
+        [state, stack, result] (if (listen-signal? value)
+                                 [:listening, (cons value, current-stack), nil]
                                  [:complete, current-stack, value])]
     (set! *run* (assoc *run* :state state :result result :stack stack))
     (rs/save-run! *run*)))

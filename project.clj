@@ -3,6 +3,7 @@
   :license {:name "All Rights Reserved"
             :url ""}
   :dependencies [[org.clojure/clojure "1.10.1"]
+                 [clojure.java-time "0.3.2"]
                  [potemkin "0.4.5"]]
   :clean-targets ^{:protect false} ["target"]
   :plugins []

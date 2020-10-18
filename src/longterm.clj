@@ -7,8 +7,8 @@
             [potemkin :refer [import-vars]]))
 
 (import-vars
-  [longterm.runstore run-in-state? set-runstore! create-run! save-run! get-run unsuspend-run!]
+  [longterm.runstore run-in-state? set-runstore! create-run! save-run! get-run unlisten-run!]
   [longterm.deflow deflow]
-  [longterm.runloop start! continue! suspend! respond!])
+  [longterm.runloop start! continue! listen! respond!])
 
 (longterm.runstore/set-runstore! (imrs/create-in-memory-runstore))

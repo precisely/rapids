@@ -21,39 +21,42 @@
   `(is (= ~expected @*log*)))
 
 (defn simulate-event!
-  ([run context]
-   (simulate-event! run context nil))
-  ([run context value]
-   {:pre [(run-in-state? run :any)]}
-   (continue! (:id run) context value)))
+  ([run]
+   (simulate-event! run nil nil))
 
-(deflow suspending-flow
+  ([run permit]
+   (simulate-event! run permit nil))
+  ([run permit value]
+   {:pre [(run-in-state? run :any)]}
+   (continue! (:id run) permit value)))
+
+(deflow listening-flow
   [val]
-  (log! :before-suspend)
-  (suspend! :test-event)
-  (log! :after-suspend)
+  (log! :before-listen)
+  (listen!)
+  (log! :after-listen)
   val)
 
 (deflow event-value-flow
   "Just returns an event value"
-  [context] (suspend! context))
+  [context] (listen! :permit context))
 
 (deftest ^:unit BasicFlowTests
-  (testing "Start and suspend"
+  (testing "Start and listen"
     (clear-log!)
-    (let [run (start! suspending-flow :foo)]
-      (is (run-in-state? run :suspended))
-      (is-log [:before-suspend])
+    (let [run (start! listening-flow :foo)]
+      (is (run-in-state? run :listening))
+      (is-log [:before-listen])
 
-      (testing "send event"
-        (let [ev-result (simulate-event! run :test-event)]
+      (testing "send event - with no permit"
+        (let [ev-result (simulate-event! run)]
           (is (run-in-state? ev-result :complete))
-          (is-log [:before-suspend :after-suspend])
+          (is-log [:before-listen :after-listen])
 
           (testing "it returns the correct value"
             (is (= (:result ev-result) :foo)))))))
 
-  (testing "suspend! event provides a value"
+  (testing "listen! event provides a value"
     (let [run (simulate-event! (start! event-value-flow :foo) :foo "foo-result")]
       (is (= (:result run) "foo-result"))))
 
@@ -61,17 +64,17 @@
     (is (thrown? Exception (simulate-event! (start! event-value-flow :expecting) :actual)))))
 
 (deflow fl-nest [arg context]
-  (* arg (suspend! context)))
+  (* arg (listen! :permit context)))
 
 (deflow nested-flow-args [a]
   (fl-nest (fl-nest (fl-nest a :first) :second) :third))
 
 (defn a [n] (* n 10))
 (deflow fl-alternating []
-  (+ (suspend! :first-arg) (a 2) (fl-nest 100 :third)))
+  (+ (listen! :permit :first-arg) (a 2) (fl-nest 100 :third)))
 
 (deflow fl-keywords [& {:keys [a b c]}]
-  (+ a b c (suspend! :event)))
+  (+ a b c (listen! :permit :event)))
 
 (deftest ^:unit FunctionalExpressionTest
   (testing "nested flow arguments"
@@ -80,8 +83,7 @@
           run3 (simulate-event! run2 :second 5)
           run4 (simulate-event! run3 :third 7)]
       (is (= (:result run4) (* 2 3 5 7)))))
-
-  (testing "various suspending and non-suspending args"
+  (testing "various listening and non-listening args"
     (let [run (simulate-event! (simulate-event! (start! fl-alternating) :first-arg 1) :third 3)]
       (is (run-in-state? run :complete))
       (is (= (:result run) 321))))
@@ -91,180 +93,180 @@
       (is (run-in-state? run :complete))
       (is (= (:result run) 1111)))))
 
-(deflow conditional-suspend [test]
+(deflow conditional-listen [test]
   (if test
-    (suspend! :then)
+    (listen! :permit :then)
     (log! :else))
   (log! :done)
   :final-value)
 
 (deftest ^:unit SimpleConditionals
-  (testing "conditional suspends in then expr"
+  (testing "conditional listens in then expr"
     (clear-log!)
-    (let [run (start! conditional-suspend true)]
+    (let [run (start! conditional-listen true)]
       (testing "before event")
-      (is (run-in-state? run :suspended))
+      (is (run-in-state? run :listening))
       (is-log [])
       (testing "after event"
         (let [run (simulate-event! run :then)]
           (is (= (:result run) :final-value))
           (is-log [:done])))))
 
-  (testing "but conditional does not suspend in else expr"
+  (testing "but conditional does not listen in else expr"
     (clear-log!)
-    (let [run (start! conditional-suspend false)]
+    (let [run (start! conditional-listen false)]
       (is (= (:result run) :final-value))
       (is-log [:else :done]))))
 
-(deflow nested-conditional-suspend [level1 level2]
+(deflow nested-conditional-listen [level1 level2]
   (if level1
     (if level2
-      (suspend! :true-true)
+      (listen! :permit :true-true)
       (log! :true-false))
     (if level2
       (log! :false-true)
-      (suspend! :false-false)))
+      (listen! :permit :false-false)))
   (log! :done))
 
 (deftest ^:unit NestedConditionals
-  (testing "suspend! correctly suspends inside nested then"
+  (testing "listen! correctly listens inside nested then"
     (clear-log!)
-    (let [run (start! nested-conditional-suspend true true)]
+    (let [run (start! nested-conditional-listen true true)]
 
-      (is (run-in-state? run :suspended))
+      (is (run-in-state? run :listening))
       (let [run-after-event (simulate-event! run :true-true)]
         (is (run-in-state? run-after-event :complete))
         (is-log [:done]))))
 
-  (testing "non-suspending expression in nested else returns immediately"
+  (testing "non-listening expression in nested else returns immediately"
     (clear-log!)
-    (let [run (start! nested-conditional-suspend true false)]
+    (let [run (start! nested-conditional-listen true false)]
       (is (run-in-state? run :complete))
       (is-log [:true-false :done])))
 
-  (testing "non-suspending expression in nested then returns immediately"
+  (testing "non-listening expression in nested then returns immediately"
     (clear-log!)
-    (let [run (start! nested-conditional-suspend false true)]
+    (let [run (start! nested-conditional-listen false true)]
       (is (run-in-state? run :complete))
       (is-log [:false-true :done])))
 
-  (testing "suspend! correctly suspends inside nested else"
+  (testing "listen! correctly listens inside nested else"
     (clear-log!)
-    (let [run (start! nested-conditional-suspend false false)]
+    (let [run (start! nested-conditional-listen false false)]
 
-      (is (run-in-state? run :suspended))
+      (is (run-in-state? run :listening))
       (let [run-after-event (simulate-event! run :false-false)]
         (is (run-in-state? run-after-event :complete))
         (is-log [:done])))))
 
-(deflow conditional-with-suspending-test [val]
-  (if (suspending-flow val)
+(deflow conditional-with-listening-test [val]
+  (if (listening-flow val)
     :then-val
     :else-val))
 
-(deftest ^:unit SuspendingTest
-  (testing "if expression where the test suspends, "
+(deftest ^:unit ListeningTest
+  (testing "if expression where the test listens, "
     (testing "when test is truthy"
-      (let [run (start! conditional-with-suspending-test true)]
-        (testing "the expression should suspend, and"
-          (is (run-in-state? run :suspended)))
+      (let [run (start! conditional-with-listening-test true)]
+        (testing "the expression should listen, and"
+          (is (run-in-state? run :listening)))
 
         (let [run (simulate-event! run :test-event)]
           (testing "it should return the then expression value"
             (is (= (:result run) :then-val))))))
 
     (testing "when test is falsey"
-      (let [run (start! conditional-with-suspending-test false)]
-        (testing "the expression should suspend, and"
-          (is (run-in-state? run :suspended)))
+      (let [run (start! conditional-with-listening-test false)]
+        (testing "the expression should listen, and"
+          (is (run-in-state? run :listening)))
 
         (let [run (simulate-event! run :test-event)]
           (testing "it should return the else expression value"
             (is (= (:result run) :else-val))))))))
 
-(deflow non-suspending-let-flow [a]
+(deflow non-listening-let-flow [a]
   (let [b (+ 1 a)
         c (* b a)]
-    (if false (suspend! :foo))                              ; satisfy deflow suspend requirement but do nothing
+    (if false (listen! :permit :foo))                              ; satisfy deflow listen requirement but do nothing
     [a b c]))
 
-(deflow suspending-let-initial-binding-flow [arg]
-  (let [suspend-value (suspend! :initial-binding)
+(deflow listening-let-initial-binding-flow [arg]
+  (let [listen-value (listen! :permit :initial-binding)
         square (* arg arg)]
-    [suspend-value square]))
+    [listen-value square]))
 
-(deflow suspending-let-internal-binding-flow [arg]
+(deflow listening-let-internal-binding-flow [arg]
   (let [square (* arg arg)
-        suspend-value (suspend! :internal-binding)
+        listen-value (listen! :permit :internal-binding)
         cube (* arg arg arg)]
-    [square suspend-value cube]))
+    [square listen-value cube]))
 
-(deflow suspending-let-final-binding-flow [arg]
+(deflow listening-let-final-binding-flow [arg]
   (let [square (* arg arg)
         cube (* arg arg arg)
-        suspend-value (suspend! :final-binding)]
-    [square cube suspend-value]))
+        listen-value (listen! :permit :final-binding)]
+    [square cube listen-value]))
 
-(deflow suspending-let-body-flow [arg]
+(deflow listening-let-body-flow [arg]
   (let [square (* arg arg)
         cube (* arg arg arg)]
-    [square cube (suspend! :body)]))
+    [square cube (listen! :permit :body)]))
 
 (deftest ^:unit LetTest
-  (testing "non-suspending let expressions work"
-    (let [run (start! non-suspending-let-flow 2)]
+  (testing "non-listening let expressions work"
+    (let [run (start! non-listening-let-flow 2)]
       (is (= (-> run :result) [2 3 6]))))
 
-  (testing "correctly binds a suspending initial value"
-    (let [run (simulate-event! (start! suspending-let-initial-binding-flow 3) :initial-binding "event-data")]
+  (testing "correctly binds a listening initial value"
+    (let [run (simulate-event! (start! listening-let-initial-binding-flow 3) :initial-binding "event-data")]
       (is (= (:result run) ["event-data", 9]))))
 
-  (testing "correctly binds a suspending internal value"
-    (let [run (simulate-event! (start! suspending-let-internal-binding-flow 3) :internal-binding "event-data")]
+  (testing "correctly binds a listening internal value"
+    (let [run (simulate-event! (start! listening-let-internal-binding-flow 3) :internal-binding "event-data")]
       (is (= (:result run) [9, "event-data", 27]))))
 
-  (testing "correctly binds a suspending final value"
-    (let [run (simulate-event! (start! suspending-let-final-binding-flow 3) :final-binding "event-data")]
+  (testing "correctly binds a listening final value"
+    (let [run (simulate-event! (start! listening-let-final-binding-flow 3) :final-binding "event-data")]
       (is (= (:result run) [9, 27, "event-data"]))))
 
-  (testing "correctly handles body with suspending value"
-    (let [run (simulate-event! (start! suspending-let-body-flow 3) :body "body-event-data")]
+  (testing "correctly handles body with listening value"
+    (let [run (simulate-event! (start! listening-let-body-flow 3) :body "body-event-data")]
       (is (= (:result run) [9, 27, "body-event-data"])))))
 
 (deflow simple-loop [n]
-  (log! :before-suspend)
-  (suspend! :initial-wait)
-  (log! :after-suspend)
+  (log! :before-listen)
+  (listen! :permit :initial-wait)
+  (log! :after-listen)
   (loop [a 1]
     (log! :looped)
     (if (< a n)
       (recur (+ a 1))
       n)))
 
-(deflow loop-with-suspending-body []
+(deflow loop-with-listening-body []
   (log! :before-loop)
   (loop [a 1]
     (log! :inside-loop)
-    (if (suspend! :continue-loop)
+    (if (listen! :permit :continue-loop)
       (recur (+ a 1))
       a)))
 
 (deftest ^:unit LoopTest
-  (testing "simple loop with no suspending operations works like a normal loop"
+  (testing "simple loop with no listening operations works like a normal loop"
     (clear-log!)
     (let [run (start! simple-loop 3)]
-      (is (run-in-state? run :suspended))
-      (is-log [:before-suspend])
+      (is (run-in-state? run :listening))
+      (is-log [:before-listen])
       (let [run (simulate-event! run :initial-wait)]
         (is (run-in-state? run :complete))
-        (is-log [:before-suspend :after-suspend :looped :looped :looped])
+        (is-log [:before-listen :after-listen :looped :looped :looped])
         (is (:result run) 3))))
 
-  (testing "loop with suspend in body"
+  (testing "loop with listen in body"
     (testing "single iteration"
       (clear-log!)
-      (let [run (start! loop-with-suspending-body)]
-        (is (run-in-state? run :suspended))
+      (let [run (start! loop-with-listening-body)]
+        (is (run-in-state? run :listening))
         (let [run (simulate-event! run :continue-loop false)]
           (is (run-in-state? run :complete))
           (is-log [:before-loop :inside-loop])
@@ -272,7 +274,7 @@
 
     (testing "multiple iterations"
       (clear-log!)
-      (let [run (start! loop-with-suspending-body)          ; a = 1
+      (let [run (start! loop-with-listening-body)          ; a = 1
             run (simulate-event! run :continue-loop true)   ; a + 1 = 2
             run (simulate-event! run :continue-loop true)   ; a + 1 = 3
             run (simulate-event! run :continue-loop false)] ; a + 1 = 4
@@ -285,39 +287,41 @@
         (is (thrown? Exception
                      (macroexpand
                        '(deflow foo []
+                          (listen! :permit :foo)
                           (loop [a 1]
                             (recur 2 :extra)))))))
       (testing "loop has more bindings"
         (is (thrown? Exception
                      (macroexpand
                        '(deflow foo []
+                          (listen! :permit :foo)
                           (loop [a 1 b 2]
                             ;; recur has extra argument
                             (recur 2))))))))
     (testing "throws if recur is in non-tail position"
-      (testing "non suspending loop"
+      (testing "non listening loop"
         (is (thrown? Exception
                      (macroexpand
                        '(deflow foo []
-                          (suspend :a)
+                          (listen! :permit :a)
                           (loop [a 1]
                             (recur 2)
                             (println "I'm in the tail pos")))))))
-      (testing "suspending loop"
+      (testing "listening loop"
         (is (thrown? Exception
                      (macroexpand
                        '(deflow foo []
                           (loop [a 1]
-                            (suspend :a)
+                            (listen! :permit :a)
                             (recur 2)
                             (println "I'm in the tail pos"))))))))))
 
 (deflow responding-flow []
   (respond! :r1)
-  (suspend! :s1)
+  (listen! :permit :s1)
   (respond! :r2)
   (respond! :r3)
-  (suspend! :s2)
+  (listen! :permit :s2)
   (respond! :r4 :r5))
 
 (deftest ^:unit Respond
@@ -334,29 +338,29 @@
         (is (response? run3 [:r4 :r5]))))))
 
 (deflow datastructures []
-  {:a (suspend! :data) :b (suspend! :data) :c [(suspend! :data) {:d (suspend! :data)}]})
+  {:a (listen! :permit :data) :b (listen! :permit :data) :c [(listen! :permit :data) {:d (listen! :permit :data)}]})
 
 (deftest ^:unit DataStructures
-  (testing "nested data structure with multiple suspending operations"
+  (testing "nested data structure with multiple listening operations"
     (let [run (reduce #(simulate-event! %1 :data %2) (start! datastructures) [1 2 3 4])]
       (is (run-in-state? run :complete))
       (is (= (:result run)
              {:a 1 :b 2 :c [3 {:d 4}]})))))
 
 (deflow macroexpansion []
-  (or (suspend! :data) (and (suspend! :data) (suspend! :data))))
+  (or (listen! :permit :data) (and (listen! :permit :data) (listen! :permit :data))))
 
 (deftest ^:unit MacroexpansionTest
-  (testing "macroexpansion with suspending forms"
+  (testing "macroexpansion with listening forms"
     (let [run (reduce #(simulate-event! %1 :data %2) (start! macroexpansion) [false true "foo"])]
       (is (run-in-state? run :complete))
       (is (= (:result run) "foo")))))
 
-(deflow flow-with-anonymous-fn [] (map #(* % %) (suspend! :list)))
+(deflow flow-with-anonymous-fn [] (map #(* % %) (listen! :permit :list)))
 
 (deftest ^:unit FunctionTest
-  (testing "should throw an error attempting to partition a fn with suspending expressions"
-    (is (thrown? Exception (macroexpand `(deflow fn-with-suspend [] (fn [] (suspend! :boo)))))))
+  (testing "should throw an error attempting to partition a fn with listening expressions"
+    (is (thrown? Exception (macroexpand `(deflow fn-with-listen [] (fn [] (listen! :permit :boo)))))))
 
   (testing "should successfully partition when a normal fn is present in the body"
     (let [run (simulate-event! (start! flow-with-anonymous-fn) :list '(1 2 3))]
@@ -365,4 +369,4 @@
 
 (deftest ^:unit FlowsAsFunctions
   (testing "flows can be started like normal functions and return a run"
-    (is (run-in-state? (suspending-flow :foo) :suspended))))
+    (is (run-in-state? (listening-flow :foo) :listening))))
