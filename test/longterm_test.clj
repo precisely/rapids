@@ -272,7 +272,7 @@
 
     (testing "multiple iterations"
       (clear-log!)
-      (let [run (start! loop-with-suspending-body)     ; a = 1
+      (let [run (start! loop-with-suspending-body)          ; a = 1
             run (simulate-event! run :continue-loop true)   ; a + 1 = 2
             run (simulate-event! run :continue-loop true)   ; a + 1 = 3
             run (simulate-event! run :continue-loop false)] ; a + 1 = 4
@@ -280,9 +280,37 @@
         (is (:result run) 4)
         (is-log [:before-loop :inside-loop :inside-loop :inside-loop])))
 
-    ;; TODO
-    (testing "throws if loop and recur bindings don't match")
-    (testing "throws if recur is in non-tail position")))
+    (testing "throws if loop and recur bindings don't match"
+      (testing "recur has more bindings"
+        (is (thrown? Exception
+                     (macroexpand
+                       '(deflow foo []
+                          (loop [a 1]
+                            (recur 2 :extra)))))))
+      (testing "loop has more bindings"
+        (is (thrown? Exception
+                     (macroexpand
+                       '(deflow foo []
+                          (loop [a 1 b 2]
+                            ;; recur has extra argument
+                            (recur 2))))))))
+    (testing "throws if recur is in non-tail position"
+      (testing "non suspending loop"
+        (is (thrown? Exception
+                     (macroexpand
+                       '(deflow foo []
+                          (suspend :a)
+                          (loop [a 1]
+                            (recur 2)
+                            (println "I'm in the tail pos")))))))
+      (testing "suspending loop"
+        (is (thrown? Exception
+                     (macroexpand
+                       '(deflow foo []
+                          (loop [a 1]
+                            (suspend :a)
+                            (recur 2)
+                            (println "I'm in the tail pos"))))))))))
 
 (deflow responding-flow []
   (respond! :r1)

@@ -3,6 +3,8 @@
             [longterm.partition-set :refer :all]
             [longterm.address :as address]))
 
+(declare main) ; get rid of symbol resolution warnings
+
 (deftest ^:unit PartitionSet
   (let [addr  (address/create `main)
         addr1 (address/child addr 1)

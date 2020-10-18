@@ -2,6 +2,8 @@
   (:require [clojure.test :refer :all]
             [longterm.address :refer :all]))
 
+(declare foo) ; get rid of symbol resolution warnings
+
 (deftest ^:unit Address
   (testing "create simple"
     (let [a (create `foo)]
