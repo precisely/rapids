@@ -6,7 +6,7 @@
             [longterm.partition-set :as pset])
   (:import (longterm.flow Flow)))
 
-(declare params-from-args params-to-continuation-args)
+(declare params-from-args params-to-continuation-args expand-flow)
 
 (defmacro deflow
   "Define a long term flow which listens execution at (listen ...) expressions.
@@ -14,20 +14,23 @@
   [name docstring? args & code]
   (if-not (string? docstring?)
     `(deflow ~name "" ~docstring? ~args ~@code)
-    (let [params  (params-from-args args)
-          qualified (qualify-symbol name)
-          address (address/create qualified)
-          [start-body, pset, listen?] (p/partition-body (vec code) address address params)
-          pset    (pset/add pset address params start-body)
-          c-args  (params-to-continuation-args params)
-          entry-point-name (symbol (str name "__entry-point"))]
-      (if-not listen?
-        (throw (Exception. (format "Flow %s doesn't listen. Consider using defn instead." name))))
-      `(let [cset#               ~(pset/continuation-set-def pset) ; compiles the fndefs in the pset
-             entry-continuation# (get cset# ~address)
-             entry-point#        (fn ~entry-point-name [~@args] (entry-continuation# ~@c-args))]
-         (def ~name ~docstring?
-           (Flow. '~qualified, entry-point#, cset#, ~pset))))))
+    (expand-flow name docstring? args code)))
+
+(defn expand-flow [name docstring? args code]
+  (let [params (params-from-args args)
+        qualified (qualify-symbol name)
+        address (address/create qualified)
+        [start-body, pset, listen?] (p/partition-body (vec code) address address params)
+        pset (pset/add pset address params start-body)
+        c-args (params-to-continuation-args params)
+        entry-point-name (symbol (str name "__entry-point"))]
+    (if-not listen?
+      (throw (Exception. (format "Flow %s doesn't listen. Consider using defn instead." name))))
+    `(let [cset# ~(pset/continuation-set-def pset)          ; compiles the fndefs in the pset
+           entry-continuation# (get cset# ~address)
+           entry-point# (fn ~entry-point-name [~@args] (entry-continuation# ~@c-args))]
+       (def ~name ~docstring?
+         (Flow. '~qualified, entry-point#, cset#, ~pset)))))
 
 ;;
 ;; HELPERS
@@ -37,7 +40,7 @@
   [params]
   (flatten (map (fn [p]
                   [(keyword p), p])
-             params)))
+                params)))
 
 (defn- params-from-args
   "given an argument vector, returns a vector of symbols"

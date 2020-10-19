@@ -187,7 +187,7 @@
 (deflow non-listening-let-flow [a]
   (let [b (+ 1 a)
         c (* b a)]
-    (if false (listen! :permit :foo))                              ; satisfy deflow listen requirement but do nothing
+    (if false (listen! :permit :foo))                       ; satisfy deflow listen requirement but do nothing
     [a b c]))
 
 (deflow listening-let-initial-binding-flow [arg]
@@ -274,7 +274,7 @@
 
     (testing "multiple iterations"
       (clear-log!)
-      (let [run (start! loop-with-listening-body)          ; a = 1
+      (let [run (start! loop-with-listening-body)           ; a = 1
             run (simulate-event! run :continue-loop true)   ; a + 1 = 2
             run (simulate-event! run :continue-loop true)   ; a + 1 = 3
             run (simulate-event! run :continue-loop false)] ; a + 1 = 4
@@ -284,37 +284,41 @@
 
     (testing "throws if loop and recur bindings don't match"
       (testing "recur has more bindings"
-        (is (thrown? Exception
-                     (macroexpand
-                       '(deflow foo []
-                          (listen! :permit :foo)
-                          (loop [a 1]
-                            (recur 2 :extra)))))))
-      (testing "loop has more bindings"
-        (is (thrown? Exception
-                     (macroexpand
-                       '(deflow foo []
-                          (listen! :permit :foo)
-                          (loop [a 1 b 2]
-                            ;; recur has extra argument
-                            (recur 2))))))))
-    (testing "throws if recur is in non-tail position"
-      (testing "non listening loop"
-        (is (thrown? Exception
-                     (macroexpand
-                       '(deflow foo []
-                          (listen! :permit :a)
-                          (loop [a 1]
-                            (recur 2)
-                            (println "I'm in the tail pos")))))))
-      (testing "listening loop"
-        (is (thrown? Exception
-                     (macroexpand
-                       '(deflow foo []
-                          (loop [a 1]
-                            (listen! :permit :a)
-                            (recur 2)
-                            (println "I'm in the tail pos"))))))))))
+        (is (thrown-with-msg?
+              Exception #"Mismatched argument count to recur"
+              (longterm.deflow/expand-flow
+                `foo "" []
+                '((listen! :permit :foo)
+                  (loop [a 1]
+                    (recur 2 :extra)))))))
+    (testing "loop has more bindings"
+      (is (thrown-with-msg?
+            Exception #"Mismatched argument count to recur"
+            (longterm.deflow/expand-flow
+              `foo "" []
+              '((listen! :permit :foo)
+                (loop [a 1 b 2]
+                  ;; recur has extra argument
+                  (recur 2))))))))
+  (testing "throws if recur is in non-tail position"
+    (testing "non listening loop"
+      (is (thrown-with-msg?
+            Exception #"Can only recur from tail position"
+            (longterm.deflow/expand-flow
+              `foo "" []
+              '((listen! :permit :a)
+                (loop [a 1]
+                  (recur 2)
+                  (println "I'm in the tail pos")))))))
+    (testing "listening loop"
+      (is (thrown-with-msg?
+            Exception #"Can only recur from tail position"
+            (longterm.deflow/expand-flow
+              `foo "" []
+              '((loop [a 1]
+                  (listen! :permit :a)
+                  (recur 2)
+                  (println "I'm in the tail pos"))))))))) )
 
 (deflow responding-flow []
   (respond! :r1)
@@ -360,7 +364,11 @@
 
 (deftest ^:unit FunctionTest
   (testing "should throw an error attempting to partition a fn with listening expressions"
-    (is (thrown? Exception (macroexpand `(deflow fn-with-listen [] (fn [] (listen! :permit :boo)))))))
+    (is (thrown-with-msg?
+          Exception #"Illegal attempt to listen in function body"
+          (longterm.deflow/expand-flow
+            `fn-with-listen "" []
+            '((fn [] (listen! :permit :boo)))))))
 
   (testing "should successfully partition when a normal fn is present in the body"
     (let [run (simulate-event! (start! flow-with-anonymous-fn) :list '(1 2 3))]
