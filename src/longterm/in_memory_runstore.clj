@@ -7,7 +7,7 @@
   IRunStore
   (rs-create! [this state]
     (let [run-id    (str (new-uuid))
-          run       (->Run run-id () state nil [])
+          run       (new-run run-id state)
           processes (:processes this)]
       (swap! processes assoc run-id run)
       run))

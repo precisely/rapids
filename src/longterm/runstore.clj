@@ -20,6 +20,9 @@
         result  (and (instance? Run run) (or (in? states state) (in? states :any)))]
     result))
 
+(defn new-run
+  [run-id state] (->Run run-id () state nil [] nil))
+
 (defprotocol IRunStore
   (rs-create! [rs state])
   (rs-update! [rs run]
