@@ -6,7 +6,7 @@
   (:import (longterm.address Address)
            (java.time LocalDateTime)))
 
-(declare start! continue! resume-run!)
+(declare start! continue! reduce-stack!)
 (declare resume-at next-continuation!)
 (declare suspend-signal?)
 
@@ -50,19 +50,22 @@
   {:pre  [(refers-to? flow/flow? flow)]
    :post [(rs/run-in-state? % :suspended :complete)]}
   (with-run! [(rs/create-run! :running)]
-    (resume-run! (fn [_]
-                   (apply flow/entry-point flow args)))))
+    (reduce-stack! (fn [_]
+                     (apply flow/entry-point flow args)))))
 
 ;; Solves a circular dependency problem - see longterm.flow for details
 (alter-var-root #'flow/start-with-run-context! (constantly start!))
 
-(defn resume-run!
-  "Evaluates a par-bound continuation, popping the stack and passing the result to the next
+(defn reduce-stack!
+  "Evaluates a par-bound(*) continuation, popping the stack and passing the result to the next
    continuation until either a continuation returns a Suspend instance or the stack is empty.
 
    This function destructively modifies the run, but DOES NOT save it. It should
-   be wrapped inside a with-run! block."
-  ([continuation] (resume-run! continuation nil))
+   be wrapped inside a with-run! block.
+
+   (*) par-bound means the continuation only takes a single argument: the result value. The bindings
+   have already been captured by the closure."
+  ([continuation] (reduce-stack! continuation nil))
 
   ([continuation result]
    {:pre [(rs/run-in-state? *run* :running)
@@ -107,14 +110,14 @@
    {:pre  [(not (nil? run-id))]
     :post [(rs/run-in-state? % :suspended :complete)]}
    (with-run! [(rs/acquire-run! run-id)]
-     (let [suspend       (:suspend *run*)
-           id            (:id *run*)]
+     (let [suspend (:suspend *run*)
+           id      (:id *run*)]
        (if-not (suspend-signal? suspend)
          (throw (Exception. (format "Attempt to continue Run %s with invalid :suspend value: %s" id suspend))))
        (check-permit (:permit suspend) permit)
        ;; clear the Suspend object and set initial responses
        (set! *run* (assoc *run* :suspend nil :responses responses))
-       (resume-run! (next-continuation!) result)))))
+       (reduce-stack! (next-continuation!) result)))))
 
 ;;
 ;; Helpers
