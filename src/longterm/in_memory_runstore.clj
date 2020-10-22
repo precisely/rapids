@@ -18,16 +18,16 @@
         (fn [p]
           (assoc p run-id run)))
       (get @processes run-id)))
-  (rs-unlisten! [this run-id]
+  (rs-acquire! [this run-id]
     (swap! (:processes this)
       (fn [processes]
         (let [run (get processes run-id)]
           (if run
-            (if (= (:state run):listening)
+            (if (= (:state run):suspended)
               (assoc-in processes [run-id :state] :running)
-              (throw (Exception. (format "Cannot unlisten Run %s from state %s"
+              (throw (Exception. (format "Cannot acquire Run %s from state %s"
                                    run-id (:state run)))))
-            (throw (Exception. (format "Cannot unlisten Run: %s not found."
+            (throw (Exception. (format "Cannot acquire Run: %s not found."
                                  run-id)))))))
     (rs-get this run-id))
   (rs-get [this run-id]

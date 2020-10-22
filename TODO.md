@@ -1,5 +1,6 @@
 # TODO
 
+* must implement case*, throw, set!, also throw/catch/finally - but disallow listen!
 * enable recursive deflow calls (it currently will fail because flow being defined is not recognized as a flow)
 * figure out parallel flow mechanism. Initial ideas: 
     * channels - separate table in RunStore (maybe rename to LongTermStore)
@@ -25,13 +26,12 @@
   - an API on the runstore - expired-suspensions, plus index the expiry 
 * add error handling
   - add :error state, and error fields to Run 
-* test macroexpansion
 * add multi-arity support to deflow
 * spec out versioning 
 * add support for try/catch
 * add support for fn/letfn
     - may require generalized support for object persistence across runlets
-* consider constraint mechanism for unlisten - (fn [listen, event] ) => boolean
+* consider constraint mechanism for acquire - (fn [listen, event] ) => boolean
   - or perhaps raise error to indicate reason for failure
 * finish loop tests in longterm_test.clj 
 * documentation

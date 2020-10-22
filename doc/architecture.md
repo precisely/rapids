@@ -169,3 +169,33 @@ Now a more complicated flow which exercises all of the basic cases i can think o
        (fl4--- fl4-arg0 (g)))
  }
 ```
+
+## Run States
+
+* `:running` - Code is being executed by a CPU. The run is started in this state. The runstore does not reflect the current state of the run.
+* `:suspended` - Code is not running; the current state of the computation is fully captured in the RunStore. The run moves out of `:suspended` state when:
+                     * an external event is received (which matches the Suspend params)   
+                     * a child run started with the blocking operator `<!` completes
+                     * a child run started by redirection `>>` blocks  
+* `:complete` - evaluation complete, indicates result field was set
+
+### Suspend modes
+
+Runs can be suspended by the listen `<*`, redirect `>>` or block `<!` operators. Each of these modes define different mechanisms for unsuspending the run. The run is unsuspended with a call to `continue!`, which takes optional keyword arguments:
+ 
+ ```
+(continue! run-id :permit permit :result result) 
+```
+
+* `:listen` mode is the simplest. It is entered using the `<*` operator. a call to `continue!` with the run-id of the suspended, a valid `permit` (if any) and an optional value for `result` will cause the flow to continue.
+
+* `:block` mode is initiated using the `<!` operator. It takes a run as an argument and suspends until the run completes. Although you could achieve the same behavior by simply calling a flow directly from another flow, it is better to launch a separate run to handle inputs from a different type of process. But the most important aspect of `:block` mode is that it causes a run suspended by `:redirect` to resume, as described in the following.
+ 
+* `:redirect` mode is entered using the `>>` operator, which takes a run as an argument. We refer to it as the child run. The Suspend permit is the id of the child run, and when the child run enters a blocked state, it calls `continue!` with its own id as the permit and returns the parent run to the caller, thus resuming the parent run.
+
+   ```(continue! parent-run-id :permit child-run-id :result child-run)```
+   
+
+
+
+  

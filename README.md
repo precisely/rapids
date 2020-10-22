@@ -53,7 +53,7 @@ Also see `tests/longterm_test.clj`.
   rs/IRunStore ; 
   (rs/rs-create! [rs state] ...) ; return an object implementing rs/IRun in the given state in the db 
   (rs/rs-get [rs run-id] ...) ; find and return the run
-  (rs/rs-unlisten! [rs run-id] ...) ; atomically changing existing run from :listening to :running state and return it
+  (rs/rs-acquire! [rs run-id] ...) ; atomically changing existing run from :listening to :running state and return it
   (rs/rs-update! [rs run] ...) ; save the given run to the db
 ```
 The methods of IRunStore should return Run instances. If additional fields are needed, simply `assoc` them onto this object. 

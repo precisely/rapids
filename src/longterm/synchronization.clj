@@ -1,20 +1,22 @@
-(ns longterm.transfer
+(ns longterm.synchronization
   (:require [longterm.deflow :refer [deflow]]
             [longterm.runloop :refer [with-run! *run*]]
             [longterm.util :refer [in?]]
             [longterm.runstore :as rs])
-  (:import (longterm.runloop Listen)))
+  (:import (longterm.runloop Suspend)))
 
 ;; this fn is treated as a special form by the partitioner
 ;; the argument is evaluated as is
 (defn >> [run]
-  "Redirection operator: transfers execution to run until it blocks. Always returns the run.
+  "Redirection operator: transfers execution to `run` until it changes to blocking state.
+
+  Returns the `run`
   If "
   (let [current-run *run*
         current-response (:response *run*)
         new-response (:response run)]
     (set! *run* (assoc *run*
-                  :stack (cons (Listen. 1 2 3) nil)
+                  :stack (cons (Suspend. 1 2 3) nil)
                   :state :redirected :response [] :redirect (:id run)))
     (rs/save-run! *run*)
     (set! *run* (assoc run :response (concat current-response new-response)
@@ -36,7 +38,7 @@
   "Used internally when a blocking run completes to unblock the blocked run."
   [run]
   {:pre [(rs/run-in-state? run :blocked)]}
-  ()
+  ())
 
 
 
