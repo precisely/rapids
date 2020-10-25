@@ -5,7 +5,6 @@
 
 (def runstore (atom nil))
 
-
 (defrecord Run
   [id
    stack                      ; list of StackFrame instances, newest first
@@ -13,8 +12,9 @@
    result                     ; final result (when :state=complete)
    response                   ; runlet response (cleared by continue!)
    suspend                    ; Suspend instance which suspended this run
-   mode                       ; :blocker or :redirected or nil
-   parent-run-id])            ; run which started this run
+   mode                       ; :block or :redirect or :default
+   parent-run-id              ; run which started this run
+   error-message])
 
 (def ^:const RunStates '(:suspended :running :error :complete))
 (defn run-in-state?
@@ -23,13 +23,13 @@
         result (and (instance? Run run) (or (in? states state) (in? states :any)))]
     result))
 
-(def ^:const RunModes '(:redirected :blocker nil)) ; indicates how run was started
+(def ^:const RunModes '(:redirect :block :default)) ; indicates how run was started
 (defn run-in-mode? [run & modes]
   (and (instance? Run run)
     (or (in? modes (:mode run)) (in? modes :any))))
 
 (defn new-run
-  [run-id state] (->Run run-id () state nil [] nil nil nil))
+  [run-id state] (->Run run-id () state nil [] nil :default nil nil))
 
 (defprotocol IRunStore
   (rs-create! [rs state])
@@ -37,7 +37,7 @@
     "Saves the run to storage. Implementations should error if an attempt is
     made to update the state from :suspended. Callers should use the rs-acquire method instead.")
   (rs-get [rs run-id])
-  (rs-acquire! [rs run-id]
+  (rs-acquire! [rs run-id permit]
     "Retrieves a Run, atomically transitioning it from :suspended to :running
     Implementations should return:
       Run instance - if successful
@@ -61,7 +61,7 @@
 
 (defn save-run!
   [run]
-  {:pre  [(instance? Run run)]
+  {:pre  [(instance? Run run) (not (= (:state run) :running))]
    :post [(instance? Run %)]}
   (let [new (rs-update! @runstore run)]
     new))
@@ -73,9 +73,9 @@
   (rs-get @runstore run-id))
 
 (defn acquire-run!
-  [run-id]
+  [run-id permit]
   {:pre  [(not (nil? run-id))]
    :post [(run-in-state? % :running)]}
-  (rs-acquire! @runstore run-id))
+  (rs-acquire! @runstore run-id permit))
 
 

@@ -1,7 +1,8 @@
 (ns longterm_test
   (:require [clojure.test :refer :all]
             [longterm :refer :all]
-            [longterm.in-memory-runstore :refer [in-memory-runstore?]]))
+            [longterm.in-memory-runstore :refer [in-memory-runstore?]]
+            [longterm.runstore :as rs]))
 
 (deftest ^:unit RunStore
   (testing "runstore is set to default InMemoryRunStore"
@@ -42,6 +43,7 @@
   [permit] (suspend! :permit permit))
 
 (deftest ^:unit BasicFlowTests
+
   (testing "Start and suspend"
     (clear-log!)
     (let [run (start! suspending-flow :foo)]
@@ -78,7 +80,7 @@
 
 (deftest ^:unit FunctionalExpressionTest
   (testing "nested flow arguments"
-    (let [run (start! nested-flow-args 2)
+    (let [run  (start! nested-flow-args 2)
           run2 (simulate-event! run :first 3)
           run3 (simulate-event! run2 :second 5)
           run4 (simulate-event! run3 :third 7)]
@@ -171,7 +173,7 @@
         (testing "the expression should suspend, and"
           (is (run-in-state? run :suspended)))
 
-        (let [run (simulate-event! run :test-event)]
+        (let [run (simulate-event! run)]
           (testing "it should return the then expression value"
             (is (= (:result run) :then-val))))))
 
@@ -180,36 +182,36 @@
         (testing "the expression should suspend, and"
           (is (run-in-state? run :suspended)))
 
-        (let [run (simulate-event! run :test-event)]
+        (let [run (simulate-event! run)]
           (testing "it should return the else expression value"
             (is (= (:result run) :else-val))))))))
 
 (deflow non-suspending-let-flow [a]
   (let [b (+ 1 a)
         c (* b a)]
-    (if false (suspend! :permit :foo))                       ; satisfy deflow suspend requirement but do nothing
+    (if false (suspend! :permit :foo)) ; satisfy deflow suspend requirement but do nothing
     [a b c]))
 
 (deflow suspending-let-initial-binding-flow [arg]
   (let [suspend-value (suspend! :permit :initial-binding)
-        square (* arg arg)]
+        square        (* arg arg)]
     [suspend-value square]))
 
 (deflow suspending-let-internal-binding-flow [arg]
-  (let [square (* arg arg)
+  (let [square        (* arg arg)
         suspend-value (suspend! :permit :internal-binding)
-        cube (* arg arg arg)]
+        cube          (* arg arg arg)]
     [square suspend-value cube]))
 
 (deflow suspending-let-final-binding-flow [arg]
-  (let [square (* arg arg)
-        cube (* arg arg arg)
+  (let [square        (* arg arg)
+        cube          (* arg arg arg)
         suspend-value (suspend! :permit :final-binding)]
     [square cube suspend-value]))
 
 (deflow suspending-let-body-flow [arg]
   (let [square (* arg arg)
-        cube (* arg arg arg)]
+        cube   (* arg arg arg)]
     [square cube (suspend! :permit :body)]))
 
 (deftest ^:unit LetTest
@@ -274,9 +276,9 @@
 
     (testing "multiple iterations"
       (clear-log!)
-      (let [run (start! loop-with-suspending-body)           ; a = 1
-            run (simulate-event! run :continue-loop true)   ; a + 1 = 2
-            run (simulate-event! run :continue-loop true)   ; a + 1 = 3
+      (let [run (start! loop-with-suspending-body) ; a = 1
+            run (simulate-event! run :continue-loop true) ; a + 1 = 2
+            run (simulate-event! run :continue-loop true) ; a + 1 = 3
             run (simulate-event! run :continue-loop false)] ; a + 1 = 4
         (is (run-in-state? run :complete))
         (is (:result run) 4)
@@ -291,34 +293,34 @@
                 '((suspend! :permit :foo)
                   (loop [a 1]
                     (recur 2 :extra)))))))
-    (testing "loop has more bindings"
-      (is (thrown-with-msg?
-            Exception #"Mismatched argument count to recur"
-            (longterm.deflow/expand-flow
-              `foo "" []
-              '((suspend! :permit :foo)
-                (loop [a 1 b 2]
-                  ;; recur has extra argument
-                  (recur 2))))))))
-  (testing "throws if recur is in non-tail position"
-    (testing "non suspending loop"
-      (is (thrown-with-msg?
-            Exception #"Can only recur from tail position"
-            (longterm.deflow/expand-flow
-              `foo "" []
-              '((suspend! :permit :a)
-                (loop [a 1]
-                  (recur 2)
-                  (println "I'm in the tail pos")))))))
-    (testing "suspending loop"
-      (is (thrown-with-msg?
-            Exception #"Can only recur from tail position"
-            (longterm.deflow/expand-flow
-              `foo "" []
-              '((loop [a 1]
-                  (suspend! :permit :a)
-                  (recur 2)
-                  (println "I'm in the tail pos"))))))))) )
+      (testing "loop has more bindings"
+        (is (thrown-with-msg?
+              Exception #"Mismatched argument count to recur"
+              (longterm.deflow/expand-flow
+                `foo "" []
+                '((suspend! :permit :foo)
+                  (loop [a 1 b 2]
+                    ;; recur has extra argument
+                    (recur 2))))))))
+    (testing "throws if recur is in non-tail position"
+      (testing "non suspending loop"
+        (is (thrown-with-msg?
+              Exception #"Can only recur from tail position"
+              (longterm.deflow/expand-flow
+                `foo "" []
+                '((suspend! :permit :a)
+                  (loop [a 1]
+                    (recur 2)
+                    (println "I'm in the tail pos")))))))
+      (testing "suspending loop"
+        (is (thrown-with-msg?
+              Exception #"Can only recur from tail position"
+              (longterm.deflow/expand-flow
+                `foo "" []
+                '((loop [a 1]
+                    (suspend! :permit :a)
+                    (recur 2)
+                    (println "I'm in the tail pos"))))))))))
 
 (deflow responding-flow []
   (respond! :r1)
@@ -349,7 +351,7 @@
     (let [run (reduce #(simulate-event! %1 :data %2) (start! datastructures) [1 2 3 4])]
       (is (run-in-state? run :complete))
       (is (= (:result run)
-             {:a 1 :b 2 :c [3 {:d 4}]})))))
+            {:a 1 :b 2 :c [3 {:d 4}]})))))
 
 (deflow macroexpansion []
   (or (suspend! :permit :data) (and (suspend! :permit :data) (suspend! :permit :data))))
@@ -376,5 +378,79 @@
       (is (= (:result run) '(1 4 9))))))
 
 (deftest ^:unit FlowsAsFunctions
-  (testing "flows can be started like normal functions and return a run"
+  (testing "At top level, invoking a flow works and returns a new run"
     (is (run-in-state? (suspending-flow :foo) :suspended))))
+
+(deflow simple-child-flow []
+  (log! :child-flow-entered)
+  (respond! :child-flow-response)
+  (suspend!)
+  (respond! :child-flow-after-continuation)
+  :child-result)
+
+(deflow parent-flow-will-block []
+  (respond! :parent-before-blocking-call)
+  (let [child-run (start! simple-child-flow)]
+    (log! child-run)          ; we need to capture the child run to advance it
+    (let [result (<! child-run)]
+      (respond! :parent-after-blocking-call)
+      result)))
+
+(deftest ^:unit BlockingOperator
+  (testing "Before blocking, the parent run is returned by the start operator"
+    (clear-log!)
+    (let [parent-run (start! parent-flow-will-block)
+          child-run  (second @*log*)]
+      (is (run-in-state? parent-run :suspended))
+      (is (run-in-mode? parent-run :default))
+      (is (-> parent-run :parent-run-id nil?))
+      (is (= '(:parent-before-blocking-call) (:response parent-run)))
+
+      (testing "The child run is created, but is not returned initially"
+        (is child-run)
+        (is (:id child-run))
+        (is (:id parent-run))
+        (is (not (= (:id child-run) (:id parent-run)))))
+
+      (testing "After blocking, the parent run is returned in suspended state and cannot be continued"
+        (let [prun    (-> parent-run :id rs/get-run)
+              suspend (:suspend prun)]
+          (is (= (:state prun) :suspended))
+          (is (-> prun :suspend longterm.runloop/suspend-signal?))
+          (is (= (-> prun :suspend :permit) (:id child-run))))
+        (testing "attempting to continue without a valid permit throws"
+          (is (thrown-with-msg?
+                Exception #"Cannot acquire Run .* invalid permit"
+                (continue! (:id parent-run))))
+          (testing "but the parent run is still suspended"
+            (is (= (-> parent-run :id rs/get-run :state) :suspended)))))
+
+      (let [child-run-after-block (rs/get-run (:id child-run))]
+
+        (testing "the child run is in block mode and keeps a record of the parent id"
+          (is (= :block (:mode child-run-after-block)))
+          (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
+
+        (testing "the child response includes only the response from the child run"
+          (is (= '(:child-flow-response) (:response child-run-after-block))))
+
+        (testing "the parent response includes only the response from the parent run"
+          (is (= '(:parent-before-blocking-call) (:response parent-run))))
+
+        (testing "Continuing the child run..."
+          (let [completed-child (continue! (:id child-run))]
+            (testing "returns a completed child run"
+              (is (run-in-state? completed-child :complete))
+              (is (= (:id child-run) (:id completed-child))))
+            (testing "child response should contain only the child response"
+              (is (= '(:child-flow-after-continuation) (:response completed-child))))
+
+            (let [parent-after-block-release (rs/get-run (:id parent-run))]
+              (testing "parent response should contain only the parent response"
+                (is (= '(:parent-after-blocking-call) (:response parent-after-block-release))))
+
+              (testing "parent should be in complete state"
+                (is (run-in-state? parent-after-block-release :complete)))
+
+              (testing "parent result should be set correctly, which in this case is the result of the blocking call"
+                (is (= :child-result (:result parent-after-block-release)))))))))))
