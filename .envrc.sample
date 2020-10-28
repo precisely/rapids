@@ -1,0 +1,4 @@
+
+# turn off -Xverify:none which is set in Leiningen's bin/.lein-wrapped script
+# because it causes warnings in JVM 13
+export LEIN_JVM_OPTS="${LEIN_JVM_OPTS-"-XX:+TieredCompilation -XX:TieredStopAtLevel=1"}"
