@@ -1,21 +1,58 @@
-(defproject longterm "0.1.5--SNAPSHOT"
+;;; XXX: Dirty workaround to allow referencing environment variables in
+;;; project.clj. This approach echoes the envvar library (and, indeed,
+;;; reimplements it). See https://github.com/gcv/envvar. This is necessary
+;;; because Leiningen middleware is resolved too late to use environment
+;;; variables in some places in the project map. Specifically, repository
+;;; resolution happens too early.
+;;;
+;;; Note that Leiningen's built-in repository credentials mechanism is not used
+;;; here because GPG setup for credentials files is inconsistent with how all
+;;; other credentials to third-party services are stored.
+
+(require '[clojure.java.io :as io]
+  '[clojure.string :as str])
+
+(def env
+  (->> (merge
+         (into {} (System/getenv))
+         (into {} (System/getProperties))
+         (let [env-file (io/file ".env")]
+           (if (.exists env-file)
+             (let [props (java.util.Properties.)]
+               (.load props (io/input-stream env-file))
+               props)
+             {})))
+    (map (fn [[k v]] [(-> (str/lower-case k)
+                        (str/replace "_" "-")
+                        (str/replace "." "-")
+                        (keyword))
+                      v]))
+    (into {})))
+
+(defproject precisely/longterm "0.1.5"
   :description "A library for scripting long term real world processes"
+  :url "https://precise.ly/longterm"
   :license {:name "All Rights Reserved"
-            :url ""}
+            :url  "https://precise.ly/longterm"}
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [clojure.java-time "0.3.2"]
                  [potemkin "0.4.5"]]
   :clean-targets ^{:protect false} ["target"]
-  :plugins []
+  :plugins [[s3-wagon-private "1.3.4"]]
   :profiles {:dev
-    {
-      :source-paths ["src"]
-      :dependencies [[org.clojure/core.match "1.0.0"]] ; used by tests
-      :plugins [[lein-cloverage "1.1.2"]]
-    } }
+             {
+              :source-paths ["src"]
+              :dependencies [[org.clojure/core.match "1.0.0"]] ; used by tests
+              :plugins      [[lein-cloverage "1.1.2"]]
+              }}
   :repl-options {:init-ns longterm}
 
-  :test-selectors {:default (complement :integration)
+  :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
+                                      :username      ~(env :maven-repo-aws-access-key-id)
+                                      :passphrase    ~(env :maven-repo-aws-access-key-secret)
+                                      :sign-releases false}]]
+
+  :test-selectors {:default     (complement :integration)
                    :integration :integration
-                   :unit :unit
-                   :all (constantly true)})
+                   :unit        :unit
+                   :all         (constantly true)})
