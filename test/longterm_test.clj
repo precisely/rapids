@@ -382,75 +382,162 @@
     (is (run-in-state? (suspending-flow :foo) :suspended))))
 
 (deflow simple-child-flow []
-  (log! :child-flow-entered)
+  (log! (current-run))
   (respond! :child-flow-response)
   (suspend!)
   (respond! :child-flow-after-continuation)
   :child-result)
 
 (deflow parent-flow-will-block []
+  (clear-log!)
+  (log! (current-run))
   (respond! :parent-before-blocking-call)
-  (let [child-run (start! simple-child-flow)]
-    (log! child-run)          ; we need to capture the child run to advance it
-    (let [result (<! child-run)]
-      (respond! :parent-after-blocking-call)
-      result)))
+  (let [result (<! (start! simple-child-flow))]
+    (respond! :parent-after-blocking-call)
+    result))
 
 (deftest ^:unit BlockingOperator
   (testing "Before blocking, the parent run is returned by the start operator"
-    (clear-log!)
-    (let [parent-run (start! parent-flow-will-block)
-          child-run  (second @*log*)]
+    (let [returned-run (start! parent-flow-will-block)
+          [parent-run, child-run] @*log*]
+      (is (= returned-run parent-run))
       (is (run-in-state? parent-run :suspended))
       (is (run-in-mode? parent-run :default))
       (is (-> parent-run :parent-run-id nil?))
       (is (= '(:parent-before-blocking-call) (:response parent-run)))
+      #_#_#_(testing "The child run is created, but is not returned initially"
+              (is child-run)
+              (is (:id child-run))
+              (is (:id parent-run))
+              (is (not (= (:id child-run) (:id parent-run)))))
 
-      (testing "The child run is created, but is not returned initially"
-        (is child-run)
-        (is (:id child-run))
-        (is (:id parent-run))
-        (is (not (= (:id child-run) (:id parent-run)))))
+          (testing "After blocking, the parent run is returned in suspended state and cannot be continued"
+            (let [prun    (-> parent-run :id rs/get-run)
+                  suspend (:suspend prun)]
+              (is (= (:state prun) :suspended))
+              (is (-> prun :suspend longterm.runloop/suspend-signal?))
+              (is (= (-> prun :suspend :permit) (:id child-run))))
+            (testing "attempting to continue without a valid permit throws"
+              (is (thrown-with-msg?
+                    Exception #"Cannot acquire Run .* invalid permit"
+                    (continue! (:id parent-run))))
+              (testing "but the parent run is still suspended"
+                (is (= (-> parent-run :id rs/get-run :state) :suspended)))))
 
-      (testing "After blocking, the parent run is returned in suspended state and cannot be continued"
-        (let [prun    (-> parent-run :id rs/get-run)
-              suspend (:suspend prun)]
-          (is (= (:state prun) :suspended))
-          (is (-> prun :suspend longterm.runloop/suspend-signal?))
-          (is (= (-> prun :suspend :permit) (:id child-run))))
-        (testing "attempting to continue without a valid permit throws"
-          (is (thrown-with-msg?
-                Exception #"Cannot acquire Run .* invalid permit"
-                (continue! (:id parent-run))))
-          (testing "but the parent run is still suspended"
-            (is (= (-> parent-run :id rs/get-run :state) :suspended)))))
+          (let [child-run-after-block (rs/get-run (:id child-run))]
 
-      (let [child-run-after-block (rs/get-run (:id child-run))]
+            (testing "the child run is in block mode and keeps a record of the parent id"
+              (is (= :block (:mode child-run-after-block)))
+              (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
 
-        (testing "the child run is in block mode and keeps a record of the parent id"
-          (is (= :block (:mode child-run-after-block)))
-          (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
+            (testing "the child response includes only the response from the child run"
+              (is (= '(:child-flow-response) (:response child-run-after-block))))
 
-        (testing "the child response includes only the response from the child run"
-          (is (= '(:child-flow-response) (:response child-run-after-block))))
+            (testing "the parent response includes only the response from the parent run"
+              (is (= '(:parent-before-blocking-call) (:response parent-run))))
 
-        (testing "the parent response includes only the response from the parent run"
-          (is (= '(:parent-before-blocking-call) (:response parent-run))))
+            (testing "Continuing the child run..."
+              (let [completed-child (continue! (:id child-run))]
+                (testing "returns a completed child run"
+                  (is (run-in-state? completed-child :complete))
+                  (is (= (:id child-run) (:id completed-child))))
+                (testing "child response should contain only the child response"
+                  (is (= '(:child-flow-after-continuation) (:response completed-child))))
 
-        (testing "Continuing the child run..."
-          (let [completed-child (continue! (:id child-run))]
-            (testing "returns a completed child run"
-              (is (run-in-state? completed-child :complete))
-              (is (= (:id child-run) (:id completed-child))))
-            (testing "child response should contain only the child response"
-              (is (= '(:child-flow-after-continuation) (:response completed-child))))
+                (let [parent-after-block-release (rs/get-run (:id parent-run))]
+                  (testing "parent response should contain only the parent response"
+                    (is (= '(:parent-after-blocking-call) (:response parent-after-block-release))))
 
-            (let [parent-after-block-release (rs/get-run (:id parent-run))]
-              (testing "parent response should contain only the parent response"
-                (is (= '(:parent-after-blocking-call) (:response parent-after-block-release))))
+                  (testing "parent should be in complete state"
+                    (is (run-in-state? parent-after-block-release :complete)))
 
-              (testing "parent should be in complete state"
-                (is (run-in-state? parent-after-block-release :complete)))
+                  (testing "parent result should be set correctly, which in this case is the result of the blocking call"
+                    (is (= :child-result (:result parent-after-block-release)))))))))))
 
-              (testing "parent result should be set correctly, which in this case is the result of the blocking call"
-                (is (= :child-result (:result parent-after-block-release)))))))))))
+(deflow level3-suspends [suspend?]
+  (respond! :level3-start)
+  (println "before level3 suspend")
+  (if suspend? (suspend!))
+  (println "after level3 suspend")
+  (respond! :level3-end)
+  :level3-result)
+
+(deflow level2-suspends-and-blocks [blocker-suspends]
+  (println "inside level2")
+  (respond! :level2-start)
+  (suspend!)                  ;; up to this point is capture by level1-start
+  (clear-log!)                ;; continue level2-run should start here
+  (respond! :level2-after-suspend)
+  (println "before level3 start")
+  (let [level3 (start! level3-suspends blocker-suspends)]
+    (log! level3)             ;; continue level2-run ends here
+    (println "before level3 block")
+    (respond! (<! level3))
+    (println "after level3 block"))
+  (respond! :level2-end)
+  :level2-result)
+
+(deflow level1-redirects [blocker-suspends]
+  (clear-log!)
+  (log! (current-run))        ; need to capture the current run for later testing
+  (respond! :level1-start)
+  (println "before starting level2" (current-run))
+  (let [level2 (start! level2-suspends-and-blocks blocker-suspends)]
+    (log! level2)
+    (println "before redirecting to level2" (current-run))
+    (flush)
+    (let [redirect-result (>> level2)]
+      (log! redirect-result)))
+  (respond! :level1-end)
+  :level1-result)
+
+#_(deftest ^:unit RedirectionOperator
+    (testing "Redirection causes the parent run to switch to the redirected run and back when the redirected run blocks"
+      (let [level1-start (start! level1-redirects true)
+            [level1-run, level2-run] @*log*]
+        (is (= (:id level1-start) (:id level2-run)))
+
+        (testing "redirected run should contain parent and redirected responses up to the point redirected run suspended"
+          (is (= '(:level1-start :level2-start) (:response level1-start))))
+        #_(testing "continuing the redirect run to a block returns control to the parent run"
+            (let [continue-level2 (continue! (:id level2-run))
+                  [level3-run, redirect-result] @*log*]
+
+              (testing "verifying the parent run is returned when continuing the redirect child"
+                (is (= (:id level1-run) (:id continue-level2))))
+
+              (testing "the expected code runs after the redirected flow is continued"
+                (is (= (run-in-state? level3-run :suspend))) ;
+                (is (= '(:level2-after-suspend) (:response continue-level2))))
+
+              (testing "the redirect run is suspended, waiting for the blocking run's id as a permit"
+                (is (= (-> level2-run :id rs/get-run :state) :suspended))
+                (is (= (-> level2-run :id rs/get-run :suspend :permit) (:id level3-run))))
+
+              (testing "the parent response should contain the response from the redirect"
+                (is (= '(:level2-after-suspend :level1-end) (:response continue-level2))))
+
+              (testing "the parent run in this case is complete, and its :result should be the final value of the parent partition"
+                (is (= (:state continue-level2) :complete))
+                (is (= (:result continue-level2) :level1-result)))
+
+              (testing "the redirection operator should return the run"
+                (is (= (:id redirect-result) (:id level2-run))))
+
+              (testing "the run returned by the redirection operator should be suspended, blocking on the level3 run"
+                (is (= (:state redirect-result) :suspend))
+                (is (= (-> redirect-result :suspend :permit) (:id level3-run)))
+                (is (= (-> redirect-result :suspend :mode) :block)))
+
+              (testing "completing the level3 run should cause the caller (level2) to complete"
+                (let [level3-continue (continue! (:id level3-run))]
+                  (testing "level3 run completes"
+                    (is (= (level3-continue :id) (:id level3-run)))
+                    (is (= :complete (:state level3-continue))))
+                  (testing "level3 run response is as expected"
+                    (is (= '(:level3-end) (:response level3-continue))))
+                  (testing "blocked run (level2) is unblocked because level3 completes"
+                    (let [fresh-level2 (-> level2-run :id rs/get-run)]
+                      (is (= :complete (:state fresh-level2)))
+                      (testing "and the blocker's result and final respond! is captured"
+                        (is (= '(:level3-result :level2-end) (:result fresh-level2)))))))))))))

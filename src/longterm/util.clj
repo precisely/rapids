@@ -172,11 +172,11 @@
   (str (UUID/randomUUID)))
 
 (defn suspend-op? [op]
-  (some #(= op %) '[suspend! longterm/suspend! longterm.runloop/suspend!]))
+  (some #(= op %) '[suspend! longterm/suspend! longterm.runloop/suspend! longterm.runloop/internal-suspend!]))
 
 (defn reverse-interleave [s n]
-  "Reverses interleave of sequence s, into n lists"
-  (apply map vector (partition-all n s)))
+  "Reverses interleave of sequence s into n lists"
+  (if (empty? s) [] (apply map vector (partition-all n s))))
 
 (defn in?
   "True if array contains val. Have to use this because Clojure contains?
@@ -201,4 +201,4 @@
 (defmacro ifit
   ([test then] `(ifit ~test ~then nil))
   ([test then else]
-    `(let [~'it ~test] (if ~'it ~then ~else))))
+   `(let [~'it ~test] (if ~'it ~then ~else))))

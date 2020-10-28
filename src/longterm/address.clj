@@ -78,4 +78,4 @@
 
 (defn valid-point?
   [elts]
-  (and (every? #(or (symbol? %) (number? %)) elts)))
+  (and (every? #(or (keyword? %) (symbol? %) (number? %)) elts)))

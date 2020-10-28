@@ -92,7 +92,8 @@
   ;; The if-partitioner ends up calling partition-body twice, pasting the
   ;; results
   ([body partition-address address params]
-   {:post [(vector (first %))]}
+   {:pre [(vector? params)]
+    :post [(vector (first %))]}
    (let [dirty-address partition-address]
      (loop [iter-body body
             pset (pset/create)
@@ -147,6 +148,7 @@
     suspend?    - boolean indicating whether this expression could suspend the flow
   ]"
   [expr partition-addr address params]
+  {:pre [(vector? params)]}
   (let [mexpr (macroexpand-keeping-metadata expr)]
     (cond
       (seq? mexpr) (partition-list-expr expr mexpr partition-addr address params)
@@ -157,6 +159,7 @@
 (defn special-form-op? [x] (in? '[if do let let* fn fn* loop loop* quote recur] x))
 (defn partition-list-expr
   [expr mexpr partition-addr address params]
+  {:pre [(vector? params)]}
   (let [op (first expr)
         mop (first mexpr)
         ops [op mop]]
@@ -219,7 +222,7 @@
         [keys, args] (map vec (reverse-interleave bindings 2))
 
         [body-start, body-pset, body-suspend?]
-        (partition-body body, partition-addr, body-address, (concat params keys))
+        (partition-body body, partition-addr, body-address, (vec (concat params keys)))
 
         [bind-start, bind-pset, bind-suspend?]
         (partition-bindings keys, args, partition-addr, binding-address, params,
@@ -308,7 +311,7 @@
         [loop-params, loop-initializers] (reverse-interleave bindings 2)]
 
     ;; we need to partition the loop body FIRST, then pass the start-body to partition-bindings
-    (let [loop-body-params (concat params loop-params)
+    (let [loop-body-params (vec (concat params loop-params))
 
           ;; partition the loop body with the loop-partition registered as a recur
           ;; binding point; if recur calls happen within this partition, they
@@ -323,7 +326,7 @@
           ;; note: we need a normal (loop ...) expression because we may have normal non-suspending
           ;; recur expressions in addition to suspending recur expressions.
           loop-partition-body [`(loop [~@(apply concat (map #(vector % %) loop-params))] ~@start-body)]
-          loop-partition-params (concat loop-params params)
+          loop-partition-params (vec (concat loop-params params))
           loop-pset (pset/add (pset/create) loop-partition loop-partition-params loop-partition-body)
 
           flow-continue-bindings (bindings-expr-from-params loop-partition-params)
@@ -394,6 +397,7 @@
   make-call-form - is a function which takes a list of parameters and returns
   a form which represents the functional call"
   [op, expr, mexpr, partition-address, address, params, make-call-form]
+  {:pre [(vector? params)]}
   (letfn [(call-form [args]
             (with-meta (make-call-form args) (meta expr)))]
     (let [address (address/child address op)
@@ -438,6 +442,7 @@
 
 (defn partition-fncall-expr
   [op, expr, mexpr, partition-addr, address, params]
+  {:pre [(vector? params)]}
   (partition-functional-expr op expr mexpr partition-addr address params
                              (fn [args] `(~op ~@args))))
 
@@ -454,6 +459,7 @@
   [keys, args, partition-address, address, params, body]
   {:pre [(address/address? partition-address)
          (address/address? address)
+         (vector? params)
          (vector? body)]}
   (with-tail-position [false]
     (let [dirty-address partition-address]
@@ -474,12 +480,12 @@
                 pset (pset/combine pset arg-pset)
                 next-address (address/increment arg-address)]
             (if suspend?
-              (let [cur-part-params (map first current-bindings)
-                    resume-params (concat part-params, cur-part-params)
+              (let [cur-part-params (vec (map first current-bindings))
+                    resume-params (vec (concat part-params, cur-part-params))
                     resume-pexpr `(resume-at [~next-address [~@resume-params] ~key]
                                              ~arg-start)
                     new-params (if key (conj resume-params key) resume-params) ; the next partition's params includes the key
-                    let-bindings (apply concat current-bindings)
+                    let-bindings (vec (apply concat current-bindings))
                     pexpr (if (> (count current-bindings) 0)
                             `(let [~@let-bindings] ~resume-pexpr)
                             resume-pexpr)
@@ -495,7 +501,7 @@
 
           ;; finalize the last partition by executing the body with the
           ;; bound params
-          (let [let-bindings (apply concat current-bindings)
+          (let [let-bindings (vec (apply concat current-bindings))
                 final-body (if (> (count current-bindings) 0) [`(let [~@let-bindings] ~@body)] (vec body))
                 clean-pset (pset/delete pset dirty-address)
                 start (or start (first final-body))

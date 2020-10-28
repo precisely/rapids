@@ -2,7 +2,8 @@
   (:require
     [longterm.runstore :as rs]
     [longterm.flow :as flow]
-    [longterm.util :refer :all])
+    [longterm.util :refer :all]
+    [longterm.current-run :refer :all])
   (:import (longterm.address Address)
            (java.time LocalDateTime)))
 
@@ -17,8 +18,6 @@
 
 (defrecord StackFrame [address bindings result-key])
 (defn stack-frame? [o] (instance? StackFrame o))
-
-(def ^:dynamic *run*)
 
 (defmacro with-run!
   "Takes a run-id, and obtains a run, transitions it to running state, clears the response list,
@@ -49,7 +48,7 @@
 (defn respond!
   "Adds an element to the current run response: returns nil"
   [& responses]
-  (set! *run* (assoc *run* :response (concat (:response *run*) (vec responses))))
+  (set! *run* (assoc *run* :response (vec (concat (:response *run*) (vec responses)))))
   nil)
 
 (defmacro *>
@@ -59,11 +58,11 @@
 
 (defn start!
   "Starts a run with the flow and given arguments.
-  Returns the Run in :suspended or :complete state."
+  Returns a Run in :suspended or :complete state, not necessarily the run which "
   [flow & args]
   {:pre  [(refers-to? flow/flow? flow)]
    :post [(rs/run-in-state? % :suspended :complete)]}
-  (with-run! [(rs/create-run! :running)]
+  (with-run! [(assoc (rs/create-run! :running) :parent-run-id (:id (current-run)) :mode *suspend-mode*)]
     (reduce-stack! (fn [_]
                      (apply flow/entry-point flow args)))))
 
@@ -203,68 +202,77 @@
     (or (nil? (:expires s))
       (instance? LocalDateTime (:expires s)))))
 
+(defn- check-valid-parent [parent-run child-run]
+  (let [{true-parent-id :id} parent-run,
+        {child-id        :id,
+         child-parent-id :parent-run-id} child-run]
+    (if-not (= child-parent-id true-parent-id)
+      (throw (Exception. (str "Attempt to block on or redirect to child run " child-id " from parent run " true-parent-id
+                           " when child run has a different parent: " child-parent-id))))))
+
+(defn- suspend-child-run! [child-run parent-run suspend]
+  (check-valid-parent parent-run child-run)
+  ;; it's either a blocking suspend (<!) or a redirect (>>)
+  (case (:mode suspend)
+    :redirect (redirect-to! child-run)
+    :block suspend
+    (throw (Exception. (str "Expecting :block or :redirect mode when suspending child run"
+                         (:id child-run) "but received" (:mode suspend))))))
+
 (defn suspend!
   "Used within deflow body to suspend execution until event with id=context is received. This is a lower
-  level function that is normally accessed through one of the flow operators:
-  <*, >>, <!
+ level function that is normally accessed through one of the flow operators:
+ <*, >>, <!
 
-  Args:
-    permit - a keyword or a permit function
-       a permit function tests the permit value provided by a continue! call
-       it has the form  (fn [permit-val {:keys [...params...]})
-       where params are variables from the current lexical context needed
-       to verify the continue! permit value.
-       NOTE: permit functions are not yet implemented
-    expires - when suspending should expire
-              a Java LocalDateTime or a vector [JavaLocalDateTime, result]
-              where result = the result returned by the (suspend!..) expr
-              on expiry
-  Examples:
-  (deflow foo [z]
-     (let [no-permit-required (suspend!)
-           only-allow-button-press (suspend! :permit :button-press)
-           expire-in-10-min (suspend! :expires (-> 10 minutes from-now))
-           expire-with-value (suspend! :expires [(-> 10 minutes from-now), :expiry-result])]
-       ... do something))"
-  [& {:keys [permit expires mode child-run] :or {mode :default}}]
-  {:pre  [(valid-run-context?)
-          (not (and permit child-run))
-          (or (nil? child-run) (rs/run-in-state? child-run :complete :suspended))
-          (in? rs/RunModes mode)]
-   :post [(valid-suspend? %)]}
-  (let [suspend (make-suspend-signal permit expires child-run)]
-    (set! *run* (assoc *run*, :state :suspended, :suspend suspend))
+ Providing invalid inputs to suspend! may result in an undefined program state.
+
+ Args:
+   permit - a keyword or a permit function
+      a permit function tests the permit value provided by a continue! call
+      it has the form  (fn [permit-val {:keys [...params...]})
+      where params are variables from the current lexical context needed
+      to verify the continue! permit value.
+      NOTE: permit functions are not yet implemented
+   expires - when suspending should expire
+             a Java LocalDateTime or a vector [JavaLocalDateTime, result]
+             where result = the result returned by the (suspend!..) expr
+             on expiry
+ Examples:
+ (deflow foo [z]
+    (let [no-permit-required (suspend!)
+          only-allow-button-press (suspend! :permit :button-press)
+          expire-in-10-min (suspend! :expires (-> 10 minutes from-now))
+          expire-with-value (suspend! :expires [(-> 10 minutes from-now), :expiry-result])]
+      ... do something))"
+  [& {:keys [permit expires]}]
+  (throw (Exception. "Invalid suspend! outside of flow")))
+
+(defn- make-suspend-signal [permit expires]
+  (let [[expire-time, result] (if (vector? expires) expires [expires, nil])]
+    (Suspend. permit expire-time result)))
+
+(defn internal-suspend!
+  [parent-run & {:keys [permit expires]}]
+  {:post [(valid-suspend? %)]}
+  (let [suspend (make-suspend-signal permit expires)]
+    (set! *run* (assoc parent-run, :state :suspended, :suspend suspend))
     (rs/save-run! *run*)
-
-    (if child-run
-      ;; it's either a blocking suspend (<!) or a redirect (>>)
-      (let [child-run (adopt-run child-run mode)]
-        (rs/save-run! child-run) ;; nothing more to do if we're blocking
-
-        ;; if it's a redirect, we switch to the next-run
-        (when (= mode :redirect)
-          (redirect-to! child-run))))
-
-    ;; simple suspend operation - return the signal
     suspend))
-
-(defn adopt-run
-  "The current run becomes the parent of run. Returns adopted next-run."
-  [next-run mode]
-  {:pre [(rs/run-in-state? next-run :complete :suspended)
-         (-> next-run :parent-run-id nil?)
-         (-> next-run :mode (= :default))
-         (-> (in? rs/RunModes mode))]}
-  (assoc next-run, :parent-run-id (:id *run*), :mode mode))
 
 (defmacro <*
   [& {:keys [permit expires]}]
   `(suspend! :permit ~permit :expires ~expires))
 
-(defmacro <!
-  "Blocking operator - suspends the current run and starts a run in :blocker mode"
-  [run-expr & {:keys [expires]}]
-  `(suspend! :mode :block :expires ~expires :child-run ~run-expr))
+;; note: this operator is used by the partitioner to generate code
+;; it does nothing useful outside of deflow
+(defn <!
+  "Blocking operator - suspends the current run and starts a run in :block mode"
+  [child-run & {:keys [expires]}]
+  `(let [parent-run# *run*,
+         child-run# (binding [*run-mode* :block] ~child-run)]
+     (assert (= parent-run# *run*))
+     (check-valid-parent parent-run# child-run#)
+     (suspend! :mode :block :expires ~expires :permit (:id child-run#))))
 
 (defmacro >>
   "Redirect operator - transfers execution to run-expr"
@@ -287,25 +295,12 @@
                    :complete (empty? stack)))]
     result))
 
-(defn- return-to-run!
-  "Returns the result to run, copying response to it also. Returns the new run."
-  [run-id result response]
-  {:pre [(not (nil? run-id))
-         (not (rs/run-in-state? run-id :any))]} ; check that a run-id was passed, not a run
-  (set! *run* (continue! run-id (:id *run*) result response))
-  (rs/save-run! *run*)
-  *run*)
-
 (defn- save-run-result!
   [result]
   (set! *run* (assoc *run* :state :complete :result result :parent-run-id nil :mode nil))
   (rs/save-run! *run*)
   *run*)
 
-(defn- make-suspend-signal [permit expires child-run]
-  (let [permit (if child-run (:id child-run) permit)
-        [expire-time, result] (if (vector? expires) expires [expires, nil])]
-    (Suspend. permit expire-time result)))
 
 (defn- redirect-to!
   "Redirects to the next-run, changing the current *run*. Returns a value intended to be presented to reduce-stack!"
@@ -322,7 +317,7 @@
   (let [from-response (:response from-run)
         to-response   (:response to-run)]
     [(assoc from-run :response []),
-     (assoc to-run :response (concat from-response to-response))]))
+     (assoc to-run :response (vec (concat from-response to-response)))]))
 
 (defn- process-run-result!
   [value]
@@ -349,15 +344,15 @@
         (case run-mode
 
           ;; return the result to the parent run, without redirecting execution
-          :block      (do (continue! parent-run-id (:id *run*) value)
-                          ;; return the current run!
-                          *run*)
+          :block (do (continue! parent-run-id (:id *run*) value)
+                     ;; return the current run!
+                     *run*)
 
           ;; return
-          :redirect   (set! *run* (continue! parent-run-id (:id *run*) *run* response))
+          :redirect (set! *run* (continue! parent-run-id (:id *run*) *run* response))
 
           ; otherwise, we're done - return the current, completed run
           *run*)))))
 
 (defn bindings-expr-from-params [params]
-  `(hash-map ~@(apply concat (map #(vec `('~% ~%)) params))))
+  `(hash-map ~@(vec (apply concat (map #(vec `('~% ~%)) params)))))
