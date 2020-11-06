@@ -1,6 +1,6 @@
 (ns longterm.partition_test
   (:require [clojure.test :refer :all]
-            [longterm.runloop :as runloop]
+            [longterm.run-loop :as runloop]
             [longterm.util :refer :all]
             [clojure.core.match :refer [match]]
             [longterm.partition :refer :all]
@@ -98,7 +98,7 @@
       (testing "initial form first two forms, resuming at the second partition address"
         (is (match [start]
                    [[([`a] :seq)
-                     ([`longterm.runloop/resume-at [part2-address [] _]
+                     ([`longterm.run-loop/resume-at [part2-address [] _]
                        ([`flow/entry-point `fl1] :seq)] :seq)]] true
                    [_] false))
         (is (true? suspend?)))

@@ -3,7 +3,8 @@
             [longterm :refer :all]
             [longterm.flow :refer [flow?]]))
 
-(deflow suspending-flow [] (suspend! :permit :a))
+(assert (longterm.signals/suspending-operator? 'listen!))
+(deflow suspending-flow [] (listen! :permit :a))
 (deflow flow-calling-flow [] (suspending-flow))
 (deftest deflow-macro
   (testing "it should create a Flow object"

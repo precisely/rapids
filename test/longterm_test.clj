@@ -34,13 +34,13 @@
 (deflow suspending-flow
   [val]
   (log! :before-suspend)
-  (suspend!)
+  (<*)
   (log! :after-suspend)
   val)
 
 (deflow event-value-flow
   "Just returns an event value"
-  [permit] (suspend! :permit permit))
+  [permit] (<* :permit permit))
 
 (deftest ^:unit BasicFlowTests
 
@@ -58,7 +58,7 @@
           (testing "it returns the correct value"
             (is (= (:result ev-result) :foo)))))))
 
-  (testing "suspend! event provides a value"
+  (testing "<* event provides a value"
     (let [run (simulate-event! (start! event-value-flow :foo) :foo "foo-result")]
       (is (= (:result run) "foo-result"))))
 
@@ -66,17 +66,17 @@
     (is (thrown? Exception (simulate-event! (start! event-value-flow :expecting) :actual)))))
 
 (deflow fl-nest [arg context]
-  (* arg (suspend! :permit context)))
+  (* arg (<* :permit context)))
 
 (deflow nested-flow-args [a]
   (fl-nest (fl-nest (fl-nest a :first) :second) :third))
 
 (defn a [n] (* n 10))
 (deflow fl-alternating []
-  (+ (suspend! :permit :first-arg) (a 2) (fl-nest 100 :third)))
+  (+ (<* :permit :first-arg) (a 2) (fl-nest 100 :third)))
 
 (deflow fl-keywords [& {:keys [a b c]}]
-  (+ a b c (suspend! :permit :event)))
+  (+ a b c (<* :permit :event)))
 
 (deftest ^:unit FunctionalExpressionTest
   (testing "nested flow arguments"
@@ -97,7 +97,7 @@
 
 (deflow conditional-suspend [test]
   (if test
-    (suspend! :permit :then)
+    (<* :permit :then)
     (log! :else))
   (log! :done)
   :final-value)
@@ -123,15 +123,15 @@
 (deflow nested-conditional-suspend [level1 level2]
   (if level1
     (if level2
-      (suspend! :permit :true-true)
+      (<* :permit :true-true)
       (log! :true-false))
     (if level2
       (log! :false-true)
-      (suspend! :permit :false-false)))
+      (<* :permit :false-false)))
   (log! :done))
 
 (deftest ^:unit NestedConditionals
-  (testing "suspend! correctly suspends inside nested then"
+  (testing "<* correctly suspends inside nested then"
     (clear-log!)
     (let [run (start! nested-conditional-suspend true true)]
 
@@ -152,7 +152,7 @@
       (is (run-in-state? run :complete))
       (is-log [:false-true :done])))
 
-  (testing "suspend! correctly suspends inside nested else"
+  (testing "<* correctly suspends inside nested else"
     (clear-log!)
     (let [run (start! nested-conditional-suspend false false)]
 
@@ -189,30 +189,30 @@
 (deflow non-suspending-let-flow [a]
   (let [b (+ 1 a)
         c (* b a)]
-    (if false (suspend! :permit :foo)) ; satisfy deflow suspend requirement but do nothing
+    (if false (<* :permit :foo)) ; satisfy deflow suspend requirement but do nothing
     [a b c]))
 
 (deflow suspending-let-initial-binding-flow [arg]
-  (let [suspend-value (suspend! :permit :initial-binding)
+  (let [suspend-value (<* :permit :initial-binding)
         square        (* arg arg)]
     [suspend-value square]))
 
 (deflow suspending-let-internal-binding-flow [arg]
   (let [square        (* arg arg)
-        suspend-value (suspend! :permit :internal-binding)
+        suspend-value (<* :permit :internal-binding)
         cube          (* arg arg arg)]
     [square suspend-value cube]))
 
 (deflow suspending-let-final-binding-flow [arg]
   (let [square        (* arg arg)
         cube          (* arg arg arg)
-        suspend-value (suspend! :permit :final-binding)]
+        suspend-value (<* :permit :final-binding)]
     [square cube suspend-value]))
 
 (deflow suspending-let-body-flow [arg]
   (let [square (* arg arg)
         cube   (* arg arg arg)]
-    [square cube (suspend! :permit :body)]))
+    [square cube (<* :permit :body)]))
 
 (deftest ^:unit LetTest
   (testing "non-suspending let expressions work"
@@ -237,7 +237,7 @@
 
 (deflow simple-loop [n]
   (log! :before-suspend)
-  (suspend! :permit :initial-wait)
+  (<* :permit :initial-wait)
   (log! :after-suspend)
   (loop [a 1]
     (log! :looped)
@@ -249,7 +249,7 @@
   (log! :before-loop)
   (loop [a 1]
     (log! :inside-loop)
-    (if (suspend! :permit :continue-loop)
+    (if (<* :permit :continue-loop)
       (recur (+ a 1))
       a)))
 
@@ -290,7 +290,7 @@
               Exception #"Mismatched argument count to recur"
               (longterm.deflow/expand-flow
                 `foo "" []
-                '((suspend! :permit :foo)
+                '((<* :permit :foo)
                   (loop [a 1]
                     (recur 2 :extra)))))))
       (testing "loop has more bindings"
@@ -298,7 +298,7 @@
               Exception #"Mismatched argument count to recur"
               (longterm.deflow/expand-flow
                 `foo "" []
-                '((suspend! :permit :foo)
+                '((<* :permit :foo)
                   (loop [a 1 b 2]
                     ;; recur has extra argument
                     (recur 2))))))))
@@ -308,7 +308,7 @@
               Exception #"Can only recur from tail position"
               (longterm.deflow/expand-flow
                 `foo "" []
-                '((suspend! :permit :a)
+                '((<* :permit :a)
                   (loop [a 1]
                     (recur 2)
                     (println "I'm in the tail pos")))))))
@@ -318,21 +318,21 @@
               (longterm.deflow/expand-flow
                 `foo "" []
                 '((loop [a 1]
-                    (suspend! :permit :a)
+                    (<* :permit :a)
                     (recur 2)
                     (println "I'm in the tail pos"))))))))))
 
 (deflow responding-flow []
-  (respond! :r1)
-  (suspend! :permit :s1)
-  (respond! :r2)
-  (respond! :r3)
-  (suspend! :permit :s2)
-  (respond! :r4 :r5))
+  (*> :r1)
+  (<* :permit :s1)
+  (*> :r2)
+  (*> :r3)
+  (<* :permit :s2)
+  (*> :r4 :r5))
 
 (deftest ^:unit Respond
   (letfn [(response? [run x] (= (:response run) x))]
-    (testing "respond! adds to an element to the current run's response"
+    (testing "*> adds to an element to the current run's response"
       (let [run1 (start! responding-flow)
             run2 (simulate-event! run1 :s1)
             run3 (simulate-event! run2 :s2)]
@@ -340,11 +340,11 @@
           (is (response? run1 [:r1])))
         (testing "Each run starts a new response, and responses accumulate during a runlet"
           (is (response? run2 [:r2 :r3])))
-        (testing "respond! treats multiple arguments as separate responses")
+        (testing "*> treats multiple arguments as separate responses")
         (is (response? run3 [:r4 :r5]))))))
 
 (deflow datastructures []
-  {:a (suspend! :permit :data) :b (suspend! :permit :data) :c [(suspend! :permit :data) {:d (suspend! :permit :data)}]})
+  {:a (<* :permit :data) :b (<* :permit :data) :c [(<* :permit :data) {:d (<* :permit :data)}]})
 
 (deftest ^:unit DataStructures
   (testing "nested data structure with multiple suspending operations"
@@ -354,7 +354,7 @@
             {:a 1 :b 2 :c [3 {:d 4}]})))))
 
 (deflow macroexpansion []
-  (or (suspend! :permit :data) (and (suspend! :permit :data) (suspend! :permit :data))))
+  (or (<* :permit :data) (and (<* :permit :data) (<* :permit :data))))
 
 (deftest ^:unit MacroexpansionTest
   (testing "macroexpansion with suspending forms"
@@ -362,7 +362,7 @@
       (is (run-in-state? run :complete))
       (is (= (:result run) "foo")))))
 
-(deflow flow-with-anonymous-fn [] (map #(* % %) (suspend! :permit :list)))
+(deflow flow-with-anonymous-fn [] (map #(* % %) (<* :permit :list)))
 
 (deftest ^:unit FunctionTest
   (testing "should throw an error attempting to partition a fn with suspending expressions"
@@ -370,7 +370,7 @@
           Exception #"Illegal attempt to suspend in function body"
           (longterm.deflow/expand-flow
             `fn-with-suspend "" []
-            '((fn [] (suspend! :permit :boo)))))))
+            '((fn [] (<* :permit :boo)))))))
 
   (testing "should successfully partition when a normal fn is present in the body"
     (let [run (simulate-event! (start! flow-with-anonymous-fn) :list '(1 2 3))]
@@ -383,17 +383,17 @@
 
 (deflow simple-child-flow []
   (log! (current-run))
-  (respond! :child-flow-response)
-  (suspend!)
-  (respond! :child-flow-after-continuation)
+  (*> :child-flow-response)
+  (<*)
+  (*> :child-flow-after-continuation)
   :child-result)
 
 (deflow parent-flow-will-block []
   (clear-log!)
   (log! (current-run))
-  (respond! :parent-before-blocking-call)
+  (*> :parent-before-blocking-call)
   (let [result (<! (start! simple-child-flow))]
-    (respond! :parent-after-blocking-call)
+    (*> :parent-after-blocking-call)
     result))
 
 (deftest ^:unit BlockingOperator
@@ -415,7 +415,7 @@
             (let [prun    (-> parent-run :id rs/get-run)
                   suspend (:suspend prun)]
               (is (= (:state prun) :suspended))
-              (is (-> prun :suspend longterm.runloop/suspend-signal?))
+              (is (-> prun :suspend longterm.run-loop/suspend-signal?))
               (is (= (-> prun :suspend :permit) (:id child-run))))
             (testing "attempting to continue without a valid permit throws"
               (is (thrown-with-msg?
@@ -455,32 +455,32 @@
                     (is (= :child-result (:result parent-after-block-release)))))))))))
 
 (deflow level3-suspends [suspend?]
-  (respond! :level3-start)
+  (*> :level3-start)
   (println "before level3 suspend")
-  (if suspend? (suspend!))
+  (if suspend? (<*))
   (println "after level3 suspend")
-  (respond! :level3-end)
+  (*> :level3-end)
   :level3-result)
 
 (deflow level2-suspends-and-blocks [blocker-suspends]
   (println "inside level2")
-  (respond! :level2-start)
-  (suspend!)                  ;; up to this point is capture by level1-start
+  (*> :level2-start)
+  (<*)                  ;; up to this point is capture by level1-start
   (clear-log!)                ;; continue level2-run should start here
-  (respond! :level2-after-suspend)
+  (*> :level2-after-suspend)
   (println "before level3 start")
   (let [level3 (start! level3-suspends blocker-suspends)]
     (log! level3)             ;; continue level2-run ends here
     (println "before level3 block")
-    (respond! (<! level3))
+    (*> (<! level3))
     (println "after level3 block"))
-  (respond! :level2-end)
+  (*> :level2-end)
   :level2-result)
 
 (deflow level1-redirects [blocker-suspends]
   (clear-log!)
   (log! (current-run))        ; need to capture the current run for later testing
-  (respond! :level1-start)
+  (*> :level1-start)
   (println "before starting level2" (current-run))
   (let [level2 (start! level2-suspends-and-blocks blocker-suspends)]
     (log! level2)
@@ -488,7 +488,7 @@
     (flush)
     (let [redirect-result (>> level2)]
       (log! redirect-result)))
-  (respond! :level1-end)
+  (*> :level1-end)
   :level1-result)
 
 #_(deftest ^:unit RedirectionOperator

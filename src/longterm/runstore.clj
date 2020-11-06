@@ -12,9 +12,9 @@
    result                     ; final result (when :state=complete)
    response                   ; runlet response (cleared by continue!)
    suspend                    ; Suspend instance which suspended this run
-   mode                       ; :block or :redirect or :default
+   return-mode                ; :redirect, :block, or :none
    parent-run-id              ; run which started this run
-   error-message])
+   error])                    ; for now, just the exception that was thrown
 
 (def ^:const RunStates '(:suspended :running :error :complete))
 (defn run-in-state?
@@ -23,13 +23,13 @@
         result (and (instance? Run run) (or (in? states state) (in? states :any)))]
     result))
 
-(def ^:const RunModes '(:redirect :block :default)) ; indicates how run was started
-(defn run-in-mode? [run & modes]
+(def ^:const ReturnModes '(:redirect :block :none)) ; semantics for returning to parent
+(defn run-in-mode? [run & return-modes]
   (and (instance? Run run)
-    (or (in? modes (:mode run)) (in? modes :any))))
+    (or (in? return-modes (:return-mode run)) (in? return-modes :any))))
 
 (defn new-run
-  [run-id state] (->Run run-id () state nil [] nil :default nil nil))
+  [run-id state] (->Run run-id () state nil [] nil :default #{} nil))
 
 (defprotocol IRunStore
   (rs-create! [rs state])
@@ -54,8 +54,10 @@
 (defn create-run!
   ([] (create-run! :suspended))
   ([state]
-   {:pre  [(satisfies? IRunStore @runstore) (in? RunStates state)]
-    :post [(run-in-state? % state)]}
+   {:pre  [(satisfies? IRunStore @runstore)
+           (in? RunStates state)]
+    :post [(run-in-state? % state)
+           (in? ReturnModes (:return-mode %))]}
    (let [run (rs-create! @runstore state)]
      run)))
 
