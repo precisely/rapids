@@ -402,7 +402,7 @@
           [parent-run, child-run] @*log*]
       (is (= returned-run parent-run))
       (is (run-in-state? parent-run :suspended))
-      (is (run-in-mode? parent-run :default))
+      (is (run-in-mode? parent-run nil))
       (is (-> parent-run :parent-run-id nil?))
       (is (= '(:parent-before-blocking-call) (:response parent-run)))
       #_#_#_(testing "The child run is created, but is not returned initially"

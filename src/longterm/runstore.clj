@@ -12,7 +12,7 @@
    result                     ; final result (when :state=complete)
    response                   ; runlet response (cleared by continue!)
    suspend                    ; Suspend instance which suspended this run
-   return-mode                ; :redirect, :block, or :none
+   return-mode                ; :redirect, :block, or nil
    parent-run-id              ; run which started this run
    error])                    ; for now, just the exception that was thrown
 
@@ -23,13 +23,16 @@
         result (and (instance? Run run) (or (in? states state) (in? states :any)))]
     result))
 
-(def ^:const ReturnModes '(:redirect :block :none)) ; semantics for returning to parent
+(def ^:const ReturnModes '(:redirect :block nil)) ; semantics for returning to parent
 (defn run-in-mode? [run & return-modes]
   (and (instance? Run run)
     (or (in? return-modes (:return-mode run)) (in? return-modes :any))))
 
 (defn new-run
-  [run-id state] (->Run run-id () state nil [] nil :default #{} nil))
+  [run-id state] (map->Run {:id       run-id,
+                            :stack    (),
+                            :state    state,
+                            :response []}))
 
 (defprotocol IRunStore
   (rs-create! [rs state])
@@ -57,7 +60,7 @@
    {:pre  [(satisfies? IRunStore @runstore)
            (in? RunStates state)]
     :post [(run-in-state? % state)
-           (in? ReturnModes (:return-mode %))]}
+           (run-in-state? % :any)]}
    (let [run (rs-create! @runstore state)]
      run)))
 

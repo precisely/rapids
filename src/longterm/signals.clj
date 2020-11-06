@@ -39,9 +39,10 @@
 
 (defn suspending-operator? [x]
   (cond
-    (var? x) (:suspending (meta x))
+    (var? x) (or (:suspending (meta x)) false)
     (qualified-symbol? x) (recur (find-var x))
-    (symbol? x) (recur (resolve x))))
+    (symbol? x) (recur (resolve x))
+    :else false))
 
 (defn valid-suspend?
   [s]
@@ -49,7 +50,7 @@
     (instance? Suspend s)
     (or (-> s :expires nil?)
       (->> s :expires (instance? LocalDateTime)))
-    (if (:default s) (:expires s))))
+    (or (nil? (:default s)) (:expires s))))
 
 (defn make-suspend-signal
   [permit expires default]

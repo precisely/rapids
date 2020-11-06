@@ -53,7 +53,7 @@
         (is (true? suspend?))
         (testing "the start body should contain a resume-at expression pointing at the next-address, starting with the innermost term"
         (is (match [start]
-                     [([`runloop/resume-at [next-address ['z] _]
+                     [([`longterm.partition/resume-at [next-address ['z] _]
                          ([`flow/entry-point `fl2 ([`a] :seq)] :seq)] :seq)] true
                      [_] false)))
         (testing "the partition set should contain a partition which evals the outer flow"
@@ -98,7 +98,7 @@
       (testing "initial form first two forms, resuming at the second partition address"
         (is (match [start]
                    [[([`a] :seq)
-                     ([`longterm.run-loop/resume-at [part2-address [] _]
+                     ([`longterm.partition/resume-at [part2-address [] _]
                        ([`flow/entry-point `fl1] :seq)] :seq)]] true
                    [_] false))
         (is (true? suspend?)))
@@ -135,6 +135,6 @@
       (is (= 2 (count pset)))
       (is (true? suspend?))
       (is (match [start]
-                 [([`runloop/resume-at [_ [] _] ([`flow/entry-point `fl1] :seq)] :seq)] true
+                 [([`longterm.partition/resume-at [_ [] _] ([`flow/entry-point `fl1] :seq)] :seq)] true
                  [_] false)))))
 

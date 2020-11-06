@@ -31,26 +31,26 @@
   "Sets up the dynamic environment for the runlet (which may include several runs);
   Runs are persisted to disk at the last moment, when the outer-most with-run-cache
   body completes."
-  `(letfn [(dobody# [] ~@body)]
+  `(letfn [(dobody# [] (assert (bound? #'*run-cache*)) ~@body)]
      (if (bound? #'*run-cache*)
+       (dobody#)
        (binding [*run-cache* {}]
          (let [result# (dobody#)]
            (save-cache!)
-           result#))
-       (dobody#))))
+           result#)))))
 
 (defmacro with-run-context
   "Executes body returning the Run produced by run-form, "
   [[run-form] & body]
   `(with-run-cache
-     (let [run# ~run-form]
-       (assert (rs/run-in-state? run# :any))
-       (binding [*current-run-id* (:id (cache-run! run#)),
-                 *root-run-id*    *current-run-id*]
-         (try
-           ~@body
-           (catch Exception e#
-             (set-error! e#)))
+     (let [run# (cache-run! ~run-form)
+           run-id# (:id run#)]
+       (binding [*current-run-id* run-id#,
+                 *root-run-id*    run-id#]
+         ;(try
+         ~@body
+         ;(catch Exception e#
+         ;  (set-error! e#)))
          (finalize-run! *root-run-id* *current-run-id*)))))
 
 ;;;
@@ -64,6 +64,7 @@
       (rs/save-run! run))))
 
 (defn cache-run! [run]
+  (assert (bound? #'*run-cache*))
   (set! *run-cache* (assoc *run-cache* (:id run) run))
   run)
 
@@ -116,7 +117,7 @@
 ;;; Predicates
 ;;;
 (defn suspended? []
-  (rs/run-in-state? :suspended))
+  (rs/run-in-state? (current-run) :suspended))
 
 (defn return-mode?
   [& modes]
@@ -213,7 +214,7 @@
            _         (assert (:next-id child-run))
            next-run  (load! (:next-id child-run))]
        (assert (rs/run-in-state? % :running))
-       (assert (rs/run-in-mode? % :default))
+       (assert (rs/run-in-mode? % nil))
        (transfer-full-response! % next-run)
        ; (cache-run! child) ; not necessary because transfer-full-response! does the caching
        (set! *current-run-id* (:id next-run))
@@ -240,7 +241,7 @@
   "Alters the current run, which may be a nested :next run, but ensuring that *run* is updated"
   [f]
   (let [current (current-run)
-        new-run (f current-run)
+        new-run (f current)
         new-run (if-not (= current new-run) (assoc new-run :dirty true) new-run)]
     (cache-run! new-run)))
 

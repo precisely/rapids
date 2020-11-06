@@ -13,6 +13,7 @@
   "Suspends the current run and starts a run in :block mode"
   [child-run & {:keys [expires default]}]
   (rc/set-blocker! child-run expires default))
+
 (defn ^:suspending redirect!
   "transfers execution to child-run"
   [child-run & {:keys [expires default]}]
@@ -21,7 +22,7 @@
 (defn respond!
   "Adds an element to the current run response: returns nil"
   [& responses]
-  (rc/add-responses! responses))
+  (apply rc/add-responses! responses))
 
 ;;
 ;; Shortcut operators

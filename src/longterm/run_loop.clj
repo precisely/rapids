@@ -5,8 +5,7 @@
     [longterm.util :refer :all]
     [longterm.run-context :as rc]
     [longterm.signals :as s]
-    [longterm.stack-frame :as sf]
-    [longterm.address :as a]))
+    [longterm.stack-frame :as sf]))
 
 (declare start! continue!)
 (declare resume-at)
@@ -18,7 +17,7 @@
   Returns a Run in :suspended or :complete state, not necessarily the run which "
   [flow & args]
   {:pre  [(refers-to? flow/flow? flow)]
-   :post [(rs/run-in-state? % :suspended :complete)]}
+   :post [(rs/run-in-state? % :suspended :complete :error)]}
   (rc/with-run-context [(rs/create-run! :running)]
     ;; create the initial stack-continuation to kick of the process
     (eval-loop! (fn [_] (apply flow/entry-point flow args)))))
