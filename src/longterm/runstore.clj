@@ -7,6 +7,7 @@
 
 (defrecord Run
   [id
+   start-form                 ; a list describing the start flow and arguments
    stack                      ; list of StackFrame instances, newest first
    state                      ; one of RunStates
    result                     ; final result (when :state=complete)
@@ -55,7 +56,7 @@
   (reset! runstore rs))
 
 (defn create-run!
-  ([] (create-run! :suspended))
+  ([] (create-run! :running))
   ([state]
    {:pre  [(satisfies? IRunStore @runstore)
            (in? RunStates state)]

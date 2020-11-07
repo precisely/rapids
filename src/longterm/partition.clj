@@ -430,7 +430,7 @@
 
 (defn partition-vector-expr
   [expr partition-addr address params]
-  (let [fake-op      (symbol "[]")
+  (let [fake-op      (symbol "_vec_")
         expr-with-op (with-meta `(~fake-op ~@expr) (meta expr))]
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
       #(vec %))))

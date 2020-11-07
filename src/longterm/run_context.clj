@@ -57,8 +57,11 @@
 ;;; Cache operations
 ;;;
 (defn save-cache! []
+  (println "saving cache")
   (doseq [[_ run] *run-cache*]
+    (println "run " (:id run) " dirty=" (:dirty run))
     (when (:dirty run)
+      (println "saving run " run)
       (cache-run! (dissoc run :dirty))
       (assert (rs/run-in-state? run :error :complete :suspended))
       (rs/save-run! run))))
@@ -186,6 +189,7 @@
 (defn set-blocker! [child expires default]
   "Suspends the current run with child, returning the suspend signal"
   (let [suspend (make-suspend-signal (:id child) expires default)]
+    (println "parent " (id) "blocking on child run " (:id child))
     (update-current!
       #(do
          (cache-run! (assoc child,
