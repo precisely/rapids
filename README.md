@@ -61,3 +61,30 @@ The methods of IRunStore should return Run instances. If additional fields are n
 
 
 
+## Deployment
+
+This library uses the [s3-wagon-private plugin](https://github.com/s3-wagon-private/s3-wagon-private) to deploy to and consume the artifact from a dev-precisely S3 bucket (precisely-maven-repo as time of writing). 
+
+To push a release:
+
+1. Commit the code
+2. Update the version in project.clj and tag the release
+
+   If you use `"0.2.0-SNAPSHOT"` in project.clj, do `git tag 0.2.0-SNAPSHOT` 
+   
+3. Push to github
+
+   ```git push --tags```
+   
+4. Ensure AWS access is configured
+
+   You need to provide access key id & secret to push to the S3 bucket. You will need write access, obviously. These are stored in .env. The .env.sample file contains the key names: 
+   
+   ```
+   cp .env.sample .env
+   ```
+   
+5. Deploy the library to S3
+   ```shell script
+    lein deploy precisely
+    ```
