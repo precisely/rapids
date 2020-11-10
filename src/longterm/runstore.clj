@@ -34,8 +34,8 @@
   [run-id state] (map->Run {:id       run-id,
                             :stack    (),
                             :state    state,
-                            :full-response []
-                            :response []}))
+                            :response []
+                            :run-response []}))
 
 (defprotocol IRunStore
   (rs-create! [rs state])

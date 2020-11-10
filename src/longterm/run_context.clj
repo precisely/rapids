@@ -85,7 +85,7 @@
     (let [cached-run (acquire-from-cache!)]
       (or cached-run
         ;; when acquiring from the runstore, reset the response:
-        (cache-run! (assoc (rs/acquire-run! run-id permit) :response []))))))
+        (cache-run! (assoc (rs/acquire-run! run-id permit) :run-response []))))))
 
 (defn load!
   "Gets the run from the cache or storage"
@@ -117,7 +117,7 @@
 
 (defn return-mode [] (:return-mode (current-run)))
 
-(defn response [] (:response (current-run)))
+(defn response [] (:run-response (current-run)))
 
 (defn result [] (:result (current-run)))
 
@@ -157,7 +157,7 @@
 ;; modifiers
 ;;
 (defn initialize-runlet [initial-response]
-  (update-run! #(assoc % :suspend nil, :response initial-response)))
+  (update-run! #(assoc % :suspend nil, :run-response initial-response)))
 
 (defn push-stack! [address bindings result-key]
   (let [frame (sf/make-stack-frame address bindings result-key)]
@@ -175,8 +175,8 @@
             #(let [current-response (field %)]
               (assert (vector? current-response))
               (assoc % field (into [] (concat current-response responses)))))]
-    (update-run! (root-run) (push-responses :full-response))
-    (update-run! (push-responses :response))
+    (update-run! (root-run) (push-responses :response))
+    (update-run! (push-responses :run-response))
     responses))
 
 (defn set-result! [result]
@@ -263,7 +263,7 @@
   This function copies values over to the current run context to produce the same effect as if control
   had been transfered before the input run had reached completion or suspension.
 
-  In effect, this means copying the :full-response from run, and using the run's :next-id as the new
+  In effect, this means copying the :response from run, and using the run's :next-id as the new
   current-run.
 
   Returns the appropriate signal (or completion value) from the new run which has control."
@@ -276,8 +276,8 @@
 
 (defn- add-response-from!
   [run]
-  (update-run! (root-run) #(assoc % :full-response (into [] (concat (:full-response %) (:full-response run)))))
-  (update-run! run #(assoc % :full-response [])))
+  (update-run! (root-run) #(assoc % :response (into [] (concat (:response %) (:response run)))))
+  (update-run! run #(assoc % :response [])))
 
 (defn- simulate-result
   "Returns the value returned by the last continuation of the given run"
