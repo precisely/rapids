@@ -105,28 +105,34 @@
          (recur (next-continuation!) next-result)))
      #(process-run! result)))) ; return the final result
 
+(declare return-to-parent!)
 (defn- process-run!
   "Handles the result of reduce-stack, storing the result in the run, and continuing execution to
-  a parent run, if appropriate"
+  a parent run, if appropriate."
   [value]
   (cond
     ;; if suspending, do nothing more - the run is in suspended state and will be saved
     (s/suspend-signal? value) (assert (rc/suspended?))
 
-    ;; a continue signal indicates that a new run is now current
-    ;; it contains the result from the previous run which be passed to the new run
-    ;; we return a function to bounce back to reduce-stack! via trampoline
-    (s/continue-signal? value) #(reduce-stack! (next-continuation!) (:result value))
+    ;; a return signal is generated when a redirected child run returns from suspension and
+    ;; hits a block.
+    (s/return-signal? value) (recur (return-to-parent!))
 
     :else (complete-run! value)))
+
+(defn- return-to-parent!
+  "Continues the parent, providing the current run's id as permit, and providing the
+  current run as the value"
+  []
+  (rc/return-from-redirect! (continue! (rc/parent-run-id) (rc/id) (rc/current-run))))
 
 (defn- complete-run! [result]
   {:pre [(not (s/signal? result))]}
   (rc/set-result! result)
-  (ifit [parent-id (rc/parent-run-id)]
-    (case (rc/return-mode)
-      :redirect #(process-run! (rc/return-redirect!))
-      :block #(continue! parent-id (rc/id) result)
-      (throw (Exception.
-               (str "Unexpected return mode " (rc/return-mode) " for run " (rc/id)
-                 " with parent " parent-id))))))
+  (case (rc/return-mode)
+    :redirect #(process-run! (return-to-parent!))
+    :block #(continue! (rc/parent-run-id) (rc/id) result)
+    nil nil
+    (throw (Exception.
+             (str "Unexpected return mode '" (rc/return-mode) "' for run " (rc/id)
+               " with parent " (rc/parent-run-id))))))

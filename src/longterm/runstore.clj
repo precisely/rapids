@@ -11,6 +11,7 @@
    stack                      ; list of StackFrame instances, newest first
    state                      ; one of RunStates
    result                     ; final result (when :state=complete)
+   full-response              ; response created by all runlets during the current request
    response                   ; runlet response (cleared by continue!)
    suspend                    ; Suspend instance which suspended this run
    return-mode                ; :redirect, :block, or nil
@@ -33,6 +34,7 @@
   [run-id state] (map->Run {:id       run-id,
                             :stack    (),
                             :state    state,
+                            :full-response []
                             :response []}))
 
 (defprotocol IRunStore

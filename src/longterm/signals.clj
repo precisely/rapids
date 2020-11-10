@@ -19,13 +19,12 @@
 ;;
 ;; Continue Signal - signifies control should continue with the given run
 ;;
-(defrecord Continue [run result]) ; signals that the run has changed
-(defn continue-signal? [x] (instance? Continue x))
+(defrecord Return []) ; signals that the run has changed
+(defn return-signal? [x] (instance? Return x))
 
-(defn make-continue-signal
-  [run result]
-  {:pre [(rs/run-in-state? run :any)]}
-  (Continue. run result))
+(defn make-return-signal
+  []
+  (Return.))
 
 ;;
 ;; Suspend Signal - indicates run should sleep
@@ -61,4 +60,4 @@
 ;; signal? helper predicate - checks whether object is any of the above
 ;;
 (defn signal? [x]
-  (or (suspend-signal? x) (continue-signal? x)))
+  (or (suspend-signal? x) (return-signal? x)))

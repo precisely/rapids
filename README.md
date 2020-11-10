@@ -63,6 +63,7 @@ The methods of IRunStore should return Run instances. If additional fields are n
 
 ## Deployment
 
+### S3 Deployment
 This library uses the [s3-wagon-private plugin](https://github.com/s3-wagon-private/s3-wagon-private) to deploy to and consume the artifact from a dev-precisely S3 bucket (precisely-maven-repo as time of writing). 
 
 To push a release:
@@ -88,3 +89,13 @@ To push a release:
    ```shell script
     lein deploy precisely
     ```
+   
+### Local Deployment
+
+During development, you may want to publish to a local repo instead of to S3.  This can be done by publishing to your local Maven repo. This is typically at `~/.m2`.  The dev profile has the [lein-localrepo plugin](https://github.com/kumarshantanu/lein-localrepo) installed.
+
+First build your target:
+
+```
+lein build
+``` 
