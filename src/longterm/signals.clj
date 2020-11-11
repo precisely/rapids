@@ -3,21 +3,8 @@
             [longterm.util :as util])
   (:import (java.time LocalDateTime)))
 
-;;;
-;;; Unblock signal - signifies that a run has been unblocked
-;;;                  without becoming the current run. The runloop
-;;;                  should eval-next-runlet for this run
-;;;
-;(defrecord Unblock [run result]) ; signals that the run has changed
-;(defn unblock-signal? [x] (instance? Unblock x))
-;
-;(defn make-unblock-signal
-;  [run result]
-;  {:pre [(rs/run-in-state? run :any)]}
-;  (Unblock. run result))
-
 ;;
-;; Continue Signal - signifies control should continue with the given run
+;; Return Signal - signifies control should return to the given run
 ;;
 (defrecord Return []) ; signals that the run has changed
 (defn return-signal? [x] (instance? Return x))

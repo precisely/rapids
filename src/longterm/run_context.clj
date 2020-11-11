@@ -231,7 +231,7 @@
   [parent-run]
   {:pre [(= (:id parent-run) (parent-run-id))
          (return-mode? :redirect)]}
-  (let [child-id (id), ; current run is the child - remember the id because transfer-control will change to parent
+  (let [child-id (id),        ; current run is the child - remember the id because transfer-control will change to parent
         result   (transfer-control-post-facto! parent-run)]
     ;; we must get the child run from the cache again because transfer-control has altered it
     ;; return it to default mode - not parent
@@ -305,12 +305,15 @@
   [run] (update-run! run #(dissoc (assoc % :next-id nil) :next)))
 
 (defn set-next!
-  "Sets the the"
+  "Sets the next-id and next-run; next-id is set to the id of the next-run, if it exists, or
+  to the current run's id, if it is in :suspended state (indicating that it can still be called)."
   [run-id next-run-id]
   (let [run      (get *run-cache* run-id)
         next-run (remove-next! (get *run-cache* next-run-id))]
     (update-run! run
-      #(let [next-id (or (:id next-run) (:id %))]
+      #(let [next-id (or (:id next-run)
+                       (if (rs/run-in-state? run :suspended)
+                         (:id %)))]
          (assoc %
            :next-id next-id,
            :next (if (not= next-id run-id) next-run))))))
