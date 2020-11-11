@@ -11,13 +11,15 @@
    stack                      ; list of StackFrame instances, newest first
    state                      ; one of RunStates
    result                     ; final result (when :state=complete)
-   response                   ; response created by all runs invoked during current request
    run-response               ; response due only to the associated request
    suspend                    ; Suspend instance which suspended this run
    return-mode                ; :redirect, :block, or nil
    parent-run-id              ; run which started this run
-   error])                    ; for now, just the exception that was thrown
+   error                    ; for now, just the exception that was thrown
 
+   ;; these two values are computed during a run and stored
+   response                   ; response created by all runs invoked during current request
+   next-id])          ; the run stores the
 (def ^:const RunStates '(:suspended :running :error :complete))
 (defn run-in-state?
   [run & states]

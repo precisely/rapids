@@ -458,7 +458,7 @@
 
 (deflow level3-suspends [suspend?]
   #_(println "LEVEL3: " (:id (current-run)))
-  (respond! :level3-start) ; this does not get captured by level1 or level2 because the redirect operator is not used
+  (respond! :level3-start)    ; this does not get captured by level1 or level2 because the redirect operator is not used
   #_(println "before level3 suspend")
   (if suspend? (listen!))
   #_(println "after level3 suspend")
@@ -468,7 +468,7 @@
 (deflow level2-suspends-and-blocks [suspend-blocker?]
   #_(println "inside level2")
   (respond! :level2-start)
-  (listen!)                        ;; up to this point is capture by level1-start
+  (listen!)                   ;; up to this point is capture by level1-start
   (clear-log!)                ;; continue level2-run should start here
   (respond! :level2-after-suspend)
   #_(println "before level3 start")
@@ -484,10 +484,10 @@
   (clear-log!)
   (log! (current-run))        ; need to capture the current run for later testing
   (respond! :level1-start)
-  #_(println "before starting level2"); (current-run))
+  #_(println "before starting level2") ; (current-run))
   (let [level2 (start! level2-suspends-and-blocks suspend-blocker?)]
     (log! level2)
-    #_(println "before redirecting to level2"); (current-run))
+    #_(println "before redirecting to level2") ; (current-run))
     (let [redirect-result (>> level2)]
       (log! redirect-result)))
   #_(println "after redirecting to level2")
@@ -505,7 +505,7 @@
         (is (= (:id level1-start) (:id level1-run)))
         (is (= (:next-id level1-start) (:id level2-run))))
 
-    (testing "run returned by start! should contain parent and redirected responses up to the point redirected run suspended"
+      (testing "run returned by start! should contain parent and redirected responses up to the point redirected run suspended"
         (is (= [:level1-start :level2-start] (:response level1-start))))
 
       (testing "continuing the redirect run to a block returns control to the parent run"
@@ -527,10 +527,21 @@
             (is (= (-> level2-run :id rs/get-run :state) :suspended))
             (is (= (-> level2-run :id rs/get-run :suspend :permit) (:id level3-run))))
 
-          (testing "the parent run in this case is complete, and its :result should be the final value of the parent partition"
+          (testing "the parent run is the next result"
             (is (= (:next-id continue-level2) (:id level1-run)))
-            (is (run-in-state? (:next continue-level2) :complete))
-            (is (= (-> continue-level2 :next :result) :level1-result)))
+
+            (let [parent (:next continue-level2)]
+              (is (= (:id parent) (:id level1-run)))
+
+              (testing "and it complete since no more code needs to be run"
+                (is (run-in-state? parent :complete)))
+
+              (testing "and its :result should be the final value of the parent partition"
+                (is (= (-> parent :result) :level1-result)))
+
+              (testing "its next-id is nil and next is nil"
+                (is (= (-> parent :next-id) nil))
+                (is (not (contains? parent :next))))))
 
           (testing "the redirection operator should return the run"
             (is (= (:id redirect-result) (:id level2-run))))
@@ -548,6 +559,7 @@
                 (is (= :complete (:state level3-continue))))
               (testing "level3 run response is as expected"
                 (is (= '[:level3-end] (:run-response level3-continue))))
+
               (testing "blocked run (level2) is unblocked because level3 completes"
                 (let [fresh-level2 (-> level2-run :id rs/get-run)]
                   (is (= :complete (:state fresh-level2)))

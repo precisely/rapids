@@ -79,7 +79,7 @@
       (throw (Exception. (str "Attempt to block on or redirect to child run " child-id " from parent run " true-parent-id
                            " when child run has a different parent: " child-parent-id))))))
 
-(declare process-run! reduce-stack! complete-run!)
+(declare process-run! reduce-stack! process-run-value!)
 (defn- eval-loop!
   "Evaluates continuations on the stack, passing values from one continuation to the next,
   and negotiating redirection and blocking operations between "
@@ -109,16 +109,16 @@
 (defn- process-run!
   "Handles the result of reduce-stack, storing the result in the run, and continuing execution to
   a parent run, if appropriate."
-  [value]
+  [result]
   (cond
     ;; if suspending, do nothing more - the run is in suspended state and will be saved
-    (s/suspend-signal? value) (assert (rc/suspended?))
+    (s/suspend-signal? result) (assert (rc/suspended?))
 
     ;; a return signal is generated when a redirected child run returns from suspension and
     ;; hits a block.
-    (s/return-signal? value) #(process-run! (return-to-parent!))
+    (s/return-signal? result) #(process-run! (return-to-parent!))
 
-    :else (complete-run! value)))
+    :else (process-run-value! result)))
 
 (defn- return-to-parent!
   "Continues the parent, providing the current run's id as permit, and providing the
@@ -127,12 +127,12 @@
   (rc/return-from-redirect!
     (continue! (rc/parent-run-id) (rc/id) (rc/current-run))))
 
-(defn- complete-run! [result]
-  {:pre [(not (s/signal? result))]}
-  (rc/set-result! result)
+(defn- process-run-value! [value]
+  {:pre [(not (s/signal? value))]}
+  (rc/set-result! value)
   (case (rc/return-mode)
     :redirect #(process-run! (return-to-parent!))
-    :block #(continue! (rc/parent-run-id) (rc/id) result)
+    :block #(continue! (rc/parent-run-id) (rc/id) value)
     nil nil
     (throw (Exception.
              (str "Unexpected return mode '" (rc/return-mode) "' for run " (rc/id)

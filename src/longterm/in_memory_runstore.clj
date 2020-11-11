@@ -1,6 +1,6 @@
 (ns longterm.in-memory-runstore
   (:require [longterm.runstore :refer :all]
-            [longterm.util :refer [new-uuid]]
+            [longterm.util :refer [new-uuid ifit]]
             [longterm.runstore :refer :all]
             [longterm.runstore :as rs]))
 
@@ -35,7 +35,10 @@
                                  run-id)))))))
       (rs-get this run-id))
   (rs-get [this run-id]
-    (get @(:processes this) run-id)))
+    (let [run (get @(:processes this) run-id)]
+      (ifit [next-id (:next-id run)]
+        (assoc run :next (get @(:processes this) next-id))
+        run))))
 
 (defn in-memory-runstore? [x] (instance? InMemoryRunStore x))
 

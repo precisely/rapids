@@ -231,9 +231,10 @@
   [parent-run]
   {:pre [(= (:id parent-run) (parent-run-id))
          (return-mode? :redirect)]}
-  (println "return-from-redirect! from" (id) "to" (parent-run-id))
-  (let [child-id (id),
+  (let [child-id (id), ; current run is the child - remember the id because transfer-control will change to parent
         result   (transfer-control-post-facto! parent-run)]
+    ;; we must get the child run from the cache again because transfer-control has altered it
+    ;; return it to default mode - not parent
     (update-run! (load! child-id) #(assoc % :parent-run-id nil :return-mode nil))
     result))
 
@@ -299,11 +300,15 @@
          new-run (if (not= run new-run) (assoc new-run :dirty true) new-run)]
      (cache-run! new-run))))
 
+(defn- remove-next!
+  "Removes the next value of run and nulls out the next-id"
+  [run] (update-run! run #(dissoc (assoc % :next-id nil) :next)))
+
 (defn set-next!
-  ""
+  "Sets the the"
   [run-id next-run-id]
   (let [run      (get *run-cache* run-id)
-        next-run (get *run-cache* next-run-id)]
+        next-run (remove-next! (get *run-cache* next-run-id))]
     (update-run! run
       #(let [next-id (or (:id next-run) (:id %))]
          (assoc %
