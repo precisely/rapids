@@ -12,6 +12,7 @@
             [longterm.stack-frame :as sf]
             [longterm.signals :refer [make-suspend-signal]]
             [longterm.signals :as s]))
+
 (def ^{:dynamic true
        :doc     "The id of the run that initiated the current runlet (which may be a child or parent)"}
   *root-run-id*)
@@ -24,8 +25,7 @@
        :doc     "A map of run-ids to runs"}
   *run-cache*)
 
-(declare load! save-cache! cache-run! update-run! finalize-run!
-  set-error! simulate-result)
+(declare load! save-cache! cache-run! update-run! set-error! simulate-result root-run current-run set-next!)
 
 (defmacro with-run-cache [& body]
   "Sets up the dynamic environment for the runlet (which may include several runs);
@@ -51,7 +51,7 @@
          ~@body
          ;(catch Exception e#
          ;  (set-error! e#)))
-         (finalize-run! *root-run-id* *current-run-id*)))))
+         (set-next! *root-run-id* *current-run-id*)))))
 
 ;;;
 ;;; Cache operations
@@ -85,7 +85,7 @@
     (let [cached-run (acquire-from-cache!)]
       (or cached-run
         ;; when acquiring from the runstore, reset the response:
-        (cache-run! (assoc (rs/acquire-run! run-id permit) :run-response []))))))
+        (cache-run! (assoc (rs/acquire-run! run-id permit) :response [], :run-response []))))))
 
 (defn load!
   "Gets the run from the cache or storage"
@@ -135,23 +135,21 @@
   (rs/run-in-state? (current-run) :suspended))
 
 (defn return-mode?
-  [& modes]
-  (apply rs/run-in-mode? (current-run) modes))
+  ([& modes]
+   (apply rs/run-in-mode? (current-run) modes)))
 
 (defn redirected?
   ([] (redirected? (current-run)))
 
   ([run]
    (and (rs/run-in-state? run :suspended)
-     (ifit (:suspend run)
-       (= (:mode it) :redirect)))))
+     (rs/run-in-mode? run :redirect))))
 
 (defn blocked?
   ([] (blocked? (current-run)))
   ([run]
    (and (rs/run-in-state? run :suspended)
-     (ifit (:suspend run)
-       (= (:mode it) :block)))))
+     (rs/run-in-mode? run :block))))
 
 ;;
 ;; modifiers
@@ -173,8 +171,8 @@
 (defn add-responses! [& responses]
   (letfn [(push-responses [field]
             #(let [current-response (field %)]
-              (assert (vector? current-response))
-              (assoc % field (into [] (concat current-response responses)))))]
+               (assert (vector? current-response))
+               (assoc % field (into [] (concat current-response responses)))))]
     (update-run! (root-run) (push-responses :response))
     (update-run! (push-responses :run-response))
     responses))
@@ -214,7 +212,7 @@
 ;;
 ;; redirection and return - these functions transfer response control back and forth
 ;;
-(declare redirect-to-suspended-run! transfer-control-post-facto! redirect-to-completed-run! add-response-from!)
+(declare redirect-to-suspended-run! transfer-control-post-facto! redirect-to-completed-run! harvest-response-from!)
 (defn set-redirect! [child-run expires default]
   "Transfers responsibility to child-run from current run. Note that this function transfers control
   to the child-run *after* it has completed a runlet. So this run will be decorated with a next-id, indicating
@@ -230,11 +228,14 @@
 (defn return-from-redirect!
   "Transfers control back to the parent run (which has already been run to suspension or completion) and
   returns the appropriate runloop signal or a value."
-  [run]
-  {:pre [(= (:id run) (parent-run-id))
-         (= :redirect (return-mode))]}
-  (update-run! #(assoc % :parent-run-id nil return-mode nil))
-  (transfer-control-post-facto! run))
+  [parent-run]
+  {:pre [(= (:id parent-run) (parent-run-id))
+         (return-mode? :redirect)]}
+  (println "return-from-redirect! from" (id) "to" (parent-run-id))
+  (let [child-id (id),
+        result   (transfer-control-post-facto! parent-run)]
+    (update-run! (load! child-id) #(assoc % :parent-run-id nil :return-mode nil))
+    result))
 
 
 ;;
@@ -270,11 +271,11 @@
   [run]
   {:pre [(rs/run-in-state? run :complete :suspended)]}
   (let [next-run-id (-> run :next-id)]
-    (add-response-from! run)
+    (harvest-response-from! run)
     (set! *current-run-id* next-run-id)
     (simulate-result (load! next-run-id))))
 
-(defn- add-response-from!
+(defn- harvest-response-from!
   [run]
   (update-run! (root-run) #(assoc % :response (into [] (concat (:response %) (:response run)))))
   (update-run! run #(assoc % :response [])))
@@ -288,21 +289,24 @@
     :complete (:result run)
     (throw (Exception. (str "Run " (:id run) " in unexpected state: " (:state run))))))
 
+
 (defn- update-run!
   "Alters the provided or current run, which may be a nested :next run, but ensuring that *run* is updated"
   ([f] (update-run! (current-run) f))
 
   ([run f]
    (let [new-run (f run)
-         new-run (if-not (= run new-run) (assoc new-run :dirty true) new-run)]
+         new-run (if (not= run new-run) (assoc new-run :dirty true) new-run)]
      (cache-run! new-run))))
 
-(defn finalize-run!
+(defn set-next!
   ""
   [run-id next-run-id]
   (let [run      (get *run-cache* run-id)
         next-run (get *run-cache* next-run-id)]
-    (cache-run!
-      (assoc run
-        :next-id (or (:id next-run) (:id run))))))
+    (update-run! run
+      #(let [next-id (or (:id next-run) (:id %))]
+         (assoc %
+           :next-id next-id,
+           :next (if (not= next-id run-id) next-run))))))
 

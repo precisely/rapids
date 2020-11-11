@@ -116,7 +116,7 @@
 
     ;; a return signal is generated when a redirected child run returns from suspension and
     ;; hits a block.
-    (s/return-signal? value) (recur (return-to-parent!))
+    (s/return-signal? value) #(process-run! (return-to-parent!))
 
     :else (complete-run! value)))
 
@@ -124,7 +124,8 @@
   "Continues the parent, providing the current run's id as permit, and providing the
   current run as the value"
   []
-  (rc/return-from-redirect! (continue! (rc/parent-run-id) (rc/id) (rc/current-run))))
+  (rc/return-from-redirect!
+    (continue! (rc/parent-run-id) (rc/id) (rc/current-run))))
 
 (defn- complete-run! [result]
   {:pre [(not (s/signal? result))]}
