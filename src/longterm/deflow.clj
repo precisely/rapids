@@ -20,7 +20,7 @@
   (let [params (params-from-args args)
         qualified (qualify-symbol name)
         address (address/create qualified)
-        [start-body, pset, suspend?] (p/partition-body (vec code) address address params)
+        [start-body, pset, _] (p/partition-body (vec code) address address params)
         pset (pset/add pset address params start-body)
         c-args (params-to-continuation-args params)
         entry-point-name (symbol (str name "__entry-point"))]

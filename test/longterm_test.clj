@@ -366,11 +366,9 @@
 
 (deftest ^:unit FunctionTest
   (testing "should throw an error attempting to partition a fn with suspending expressions"
-    (is (thrown-with-msg?
-          Exception #"Illegal attempt to suspend in function body"
-          (longterm.deflow/expand-flow
-            `fn-with-suspend "" []
-            '((fn [] (<* :permit :boo)))))))
+    (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
+      (longterm.deflow/expand-flow
+            `fn-with-suspend "" [] `((fn [] (listen! :permit :boo)))))))
 
   (testing "should successfully partition when a normal fn is present in the body"
     (let [run (simulate-event! (start! flow-with-anonymous-fn) :list '(1 2 3))]
