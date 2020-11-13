@@ -29,7 +29,7 @@
                       v]))
     (into {})))
 
-(defproject precisely/longterm "0.1.5"
+(defproject precisely/longterm "0.2.2"
   :description "A library for scripting long term real world processes"
   :url "https://precise.ly/longterm"
   :license {:name "All Rights Reserved"
@@ -43,7 +43,8 @@
              {
               :source-paths ["src"]
               :dependencies [[org.clojure/core.match "1.0.0"]] ; used by tests
-              :plugins      [[lein-cloverage "1.1.2"]]
+              :plugins      [[lein-cloverage "1.1.2"]
+                             [lein-localrepo "0.5.4"]]
               }}
   :repl-options {:init-ns longterm}
 

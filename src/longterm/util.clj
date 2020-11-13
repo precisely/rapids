@@ -171,12 +171,9 @@
 (defn new-uuid []
   (str (UUID/randomUUID)))
 
-(defn listen-op? [op]
-  (some #(= op %) '[listen! longterm/listen! longterm.runloop/listen!]))
-
 (defn reverse-interleave [s n]
-  "Reverses interleave of sequence s, into n lists"
-  (apply map vector (partition-all n s)))
+  "Reverses interleave of sequence s into n lists"
+  (if (empty? s) [] (apply map vector (partition-all n s))))
 
 (defn in?
   "True if array contains val. Have to use this because Clojure contains?
@@ -199,6 +196,29 @@
       (.load pom-properties-reader))))
 
 (defmacro ifit
+  "If with implicit or explicit binding of the test value:
+
+  Usage:
+
+  ;; implicit
+  (if (find-object)
+    (do-something-with-object it))
+
+  ;; explicit
+  (if [myobj (find-object)]
+    (do-something-with-object myobj))
+
+  ;; multiple bindings allowed
+  (if [myobj (find-object) ;; only myobj is tested
+       val  (foo)]  ;; val can be nil
+    (do-something-with myobj val))"
   ([test then] `(ifit ~test ~then nil))
   ([test then else]
-    `(let [~'it ~test] (if ~'it ~then ~else))))
+   (let [bindings (if (vector? test) test ['it test])]
+    `(let ~bindings (if ~(first bindings) ~then ~else)))))
+
+(defmacro bind-once [[k v] & body]
+  `(letfn [(do-body# [] ~@body)]
+     (if (bound? #'~k)
+       (do-body#)
+       (binding [~k ~v] (do-body#)))))

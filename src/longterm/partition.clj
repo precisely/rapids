@@ -1,10 +1,11 @@
 (ns longterm.partition
-  (:require [longterm.address :as address]
+  (:require [longterm.address :as a]
             [longterm.util :refer :all]
+            [longterm.run-context :as rc]
             [longterm.flow :as flow]
             [longterm.recur :refer [with-tail-position with-binding-point]]
             [longterm.partition-set :as pset]
-            [longterm.runloop :refer [resume-at bindings-expr-from-params]]
+            [longterm.signals :refer [suspending-operator?]]
             [longterm.recur :refer :all])
   (:import (longterm.address Address)))
 
@@ -12,7 +13,7 @@
 
 ;;;
 ;;; Breaks flow bodies into partitions representing sequences of expressions
-;;; which can be executed without being listening.
+;;; which can be executed without being suspending.
 ;;;
 ;;; Partitions are used to define continuations. Breaks are introduced by calls
 ;;; to flows or to the `wait-for` function, which may only appear inside
@@ -53,13 +54,13 @@
 ;;;
 
 (declare partition-body partition-expr partition-fncall-expr
-         partition-list-expr partition-flow-expr
-         partition-functional-expr partition-bindings
-         partition-if-expr partition-let-expr partition-fn*-expr
-         partition-do-expr partition-loop-expr partition-special-expr partition-recur-expr
-         partition-vector-expr partition-map-expr macroexpand-keeping-metadata
-         partition-listen-expr throw-partition-error
-         nsymbols)
+  partition-list-expr partition-flow-expr
+  partition-functional-expr partition-bindings
+  partition-if-expr partition-let-expr partition-fn*-expr
+  partition-do-expr partition-loop-expr partition-special-expr partition-recur-expr
+  partition-vector-expr partition-map-expr macroexpand-keeping-metadata
+  partition-suspend-expr throw-partition-error
+  nsymbols resume-at bindings-expr-from-params)
 
 (defn partition-body
   "Partitions a list of expressions, e.g., for do, let and deflow forms
@@ -72,7 +73,7 @@
   Returns [
     start-body - forms which begin the execution of the body
     pset,      - partition set
-    listen?]  - true if any nested expression listens execution
+    suspend?]  - true if any nested expression suspends execution
   "
   ;; Note: forms are not added to the initial partition-address. They are provided
   ;; in the `start` return value, and will be incorporated into partition-address
@@ -92,36 +93,37 @@
   ;; The if-partitioner ends up calling partition-body twice, pasting the
   ;; results
   ([body partition-address address params]
-   {:post [(vector (first %))]}
+   {:pre  [(vector? params)]
+    :post [(vector (first %))]}
    (let [dirty-address partition-address]
-     (loop [iter-body body
-            pset (pset/create)
-            cur-address (address/child address 0)
+     (loop [iter-body         body
+            pset              (pset/create)
+            cur-address       (a/child address 0)
             partition-address partition-address
-            part-body []
-            start-body nil
-            any-listen? false]
+            part-body         []
+            start-body        nil
+            any-suspend?      false]
        (if-not (empty? iter-body)
          (let [[expr & rest-body] iter-body
-               [pexpr expr-pset listen?] (with-tail-position [(empty? rest-body)]
+               [pexpr expr-pset suspend?] (with-tail-position [(empty? rest-body)]
                                             (partition-expr expr partition-address cur-address params))
-               pset (pset/combine pset expr-pset)
-               next-address (address/increment cur-address)]
-           (if listen?
+               pset         (pset/combine pset expr-pset)
+               next-address (a/increment cur-address)]
+           (if suspend?
              (let [final-part-expr (if (> (count rest-body) 0) `(resume-at [~next-address [~@params] nil] ~pexpr) pexpr)
-                   part-body (conj part-body final-part-expr)
-                   pset (pset/add pset partition-address params part-body)]
+                   part-body       (conj part-body final-part-expr)
+                   pset            (pset/add pset partition-address params part-body)]
 
-               (recur rest-body, pset, next-address, next-address, [], (or start-body part-body), listen?))
-             (recur rest-body, pset, next-address, partition-address, (conj part-body pexpr), start-body, any-listen?)))
+               (recur rest-body, pset, next-address, next-address, [], (or start-body part-body), suspend?))
+             (recur rest-body, pset, next-address, partition-address, (conj part-body pexpr), start-body, any-suspend?)))
 
          ;; return result
          (let* [clean-pset (pset/delete pset dirty-address)
-                pset (if (> (count part-body) 0)
-                       (pset/add clean-pset partition-address params part-body)
-                       clean-pset)]
-           (if any-listen?
-             [start-body, pset, any-listen?]
+                pset       (if (> (count part-body) 0)
+                             (pset/add clean-pset partition-address params part-body)
+                             clean-pset)]
+           (if any-suspend?
+             [start-body, pset, any-suspend?]
              [body, nil, false])))))))
 
 ;;
@@ -144,9 +146,10 @@
   [
     start       - an s-expression which starts computation of expr
     pset        - a map of addresses to function definitions
-    listen?    - boolean indicating whether this expression could listen the flow
+    suspend?    - boolean indicating whether this expression could suspend the flow
   ]"
   [expr partition-addr address params]
+  {:pre [(vector? params)]}
   (let [mexpr (macroexpand-keeping-metadata expr)]
     (cond
       (seq? mexpr) (partition-list-expr expr mexpr partition-addr address params)
@@ -157,14 +160,15 @@
 (defn special-form-op? [x] (in? '[if do let let* fn fn* loop loop* quote recur] x))
 (defn partition-list-expr
   [expr mexpr partition-addr address params]
-  (let [op (first expr)
+  {:pre [(vector? params)]}
+  (let [op  (first expr)
         mop (first mexpr)
         ops [op mop]]
     (cond
       ;; attempt to detect operator in expression
       (some special-form-op? ops) (partition-special-expr mop expr mexpr partition-addr address params)
       ;; note: the following are not special-symbols, though the docs list them as special forms:
-      (some listen-op? ops) (partition-listen-expr expr mexpr partition-addr address params)
+      (some suspending-operator? ops) (partition-suspend-expr expr mexpr partition-addr address params)
       (some #(refers-to? flow/flow? %) ops) (partition-flow-expr mop expr mexpr partition-addr address params)
       :else (partition-fncall-expr mop expr mexpr partition-addr address params))))
 
@@ -187,50 +191,50 @@
     (throw-partition-error "Special operator not yet available in flows" expr "Operator: %s" op)))
 
 (defn partition-fn*-expr
-  "Throws if fn* contain listening ops - this partitioner acts as a guard
-  against knowing or inadvertent inclusion of a listening operation inside a fn.
+  "Throws if fn* contain suspending ops - this partitioner acts as a guard
+  against knowing or inadvertent inclusion of a suspending operation inside a fn.
   This might happen inadvertently if the user uses a macro (like for) which
   expands into a (fn ...) expression. This is a bit of a blunt instrument,
   but not sure what else to do right now."
   [expr mexpr partition-addr address params]
-  (letfn [(sig-listens? [sig]
+  (letfn [(sig-suspends? [sig]
             (let [body (rest sig)
-                  [_, _, listen?] (partition-body body partition-addr address params)]
-              (if listen?
-                (throw-partition-error "Illegal attempt to listen in function body" expr))
-              listen?))]
-    (let [sigs (rest mexpr)
-          name (if (symbol? (first sigs)) (first sigs) nil)
-          sigs (if name (next sigs) sigs)
-          sigs (if (vector? (first sigs))
-                 (list sigs)
-                 sigs)
-          listening? (some #(sig-listens? %) sigs)]
-      (assert (not listening?))
+                  [_, _, suspend?] (partition-body body partition-addr address params)]
+              (if suspend?
+                (throw-partition-error "Illegal attempt to suspend in function body" expr))
+              suspend?))]
+    (let [sigs        (rest mexpr)
+          name        (if (symbol? (first sigs)) (first sigs) nil)
+          sigs        (if name (next sigs) sigs)
+          sigs        (if (vector? (first sigs))
+                        (list sigs)
+                        sigs)
+          suspending? (some #(sig-suspends? %) sigs)]
+      (assert (not suspending?))
       [expr, nil, false])))
 
 (defn partition-let-expr
   [expr mexpr partition-addr address params]
-  (let [expr-op (first expr)
-        address (address/child address 'let)
-        binding-address (address/child address 0)
-        body-address (address/child address 1)
+  (let [expr-op         (first expr)
+        address         (a/child address 'let)
+        binding-address (a/child address 0)
+        body-address    (a/child address 1)
         [_ bindings & body] (if (= expr-op 'let) expr mexpr)
         [keys, args] (map vec (reverse-interleave bindings 2))
 
-        [body-start, body-pset, body-listen?]
-        (partition-body body, partition-addr, body-address, (concat params keys))
+        [body-start, body-pset, body-suspend?]
+        (partition-body body, partition-addr, body-address, (vec (concat params keys)))
 
-        [bind-start, bind-pset, bind-listen?]
+        [bind-start, bind-pset, bind-suspend?]
         (partition-bindings keys, args, partition-addr, binding-address, params,
-                            (if body-listen? body-start (vec body)))
+          (if body-suspend? body-start (vec body)))
 
-        pset (pset/combine body-pset bind-pset)]
+        pset            (pset/combine body-pset bind-pset)]
     (cond
-      bind-listen?
+      bind-suspend?
       [bind-start, pset, true]
 
-      body-listen?
+      body-suspend?
       [(with-meta `(let ~bindings ~@body-start) (meta expr)), pset, true]
 
       :else [expr, nil, false])))
@@ -238,56 +242,56 @@
 (defn partition-if-expr
   [expr mexpr partition-addr address params]
   (let [[_ test then else] mexpr
-        address (address/child address 'if)
-        [test-addr, then-addr, else-addr] (map #(address/child address %) [0 1 2])
+        address     (a/child address 'if)
+        [test-addr, then-addr, else-addr] (map #(a/child address %) [0 1 2])
 
-        [test-start, test-pset, test-listen?]
+        [test-start, test-pset, test-suspend?]
         (with-tail-position [false]
           (partition-expr test, partition-addr, test-addr, params))
 
-        [then-start, then-pset, then-listen?]
+        [then-start, then-pset, then-suspend?]
         (partition-expr then, partition-addr, then-addr, params)
 
-        [else-start, else-pset, else-listen?]
+        [else-start, else-pset, else-suspend?]
         (partition-expr else, partition-addr, else-addr, params)
 
         branch-addr address
 
         test-result (first (nsymbols address 1))
-        start (if test-listen?
-                `(resume-at [~branch-addr, [~@params], ~test-result], ~test-start)
-                (with-meta `(if ~test ~then-start ~else-start) (meta expr)))
-        branch-pset (if test-listen?
+        start       (if test-suspend?
+                      `(resume-at [~branch-addr, [~@params], ~test-result], ~test-start)
+                      (with-meta `(if ~test ~then-start ~else-start) (meta expr)))
+        branch-pset (if test-suspend?
                       (pset/add (pset/create) branch-addr `[~@params ~test-result]
-                                `[(if ~test-result ~then-start ~else-start)]))
-        full-pset (pset/combine test-pset branch-pset then-pset else-pset)
-        listen? (or test-listen? then-listen? else-listen?)]
-    [start, full-pset, listen?]))
+                        `[(if ~test-result ~then-start ~else-start)]))
+        full-pset   (pset/combine test-pset branch-pset then-pset else-pset)
+        suspend?    (or test-suspend? then-suspend? else-suspend?)]
+    [start, full-pset, suspend?]))
 
 (defn partition-do-expr
   [expr mexpr partition address params]
   (let [[op & body] mexpr
-        address (address/child address 'do)
-        [bstart, pset, listen?] (partition-body body partition address params)]
+        address (a/child address 'do)
+        [bstart, pset, suspend?] (partition-body body partition address params)]
     (assert (= op 'do))
-    (if listen?
-      [`(do ~@bstart), pset, listen?]
+    (if suspend?
+      [`(do ~@bstart), pset, suspend?]
       [expr, nil, false])))
 
 (defn partition-loop-expr
   "Partitions a (loop ...) expression, establishing a binding-point for recur. If
-  this expression listens, the start body will be a let construct for establishing
+  this expression suspends, the start body will be a let construct for establishing
   the initial parameters which calls a partition with a loop, which acts as the binding
-  point for continuing the loop. If there are no listening expressiongs, the expression
+  point for continuing the loop. If there are no suspending expressiongs, the expression
   is returned.
 
-  Returns [start, pset, listen?]"
+  Returns [start, pset, suspend?]"
   ;; Note: this function doesn't take a partition-address argument because all operations
   ;; must happen in a new partition defined by the loop, and recur is not allowed in any
   ;; part of the loop definition except the body, where a new partition-address will be created.
   ;; Remember, the partition-address is only used for recur.
   ;;
-  ;; In fact, there are 3 partitions of interest to us (assuming the loop is listening):
+  ;; In fact, there are 3 partitions of interest to us (assuming the loop is suspending):
   ;; form-partition/0 = where initial values of loop vars are computed and bound
   ;;                    note that because the loop may appear *after*
   ;; form-partition/1 = lexical loop - takes initialized and implements a partial loop
@@ -299,76 +303,76 @@
   ;;                    around (flow/exec <loop-partition/1> ...) where
   ;;                    the bindings contain the updated loop variables
   [expr mexpr address params]
-  (let [op (first expr)
+  (let [op                (first expr)
         [_ bindings & loop-body] (if (in? '[loop loop*] op) expr mexpr)
-        form-address (address/child address 'loop)
-        binding-partition (address/child form-address 0)
-        loop-partition (address/child form-address 1)
+        form-address      (a/child address 'loop)
+        binding-partition (a/child form-address 0)
+        loop-partition    (a/child form-address 1)
 
         [loop-params, loop-initializers] (reverse-interleave bindings 2)]
 
     ;; we need to partition the loop body FIRST, then pass the start-body to partition-bindings
-    (let [loop-body-params (concat params loop-params)
+    (let [loop-body-params       (vec (concat params loop-params))
 
           ;; partition the loop body with the loop-partition registered as a recur
           ;; binding point; if recur calls happen within this partition, they
           ;; are treated as regular recur calls; otherwise, the recur is being executed
           ;; in a resumed runlet, so a call to the loop-partition is generated.
-          [start-body, body-pset, body-listen?]
+          [start-body, body-pset, body-suspend?]
           (with-tail-position [:reset]
             (with-binding-point [loop-partition loop-params] ; partition-recur-expr will use this
               (partition-body loop-body loop-partition loop-partition loop-body-params)))
 
           ;; the loop merely rebinds the loop parameters provided by the continuation
-          ;; note: we need a normal (loop ...) expression because we may have normal non-listening
-          ;; recur expressions in addition to listening recur expressions.
-          loop-partition-body [`(loop [~@(apply concat (map #(vector % %) loop-params))] ~@start-body)]
-          loop-partition-params (concat loop-params params)
-          loop-pset (pset/add (pset/create) loop-partition loop-partition-params loop-partition-body)
+          ;; note: we need a normal (loop ...) expression because we may have normal non-suspending
+          ;; recur expressions in addition to suspending recur expressions.
+          loop-partition-body    [`(loop [~@(apply concat (map #(vector % %) loop-params))] ~@start-body)]
+          loop-partition-params  (vec (concat loop-params params))
+          loop-pset              (pset/add (pset/create) loop-partition loop-partition-params loop-partition-body)
 
           flow-continue-bindings (bindings-expr-from-params loop-partition-params)
-          binding-body `[(flow/exec ~loop-partition ~flow-continue-bindings)]
+          binding-body           `[(flow/exec ~loop-partition ~flow-continue-bindings)]
 
           ;; now we can compute the initializers and give it the partitioned loop start...
-          [binding-start, bindings-pset, binding-listen?]
+          [binding-start, bindings-pset, binding-suspend?]
           (partition-bindings loop-params, loop-initializers, binding-partition, binding-partition, params, binding-body)
 
-          any-listen? (or binding-listen? body-listen?)
+          any-suspend?           (or binding-suspend? body-suspend?)
 
-          pset (pset/combine body-pset bindings-pset loop-pset)]
-      (if any-listen?
-        [binding-start, pset, any-listen?]
+          pset                   (pset/combine body-pset bindings-pset loop-pset)]
+      (if any-suspend?
+        [binding-start, pset, any-suspend?]
         [expr, nil, false]))))
 
 (defn partition-recur-expr
   "Returns:
-  [start, pset, listen?]"
+  [start, pset, suspend?]"
   [expr, mexpr, partition-address, address, params]
   (letfn [(make-call [params]
             (let [loop-params (:params *recur-binding-point*)
-                  bindings `(hash-map ~@(interleave (map #(list 'quote %) loop-params) params))]
+                  bindings    `(hash-map ~@(interleave (map #(list 'quote %) loop-params) params))]
               (if-not (= (count params) (count loop-params))
                 (throw-partition-error "Mismatched argument count to recur" expr "expected: %s args, got: %s"
-                                       (count params) (count loop-params)))
+                  (count params) (count loop-params)))
               `(flow/exec ~(:address *recur-binding-point*)
-                              ~bindings)))]
+                 ~bindings)))]
     (if-not *recur-binding-point*
       (throw-partition-error "No binding point" expr))
     (if-not *tail-position*
       (throw-partition-error "Can only recur from tail position" expr))
 
     (let [[op & args] mexpr
-          loop-address (:address *recur-binding-point*)
+          loop-address   (:address *recur-binding-point*)
 
-          address (address/child address 'recur)
+          address        (a/child address 'recur)
 
-          [start, pset, listen?]
+          [start, pset, suspend?]
           (partition-functional-expr op, expr, mexpr, partition-address, address, params, make-call)
 
-          same-partition (and (false? listen?) (= partition loop-address))]
+          same-partition (and (false? suspend?) (= partition loop-address))]
       (if same-partition
-        [expr, nil, false, true]                            ; plain vanilla recur!
-        (if listen?
+        [expr, nil, false, true] ; plain vanilla recur!
+        (if suspend?
           [start, pset, true]
           (if same-partition
             [expr, nil, false]
@@ -377,11 +381,12 @@
 ;;
 ;;
 ;;
-(defn partition-listen-expr
+(defn partition-suspend-expr
   [expr, mexpr, partition-addr, address, params]
-  (let [[start, pset, _]
-        (partition-functional-expr 'listen! expr mexpr partition-addr address params
-                                   #(cons 'listen! %))]
+  (let [op (first mexpr)
+        [start, pset, _]
+        (partition-functional-expr op expr mexpr partition-addr address params
+          #(cons op %))]
     [start, pset, true]))
 
 ;;
@@ -394,52 +399,54 @@
   make-call-form - is a function which takes a list of parameters and returns
   a form which represents the functional call"
   [op, expr, mexpr, partition-address, address, params, make-call-form]
+  {:pre [(vector? params)]}
   (letfn [(call-form [args]
             (with-meta (make-call-form args) (meta expr)))]
-    (let [address (address/child address op)
+    (let [address    (a/child address op)
           [_ & args] mexpr
-          keys (nsymbols address (count args))
+          keys       (nsymbols address (count args))
           pcall-body [(call-form keys)]
-          [start, pset, listen?]
+          [start, pset, suspend?]
           (partition-bindings keys args partition-address address params
-                              pcall-body)]
-      (if listen?
-        [start, pset, listen?]                             ; partition bindings has provided the correct result
+            pcall-body)]
+      (if suspend?
+        [start, pset, suspend?] ; partition bindings has provided the correct result
         [(call-form args), nil, false]))))
 
 (defn partition-map-expr
   [expr partition-addr address params]
   {:pre [(map? expr)
-         (instance? Address partition-addr)
-         (instance? Address address)
+         (a/address? partition-addr)
+         (a/address? address)
          (vector? params)]}
   ;; TODO: this could be simplified...
-  (let [fake-op (symbol "_map_")
+  (let [fake-op     (symbol "_map_")
         pseudo-expr (cons fake-op (apply concat (map identity expr)))
-        [start, pset, listen?] (partition-functional-expr fake-op pseudo-expr pseudo-expr partition-addr address params
-                                                           (fn [args] (into {} (map vec (partition 2 args)))))]
-    (if listen?
-      [start, pset listen?]
+        [start, pset, suspend?] (partition-functional-expr fake-op pseudo-expr pseudo-expr partition-addr address params
+                                  (fn [args] (into {} (map vec (partition 2 args)))))]
+    (if suspend?
+      [start, pset suspend?]
       [expr, nil, false])))
 
 (defn partition-vector-expr
   [expr partition-addr address params]
-  (let [fake-op (symbol "[]")
+  (let [fake-op      (symbol "_vec_")
         expr-with-op (with-meta `(~fake-op ~@expr) (meta expr))]
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
-                               #(vec %))))
+      #(vec %))))
 
 (defn partition-flow-expr
   [op, expr, mexpr, partition-addr, address, params]
   (let [[start, pset, _] (partition-functional-expr op expr mexpr partition-addr address params
-                                                    (fn [args]
-                                                      `(flow/entry-point ~op ~@args)))]
+                           (fn [args]
+                             `(flow/entry-point ~op ~@args)))]
     [start, pset, true]))
 
 (defn partition-fncall-expr
   [op, expr, mexpr, partition-addr, address, params]
+  {:pre [(vector? params)]}
   (partition-functional-expr op expr mexpr partition-addr address params
-                             (fn [args] `(~op ~@args))))
+    (fn [args] `(~op ~@args))))
 
 (defn partition-bindings
   "Partitions the bindings, and executes `body` in that context. Note:
@@ -450,63 +457,88 @@
   as the `body` argument.
 
   Args:
-  Returns: [start, pset, listen?]"
+  Returns: [start, pset, suspend?]"
   [keys, args, partition-address, address, params, body]
-  {:pre [(address/address? partition-address)
-         (address/address? address)
+  {:pre [(a/address? partition-address)
+         (a/address? address)
+         (vector? params)
          (vector? body)]}
   (with-tail-position [false]
     (let [dirty-address partition-address]
       (loop
         [[key & rest-keys] keys
          [arg & rest-args] args
-         current-bindings []                                ; the new bindings introduced to the partition
+         current-bindings  [] ; the new bindings introduced to the partition
          partition-address partition-address
-         arg-address (address/child address 0)              ; address of the arg
-         part-params params                                 ; params provided to this partition
-         start nil
-         any-listen? false
-         pset (pset/create)]
+         arg-address       (a/child address 0) ; address of the arg
+         part-params       params ; params provided to this partition
+         start             nil
+         any-suspend?      false
+         pset              (pset/create)]
         (if key
-          (let [[arg-start, arg-pset, listen?]
+          (let [[arg-start, arg-pset, suspend?]
                 (partition-expr arg, partition-address, arg-address, params) ;
 
-                pset (pset/combine pset arg-pset)
-                next-address (address/increment arg-address)]
-            (if listen?
-              (let [cur-part-params (map first current-bindings)
-                    resume-params (concat part-params, cur-part-params)
-                    resume-pexpr `(resume-at [~next-address [~@resume-params] ~key]
-                                             ~arg-start)
-                    new-params (if key (conj resume-params key) resume-params) ; the next partition's params includes the key
-                    let-bindings (apply concat current-bindings)
-                    pexpr (if (> (count current-bindings) 0)
-                            `(let [~@let-bindings] ~resume-pexpr)
-                            resume-pexpr)
-                    pset (pset/add pset partition-address part-params [pexpr])
-                    start (or start pexpr)]
+                pset         (pset/combine pset arg-pset)
+                next-address (a/increment arg-address)]
+            (if suspend?
+              (let [cur-part-params (vec (map first current-bindings))
+                    resume-params   (vec (concat part-params, cur-part-params))
+                    resume-pexpr    `(resume-at [~next-address [~@resume-params] ~key]
+                                       ~arg-start)
+                    new-params      (if key (conj resume-params key) resume-params) ; the next partition's params includes the key
+                    let-bindings    (vec (apply concat current-bindings))
+                    pexpr           (if (> (count current-bindings) 0)
+                                      `(let [~@let-bindings] ~resume-pexpr)
+                                      resume-pexpr)
+                    pset            (pset/add pset partition-address part-params [pexpr])
+                    start           (or start pexpr)]
                 (recur rest-keys, rest-args, [], next-address, next-address,
-                       new-params, start, (or listen? any-listen?), pset))
+                  new-params, start, (or suspend? any-suspend?), pset))
               (do
                 (recur rest-keys, rest-args
-                       (conj current-bindings [key arg]),
-                       partition-address, next-address,
-                       part-params, start, any-listen?, pset))))
+                  (conj current-bindings [key arg]),
+                  partition-address, next-address,
+                  part-params, start, any-suspend?, pset))))
 
           ;; finalize the last partition by executing the body with the
           ;; bound params
-          (let [let-bindings (apply concat current-bindings)
-                final-body (if (> (count current-bindings) 0) [`(let [~@let-bindings] ~@body)] (vec body))
-                clean-pset (pset/delete pset dirty-address)
-                start (or start (first final-body))
-                pset (pset/add clean-pset partition-address part-params final-body)]
-            [start, pset, any-listen?]))))))
+          (let [let-bindings (vec (apply concat current-bindings))
+                final-body   (if (> (count current-bindings) 0) [`(let [~@let-bindings] ~@body)] (vec body))
+                clean-pset   (pset/delete pset dirty-address)
+                start        (or start (first final-body))
+                pset         (pset/add clean-pset partition-address part-params final-body)]
+            [start, pset, any-suspend?]))))))
 
+;;
+;; resume-at
+;;
+(defmacro resume-at
+  "Generates code that continues execution at address after flow-form is complete.
+  address - names the continuation
+  params - list of parameters needed by the continuation
+  result-key - the key to which the value of form will be bound in the continuation
+  body - expression which may suspend the run
+
+  Returns:
+  value of body"
+  ([[address params result-key] & body]
+   (:pre [(a/address? address)
+          (vector? params)
+          (or (nil? result-key) (symbol? result-key))])
+   `(let [bindings# ~(bindings-expr-from-params params)]
+      (rc/push-stack! ~address bindings# '~result-key)
+      ~@body)))
+;;
 ;; HELPERS
+;;
+(defn bindings-expr-from-params [params]
+  `(hash-map ~@(vec (apply concat (map #(vec `('~% ~%)) params)))))
+
 (defn macroexpand-keeping-metadata
   [expr]
   (let [expr-meta (meta expr)
-        mexpr (macroexpand expr)]
+        mexpr     (macroexpand expr)]
     (if expr-meta
       (with-meta mexpr expr-meta)
       mexpr)))
@@ -521,6 +553,6 @@
 (defn throw-partition-error
   ([name expr] (throw-partition-error name expr nil))
   ([name expr msg & args]
-   (let [loc (ifit (:line (meta expr)) (format " (line %s)" it) "")
+   (let [loc        (ifit (:line (meta expr)) (format " (line %s)" it) "")
          extra-info (if msg (str ". " (apply format msg args)) "")]
      (throw (Exception. (format "%s%s%s: %s" name loc extra-info expr))))))

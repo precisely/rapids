@@ -26,10 +26,10 @@
 ;;         (a)          ; point = [1,baz,0,map,1]
 ;;      :b              ; point = invalid
 ;;         (b)}))       ; point = [1,baz,0,map,2]
-(declare to-string valid-point?)
+(declare to-string valid-point? simplify-if-symbol)
 (defrecord Address
-  [flow                                                     ; Symbol
-   point]                                                   ; Vector
+  [flow                       ; Symbol
+   point]                     ; Vector
   Object
   (toString [o] (str "<" (to-string o) ">")))
 
@@ -38,7 +38,9 @@
   [symbol & point]
   {:pre [(qualified-symbol? symbol)
          (valid-point? point)]}
-  (Address. symbol (vec point)))
+  (Address.
+    symbol
+    (vec (map simplify-if-symbol point))))
 
 (defn to-string
   [a]
@@ -56,7 +58,7 @@
   [address & point]
   {:pre [(instance? Address address)
          (valid-point? point)]}
-  (assoc address :point (vec (concat (:point address) point))))
+  (assoc address :point (vec (concat (:point address) (map simplify-if-symbol point)))))
 
 (defn increment
   ([address] (increment address 1))
@@ -66,9 +68,9 @@
           (number? step)
           (-> address :point last number?)]}
    (let [point (:point address)
-         last (last point)]
+         last  (last point)]
      (assoc address :point (conj (pop point)
-                                 (+ step last))))))
+                             (+ step last))))))
 
 (defn resolved-flow
   [address]
@@ -78,4 +80,7 @@
 
 (defn valid-point?
   [elts]
-  (and (every? #(or (symbol? %) (number? %)) elts)))
+  (and (every? #(or (keyword? %) (symbol? %) (number? %)) elts)))
+
+(defn simplify-if-symbol [x]
+  (if (qualified-symbol? x) (symbol (str (.getName x))) x))

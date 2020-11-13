@@ -1,6 +1,6 @@
 (ns longterm.partition_test
   (:require [clojure.test :refer :all]
-            [longterm.runloop :as runloop]
+            [longterm.run-loop :as runloop]
             [longterm.util :refer :all]
             [clojure.core.match :refer [match]]
             [longterm.partition :refer :all]
@@ -33,7 +33,7 @@
       (is (= (partition-expr "foo" partition-address address [])
              ["foo", nil, nil])))))
 
-(deftest ^:unit PartitionNonListeningFunctionalExpressions
+(deftest ^:unit PartitionNonSuspendingFunctionalExpressions
   (testing "simple expression"
     (is (= (partition-expr '(+ 3 4) partition-address address [])
            ['(+ 3 4), nil, false])))
@@ -41,19 +41,19 @@
     (is (= (partition-expr '(+ (* 3 4) 6) partition-address address [])
            ['(+ (* 3 4) 6), nil, false]))))
 
-(deftest ^:unit PartitionListeningFunctionalExpressions
-  (testing "listening expressions"
-    (testing "flow with non-listening args"
+(deftest ^:unit PartitionSuspendingFunctionalExpressions
+  (testing "suspending expressions"
+    (testing "flow with non-suspending args"
       (is (= (partition-expr `(fl1 3 4) partition-address address [])
              [`(longterm.flow/entry-point fl1 3 4), nil, true])))
-    (testing "flow with listening args"
-      (let [[start, pset, listen?]
+    (testing "flow with suspending args"
+      (let [[start, pset, suspend?]
             (partition-expr `(fl1 (fl2 (a))) partition-address address '[z])
             next-address (address/child address `fl1 1)]    ; fl1/0 is arg0, fl1/1 => "(fl1 ~arg0)"
-        (is (true? listen?))
+        (is (true? suspend?))
         (testing "the start body should contain a resume-at expression pointing at the next-address, starting with the innermost term"
         (is (match [start]
-                     [([`runloop/resume-at [next-address ['z] _]
+                     [([`longterm.partition/resume-at [next-address ['z] _]
                          ([`flow/entry-point `fl2 ([`a] :seq)] :seq)] :seq)] true
                      [_] false)))
         (testing "the partition set should contain a partition which evals the outer flow"
@@ -75,33 +75,33 @@
                [[[], nil false]] true
                [_] false)))
 
-  (testing "body with non-listening forms"
-    (let [[start, pset, listen?] (partition-body `[(a) (b)] partition-address address [])]
+  (testing "body with non-suspending forms"
+    (let [[start, pset, suspend?] (partition-body `[(a) (b)] partition-address address [])]
       (is (match [start]
                  [[([`a] :seq), ([`b] :seq)]] true
                  [_] false))
       (is (= (count pset) 0))
-      (is (false? listen?))))
+      (is (false? suspend?))))
 
-  (testing "body with a single listening form"
-    (let [[start, pset, listen?] (partition-body `[(fl1)] partition-address address [])]
+  (testing "body with a single suspending form"
+    (let [[start, pset, suspend?] (partition-body `[(fl1)] partition-address address [])]
       (is (match [start]
                  [[([`flow/entry-point `fl1] :seq)]] true
                  [_] false))
       (is (= (count pset) 0))
-      (is (true? listen?))))
+      (is (true? suspend?))))
 
-  (testing "body split by a listening form"
-    (let [[start, pset, listen?] (partition-body `[(a) (fl1) (b)] partition-address address [])
+  (testing "body split by a suspending form"
+    (let [[start, pset, suspend?] (partition-body `[(a) (fl1) (b)] partition-address address [])
           part2-address (address/child address 2)]
 
       (testing "initial form first two forms, resuming at the second partition address"
         (is (match [start]
                    [[([`a] :seq)
-                     ([`longterm.runloop/resume-at [part2-address [] _]
+                     ([`longterm.partition/resume-at [part2-address [] _]
                        ([`flow/entry-point `fl1] :seq)] :seq)]] true
                    [_] false))
-        (is (true? listen?)))
+        (is (true? suspend?)))
 
       (testing "there should be one continuation with the final expr"
         (is (= (count pset) 1))
@@ -117,24 +117,24 @@
 
 (deftest ^:unit PartitionVectorExpression
   (testing "simple vector with scalars"
-    (let [[start, pset, listen?] (partition-vector-expr `["str" :key 1] partition-address address [])]
-      (is (false? listen?))
+    (let [[start, pset, suspend?] (partition-vector-expr `["str" :key 1] partition-address address [])]
+      (is (false? suspend?))
       (is (empty? pset))
       (is (= start ["str" :key 1]))))
 
   (testing "vector with function calls"
-    (let [[start, pset, listen?] (partition-vector-expr `[(a) (b) 3] partition-address address [])]
+    (let [[start, pset, suspend?] (partition-vector-expr `[(a) (b) 3] partition-address address [])]
       (is (= 0 (count pset)))
-      (is (false? listen?))
+      (is (false? suspend?))
       (is (match [start]
                  [[([a] :seq) ([b] :seq) 3]] true
                  [_] false))))
 
-  (testing "vector with listening expressions"
-    (let [[start, pset, listen?] (partition-vector-expr `[(fl1) (fl2) 3] partition-address address [])]
+  (testing "vector with suspending expressions"
+    (let [[start, pset, suspend?] (partition-vector-expr `[(fl1) (fl2) 3] partition-address address [])]
       (is (= 2 (count pset)))
-      (is (true? listen?))
+      (is (true? suspend?))
       (is (match [start]
-                 [([`runloop/resume-at [_ [] _] ([`flow/entry-point `fl1] :seq)] :seq)] true
+                 [([`longterm.partition/resume-at [_ [] _] ([`flow/entry-point `fl1] :seq)] :seq)] true
                  [_] false)))))
 
