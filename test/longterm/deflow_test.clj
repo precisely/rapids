@@ -12,8 +12,5 @@
       (is (flow? suspending-flow)))
 
     (testing "when a flow expression is in the body"
-      (is (flow? flow-calling-flow))))
-
-  (testing "should raise an exception if it doesn't contain a suspending operation"
-    (is (thrown? Exception (macroexpand `(deflow NoSuspend [a b] (* a b)))))))
+      (is (flow? flow-calling-flow)))))
 
