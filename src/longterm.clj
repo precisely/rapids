@@ -15,6 +15,6 @@
   [longterm.operators
    ;; long form versions of
    listen!, respond!, block!, redirect!,
-   !, <*, *>, <!, >>])
+   !, <*, *>, <<!, >>])
 
 (longterm.runstore/set-runstore! (imrs/create-in-memory-runstore))

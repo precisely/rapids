@@ -37,7 +37,7 @@
   [& {:keys [permit expires default]}]
   `(listen! ~@(rest &form)))
 
-(defmacro <!
+(defmacro <<!
   "The blocking operator - shortcut for block!"
   [child-run & {:keys [expires default]}]
   `(block! ~@(rest &form)))

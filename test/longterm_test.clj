@@ -392,7 +392,7 @@
   (clear-log!)
   (log! (current-run))
   (*> :parent-before-blocking-call)
-  (let [result (<! (! simple-child-flow))]
+  (let [result (<<! (! simple-child-flow))]
     (*> :parent-after-blocking-call)
     result))
 
