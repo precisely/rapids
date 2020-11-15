@@ -29,7 +29,7 @@
                       v]))
     (into {})))
 
-(defproject precisely/longterm "0.2.4-SNAPSHOT"
+(defproject precisely/longterm "0.2.4"
   :description "A library for scripting long term real world processes"
   :url "https://precise.ly/longterm"
   :license {:name "All Rights Reserved"
