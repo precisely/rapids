@@ -435,11 +435,18 @@
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
       #(vec %))))
 
+(defn partition-flow-call-expr
+  [op, expr, mexpr, partition-addr, address, params]
+  (let [[start, pset, _] (partition-functional-expr op expr mexpr partition-addr address params
+                           (fn [args]
+                             `(op ~op ~@args)))]
+    [start, pset, true]))
+
 (defn partition-flow-expr
   [op, expr, mexpr, partition-addr, address, params]
   (let [[start, pset, _] (partition-functional-expr op expr mexpr partition-addr address params
                            (fn [args]
-                             `(flow/entry-point ~op ~@args)))]
+                             `(longterm.operators/fcall ~op ~@args)))]
     [start, pset, true]))
 
 (defn partition-fncall-expr

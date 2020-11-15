@@ -4,16 +4,6 @@
             [longterm.defrecordfn :refer [defrecordfn]])
   (:import (longterm.address Address)))
 
-;; start-with-run-context! is a Kludge to deal with a circular
-;; dependency problem:
-;; * We need to implement IFn for Flow record and make it call runloop/start!
-;; * We can't (extend Flow ...) because IFn is not a Clojure protocol
-;;   (it's a Java interface), so we must access runloop/start! from this file
-;; * But we can't import flow.clj into runloop because Runloop depends
-;;   on flow.clj
-;; Solution: runloop sets start-with-run-context! to runloop/start! at load time
-(defonce start-with-run-context! nil)
-
 (defrecordfn Flow
   [;; Global symbol defined as this flow
    name
@@ -23,7 +13,8 @@
    continuations
    ;; For debugging purposes:
    partitions]
-  (fn [this & args] (apply start-with-run-context! this args))
+  (fn [this & _] (throw (Exception. (str "Attempt to invoke flow " (:name this) " outside of run context."))))
+
   Object
   (toString [_] (format "#<Flow %s (%d partitions)>" name (count continuations))))
 
@@ -43,7 +34,7 @@
      (apply continuation args))))
 
 (defn entry-point
-  [flow & args]
+  [flow args]
   (cond
     (flow? flow) (apply (get flow :entry-point) args)
     (symbol? flow) (recur (resolve flow) args)

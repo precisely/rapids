@@ -22,10 +22,7 @@
         new-run    (assoc (rs/create-run! :running) :start-form start-form)]
     (rc/with-run-context [new-run]
       ;; create the initial stack-continuation to kick of the process
-      (eval-loop! (fn [_] (apply flow/entry-point flow args))))))
-
-;; Solves a circular dependency problem - see longterm.flow for details
-(alter-var-root #'flow/start-with-run-context! (constantly start!))
+      (eval-loop! (fn [_] (flow/entry-point flow args))))))
 
 (defn continue!
   "Processes an external event, finds the associated run and calls the continuation at the

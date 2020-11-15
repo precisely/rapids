@@ -1,11 +1,10 @@
 (ns longterm.partition_test
   (:require [clojure.test :refer :all]
-            [longterm.run-loop :as runloop]
             [longterm.util :refer :all]
             [clojure.core.match :refer [match]]
             [longterm.partition :refer :all]
             [longterm.address :as address]
-            [longterm.flow :as flow])
+            [longterm.operators :as operators])
   (:import (longterm.flow Flow)))
 
 (declare PARTITION-ADDRESS MAIN) ; get rid of symbol resolution warnings
@@ -45,7 +44,7 @@
   (testing "suspending expressions"
     (testing "flow with non-suspending args"
       (is (= (partition-expr `(fl1 3 4) partition-address address [])
-             [`(longterm.flow/entry-point fl1 3 4), nil, true])))
+             [`(longterm.operators/fcall fl1 3 4), nil, true])))
     (testing "flow with suspending args"
       (let [[start, pset, suspend?]
             (partition-expr `(fl1 (fl2 (a))) partition-address address '[z])
@@ -54,7 +53,7 @@
         (testing "the start body should contain a resume-at expression pointing at the next-address, starting with the innermost term"
         (is (match [start]
                      [([`longterm.partition/resume-at [next-address ['z] _]
-                         ([`flow/entry-point `fl2 ([`a] :seq)] :seq)] :seq)] true
+                         ([`operators/fcall `fl2 ([`a] :seq)] :seq)] :seq)] true
                      [_] false)))
         (testing "the partition set should contain a partition which evals the outer flow"
           (is (map? pset))
@@ -66,7 +65,7 @@
               (is (in? params 'z))
               (is (= (count params) 2)))
             (is (= (match [(:body pdef)]
-                          [([`flow/entry-point `fl1 _] :seq)] true
+                          [([`operators/fcall `fl1 _] :seq)] true
                           [_] false)))))))))
 
 (deftest ^:unit PartitionBody
@@ -86,7 +85,7 @@
   (testing "body with a single suspending form"
     (let [[start, pset, suspend?] (partition-body `[(fl1)] partition-address address [])]
       (is (match [start]
-                 [[([`flow/entry-point `fl1] :seq)]] true
+                 [[([`operators/fcall `fl1] :seq)]] true
                  [_] false))
       (is (= (count pset) 0))
       (is (true? suspend?))))
@@ -99,7 +98,7 @@
         (is (match [start]
                    [[([`a] :seq)
                      ([`longterm.partition/resume-at [part2-address [] _]
-                       ([`flow/entry-point `fl1] :seq)] :seq)]] true
+                       ([`operators/fcall `fl1] :seq)] :seq)]] true
                    [_] false))
         (is (true? suspend?)))
 
@@ -135,6 +134,6 @@
       (is (= 2 (count pset)))
       (is (true? suspend?))
       (is (match [start]
-                 [([`longterm.partition/resume-at [_ [] _] ([`flow/entry-point `fl1] :seq)] :seq)] true
+                 [([`longterm.partition/resume-at [_ [] _] ([`operators/fcall `fl1] :seq)] :seq)] true
                  [_] false)))))
 
