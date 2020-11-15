@@ -4,6 +4,8 @@
             longterm.run-loop
             longterm.runstore
             longterm.operators
+            longterm.expire
+            longterm.time
             [longterm.in-memory-runstore :as imrs]
             [potemkin :refer [import-vars]]))
 
@@ -12,9 +14,15 @@
   [longterm.deflow deflow]
   [longterm.run-context current-run]
   [longterm.run-loop start!, continue!]
+  [longterm.expire expire-run!]
+  [longterm.time years months weeks days hours minutes seconds weeks now from-now]
   [longterm.operators
-   ;; long form versions of
-   listen!, respond!, block!, redirect!,
-   !, <*, *>, <<!, >>])
+   ;; operators. longform, shortform:
+   listen!, <*,
+   respond!, *>,
+   block!, <<!,
+   redirect!, >>
+   ;; start operator:
+   ! ])
 
 (longterm.runstore/set-runstore! (imrs/create-in-memory-runstore))

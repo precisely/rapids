@@ -1,8 +1,14 @@
+;;
+;; Simple time wrappers to allow joda-like usage:
+;; (-> 3 days from-now)
+;;
 (ns longterm.time
   (:require [java-time :as t]
             [potemkin :refer [import-vars]]))
 
-(defn from-now [offset] (t/plus (t/local-date) offset))
+(defn now [] (t/local-date-time))
+
+(defn from-now [offset] (t/plus (now) offset))
 
 (import-vars
-  [java-time days weeks months years seconds hours weeks])
+  [java-time years months weeks days weeks hours minutes seconds])
