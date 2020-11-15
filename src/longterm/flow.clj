@@ -1,8 +1,8 @@
 (ns longterm.flow
   (:require [longterm.address :as address]
             [longterm.util :refer [refers-to?]]
-            [longterm.defrecordfn :refer [defrecordfn]])
-  (:import (longterm.address Address)))
+            [longterm.defrecordfn :refer [defrecordfn]]
+            [longterm.address :as a]))
 
 (defrecordfn Flow
   [;; Global symbol defined as this flow
@@ -24,7 +24,7 @@
 (defn exec
   "Executes the flow partition at the address with the given bindings"
   ([address bindings]
-   {:pre [(instance? Address address)
+   {:pre [(a/address? address)
           (map? bindings)]}
    (let [flow (address/resolved-flow address)
          continuation (get-in flow [:continuations address])
