@@ -1,10 +1,18 @@
 (ns longterm.operators
   (:require [longterm.run-context :as rc]
-            [longterm.run-loop :as rl]))
+            [longterm.run-loop :as rl]
+            [longterm.flow :as flow]))
 
 ;;
 ;; Flow methods
 ;;
+(defn ^:suspending fcall [flow & args]
+  (flow/entry-point flow args))
+
+(defn ^:suspending fapply
+  ([flow & args]
+   (flow/entry-point flow (concat (butlast args) (last args)))))
+
 (defn ^:suspending listen!
   [& {:keys [permit expires default]}]
   (rc/set-listen! permit, expires, default))

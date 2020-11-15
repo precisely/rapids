@@ -29,13 +29,14 @@
                       v]))
     (into {})))
 
-(defproject precisely/longterm "0.2.3"
+(defproject precisely/longterm "0.2.4-SNAPSHOT"
   :description "A library for scripting long term real world processes"
   :url "https://precise.ly/longterm"
   :license {:name "All Rights Reserved"
             :url  "https://precise.ly/longterm"}
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [clojure.java-time "0.3.2"]
+                 [com.taoensso/nippy "3.1.0"]
                  [potemkin "0.4.5"]]
   :clean-targets ^{:protect false} ["target"]
   :plugins [[s3-wagon-private "1.3.4"]]

@@ -17,6 +17,7 @@
   [longterm.expire expire-run!]
   [longterm.time years months weeks days hours minutes seconds weeks now from-now]
   [longterm.operators
+   fcall, fapply
    ;; operators. longform, shortform:
    listen!, <*,
    respond!, *>,

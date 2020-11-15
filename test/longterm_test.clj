@@ -377,7 +377,7 @@
 
 (deftest ^:unit FlowsAsFunctions
   (testing "At top level, invoking a flow works and returns a new run"
-    (is (run-in-state? (suspending-flow :foo) :suspended))))
+    (is (thrown-with-msg? Exception #"Attempt to invoke flow longterm_test/suspending-flow outside of run context." (suspending-flow :foo)))))
 
 (deflow simple-child-flow []
   (log! (current-run))
@@ -563,3 +563,35 @@
                   (is (= :complete (:state fresh-level2)))
                   (testing "and the blocker's result and final respond! is captured"
                     (is (= '[:level3-result :level2-end] (:response fresh-level2)))))))))))))
+
+(deflow my-respond [a1 a2 a3] (respond! a1 a2 a3))
+
+(deflow call-flows [forms]
+  (doseq [[op a1 a2 a3] forms]
+    (fcall op a1 a2 a3)))
+
+(deflow apply-flows [forms]
+  (doseq [[op a1 & rest-args] forms]
+    (fapply op a1 rest-args)))
+
+(deftest ^:unit CallFlow
+  (testing "fcall invokes flow objects with the supplied arguments"
+    (let [run (start! call-flows [[my-respond 1 2 3] [my-respond 3 4 5]])]
+      (is (= (:state run) :complete))
+      (is (= (:response run [1 2 3 4 5 6])))))
+
+  (testing "fcall invokes flow associated with flow symbols with the supplied arguments"
+    (let [run (start! call-flows `[[my-respond 1 2 3] [my-respond 3 4 5]])]
+      (is (= (:state run) :complete))
+      (is (= (:response run [1 2 3 4 5 6]))))))
+
+(deftest ^:unit ApplyFlow
+  (testing "fapply applies a flow object to the remaining args"
+    (let [run (start! apply-flows [[my-respond 1 2 3] [my-respond 3 4 5]])]
+      (is (= (:state run) :complete))
+      (is (= (:response run [1 2 3 4 5 6])))))
+
+  (testing "fapply applies a flow symbol to the remaining args"
+    (let [run (start! apply-flows `[[my-respond 1 2 3] [my-respond 3 4 5]])]
+      (is (= (:state run) :complete))
+      (is (= (:response run [1 2 3 4 5 6]))))))
