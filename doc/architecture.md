@@ -20,22 +20,27 @@ To start, first consider this extremely simple flow which greets a user, asks fo
 
 The `listen!` function represents a point where execution pauses for input. The compiler recognizes `listen!` as a suspending expression - a point where execution pauses. Execution resumes when an external source provides a value - in this case a user providing their name. When execution resumes, the value is bound to the `name` variable.
 
-First let's jump to the output of the compiler to get a flavor of what is going on. The deflow macro produces a Flow record which contains two functions (continuations). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second continuation, providing both the bindings of the lexical context up to that point (`[day-of-week`]) and the binding for the value which will eventually be received by `listen!`: `name`. Also notice that the second continuation takes both the existing bindings and the new binding as an argument. 
-
-We'll discuss how the infrastructure produces this code and uses it to implement long running processes in the next section. 
+First let's jump to the output of the compiler to get a flavor of what is going on. 
 
 ```clojure
-{ #address[greeting 0]         (fn [{:keys [day-of-week]}]
-                                 (respond! "Hi. What is your name?")
-                                 (resume-at [#address[greeting,1, let, 0, 1], 
-                                               [day-of-week], name]
-                                     (listen!)))
-  #address[greeting,1, let, 0, 1] (fn [{:keys [day-of-week, name]}]
-                                 (respond! "Nice to meet you," name)
-                                 (respond! "It's a very nice " day-of-week)
-                                 name)
-}
+#<Flow
+ :name greeting 
+ :continuations
+ { #address[greeting 0]            (fn [{:keys [day-of-week]}]
+                                     (respond! "Hi. What is your name?")
+                                     (resume-at [#address[greeting,1, let, 0, 1], 
+                                                [day-of-week], name]
+                                       (listen!)))
+   #address[greeting,1, let, 0, 1] (fn [{:keys [day-of-week, name]}]
+                                     (respond! "Nice to meet you," name)
+                                     (respond! "It's a very nice " day-of-week)
+                                     name)}>
 ```
+
+The deflow macro produces a Flow record which contains a map containing two functions (continuations). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second continuation, providing both the bindings of the lexical context up to that point (`[day-of-week`]) and the binding for the value which will eventually be received by `listen!` (`name`). Also notice that the second continuation takes both the existing bindings and the new binding as an argument. 
+
+We'll discuss how the infrastructure produces this code and uses it to implement long running processes in the next section. For now, just imagine that the execution of these two functions can be separated by an arbitrarily long period of time and executed on different CPUs. This gives you a flavor for how longterm models complex user interactions as functions and allows them to be delivered using traditional scalable web architecture.  
+
 
 ## Architecture Overview
 
