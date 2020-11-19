@@ -255,3 +255,25 @@ Multiple runs may interact during a request. Runs may block and redirect to each
   Similarly, a blocking put (e.g., `(_>!! port value {priority})` causes the calling Run to suspend if no runs are associated with the port in the port takers map and the port isn't associated with a queue or the queue is full. The run id and value are stored in a durable map, the PortPutters table, which maps a port to runs which are waiting to put values in the port.   
 
   
+## Web Implementation
+
+An obvious use case is to provide the longterm service over a web endpoint. The implementation is simply involves mapping web endpoints to the high level functions described above. It's a trivial exercise to imagine an implementation for websockets, and other transport protocols.
+
+### Start run
+```
+POST /runs/{name-of-run}
+Body: arguments
+```
+
+### Continue run
+```
+POST /runs/{run-id}
+Body: 
+{ "permit": permit // optional
+  "result": {any-value} // optional
+```
+
+### Get run
+```
+GET /runs/{run-id}
+```
