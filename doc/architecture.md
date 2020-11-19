@@ -25,13 +25,14 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 ```clojure
 #<Flow
  :name greeting 
+ :entry-point (fn [day-of-week] (flow/call [greeting 0] {:day-of-week day-of-week}))
  :continuations
  { #address[greeting 0]            (fn [{:keys [day-of-week]}]
                                      (respond! "Hi. What is your name?")
-                                     (resume-at [#address[greeting,1, let, 0, 1], 
+                                     (resume-at [#address[greeting 1 let 0 1], 
                                                 [day-of-week], name]
                                        (listen!)))
-   #address[greeting,1, let, 0, 1] (fn [{:keys [day-of-week, name]}]
+   #address[greeting 1 let 0 1]    (fn [{:keys [day-of-week, name]}]
                                      (respond! "Nice to meet you," name)
                                      (respond! "It's a very nice " day-of-week)
                                      name)}>
@@ -72,6 +73,11 @@ We'll discuss how the infrastructure produces this code and uses it to implement
 
    A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a continuation where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `result-key`. That variable will be bound as an argument to the continuation referenced by the symbolic address (a).
    
+   ```clojure
+   ;; simplified way of creating a stackframe record in Clojure
+   (StackFrame. address bindings result-key)
+   ```
+   
 8. Rule for Adding Stack Frames.
 
    The compiler adds a stack push operation before non-terminal suspending expressions, arranging for the data described in (7) to be incorporated into a new stack frame. The stack frame provides the data necessary to resume computation at the next continuation. Note that a stack push is not required when a suspending expression appears in a terminal position. This is explained in more detail in discussion of the main loop.
@@ -99,8 +105,9 @@ We'll discuss how the infrastructure produces this code and uses it to implement
 9. The start! function.
 
    Execution of a flow is begun by invoking a `start!` function, passing the `Flow` data structure and any arguments. E.g.,
+   
    ```clojure
-   (start! greeting 'monday')
+   (start! greeting 'monday') ;  returns a Run object
    ```
    
 10. Starting.
@@ -122,7 +129,11 @@ We'll discuss how the infrastructure produces this code and uses it to implement
   
 13. Continuing.
 
-    The `continue!` function is a function of two arguments: an id which references a run and an optional `result-value`. It retrieves the Run from durable storage, regenerating the stack. The main loop is then invoked with the `result-value` and processed as described above, and the result of the post-processing step is returned.
+    After a flow is started, it will usually transition into a suspended state while it waits for input. The `continue!` function is provided for this purpose. It is a function of two arguments: an id which references a run and an optional `result-value`. It retrieves the Run from durable storage, regenerating the stack. The main loop is then invoked with the `result-value` and processed as described above, and the result of the post-processing step is returned.
+    
+    ```clojure
+    (continue! run-id result-value) ; returns a Run object
+    ```
    
 14. Responding to the client during the run.
 
@@ -141,8 +152,16 @@ We'll discuss how the infrastructure produces this code and uses it to implement
 16. Guarding against invalid continuation.
 
     By adding a `permit` value to the `Suspend` signal, and storing this value in the Run, a requirement can be created for the caller of `continue!`. This is useful for preventing a client from responding to an earlier part of the flow. The `listen!` function is modified to take an optional argument `:permit` which must be matched with a value provided to the `continue!` function. The simplest version of this would just be to match the values exactly, but more sophisticated matching is possible by including a function. For example, the permit could be a private key. The client could be provided a public key and required to encode some value (e.g., the result-value) with that key and provide it as the permit.
+    
+    ```clojure
+    ;; inside the flow:
+    ... (listen! :permit :foo)
+    
+    ;; client code somehow ends up calling this:
+    (continue! run-id result-value permit) ; where permit = :foo
+    ```
   
-17. Enabling timers and timeouts.
+17. Timers and timeouts.
 
     By storing an expiry time and optional default value in a suspended Run, it is possible to both allow for timing out of external events and create a mechanism for implementing timers. The `listen!` operator is modified to take  optional `:expires` and `:default` arguments. These are returned as values inside the `Suspend` signal and stored in the run in the post-processing step. The system arranges to periodically check for expired runs, simply continuing them with the default value (and appropriate `permit`).
   
@@ -150,6 +169,13 @@ We'll discuss how the infrastructure produces this code and uses it to implement
 
     Runs are optimistically locked before retrieval from storage. We include this as one of the states of the `:state` field, but it could also be implemented as a boolean field, which is set to `true` when a run is acquired from storage. Only unlocked runs can be acquired. When runs are saved back to storage after post-processing, the lock is released. 
  
+21. Versioning.
+ 
+    As the flows are expected to change over time, a mechanism for maintaining versions of old flows is required, especially given that flows are intended to be long running and interact with users. One simple approach is to require programmers to maintain old versions of flows in the code base. Flow versions can be identified by computing a hash on the AST of the input to the `deflow` macro. The addressing scheme could be modified to include a reference to the particular version (deflow hash), thus any stack frame will uniquely identify a particular continuation in stored in the flow structure. Repeated invocations of `deflow` would thus add continuations to the continuation map without worry of collisions.  The current flow could be distinguished in some way - explicitly by adding a parameter to the `deflow` macro or including a rule that the first invocation (or last) of `deflow` for a given name sets the entry-point function. Since the entry-point function is unique to a flow, that would ensure that it points at the appropriate continuation in the continuation map.  
+     
+    Facilities for checking whether a code base supports existing flows could be implemented by retrieving a unique set of addresses used in stacks of runs which have not completed. Since each address names the flow, the hash and the code point, it would be a simple matter of accessing flows and testing for the existence of a continuation at each address. Other methods might include saving versions to source control and arranging for those code bases to be retrieved dynamically. 
+     
+     
 ### Summary
 
 The architecture includes the following elements:
@@ -190,6 +216,10 @@ The architecture includes the following elements:
 The system described so far explains how a long running flow can manage an interaction with a client. However, real world processes often involve coordinating interactions between multiple entities. I healthcare, a patient, their family members, healthcare providers and labs provide data necessary for guiding care of the patient. Interactions of the system with these other entities will often happen in parallel to an interaction with the patient. In addition, the patient may engage in several activities in the system, some of which may become blocked while waiting for other processes to complete (e.g., waiting for a lab result).
 
 We introduce operators for managing runs within a flow: `start!` (shorthand: `!`) and the `redirect!` (shorthand `>>`) and `block!` (shorthand: `<!`) operators. Replaces the current run with the redirected run, and allows responses generated by the redirected run to also be passed to the client. Blocking pauses the current run until another run completes. 
+
+#### Caching Runs in the run context 
+
+Multiple runs may interact during a request. Runs may block and redirect to each other potentially several times during the servicing of a single request, so returning constantly to persistent storage would result in poor performance. A method for ensuring consistency while maintaining performance is to retrieve them all from storage using optimistic locking, and keep an index of these runs in the runtime cache. Since requests are expected to complete relatively quickly and since runs coordinate with real world entities or processes related to individuals, frequency of access is expected to be on very long time scales, so contention for runs is not expected.
 
 ### Run States
 
