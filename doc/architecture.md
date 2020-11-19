@@ -45,27 +45,35 @@ We'll discuss how the infrastructure produces this code and uses it to implement
 ## Architecture Overview
 
 1. Breaking of code into continuations.
+
    It includes a compiler which partitions code bodies into separate functions, referred to here as continuations, which carry out pieces of the computation.
    
 2. Definition of suspending operations.
+
    The compiler recognizes suspending expressions to determine where to partition code bodies; suspending expressions include expressions which suspend computation ("suspend operations") and expressions which may suspend computation. The latter includes, for example, conditional expressions which contain a suspend operation in one branch and a normal expression (e.g., normal function evaluation or symbol evaluation) in the other branch, or invocations of flows, which might return immediately or suspend before returning.  
    
 3. Where code is partitioned. 
+
    The compiler arranges for suspending expressions to always appear at the end of continuations.
    
 4. Symbolic addresses.
+
    The compiler generates unique symbolic addresses for code locations
    
 5. A map of continuations.
+
    The compiler stores continuations in a data structure, called a `Flow`, where they can be looked up at runtime using a symbolic address
    
 6. The Runtime Environment.
-  The architecture includes a runtime environment that manages a FILO stack. At runtime, continuations add stack frames to the stack. 
+
+   The architecture includes a runtime environment that manages a FILO stack. At runtime, continuations add stack frames to the stack. 
   
 7. Contents of Stack Frames.
+
    A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a continuation where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `result-key`. That variable will be bound as an argument to the continuation referenced by the symbolic address (a).
    
 8. Rule for Adding Stack Frames.
+
    The compiler adds a stack push operation before non-terminal suspending expressions, arranging for the data described in (7) to be incorporated into a new stack frame. The stack frame provides the data necessary to resume computation at the next continuation. Note that a stack push is not required when a suspending expression appears in a terminal position. This is explained in more detail in discussion of the main loop.
 
    Example of terminal versus non-terminal positions:
@@ -89,15 +97,18 @@ We'll discuss how the infrastructure produces this code and uses it to implement
    Suspend operations (like `listen!`, described below) return a special `Suspend` signal which is recognized by the runtime environment. As stated earlier, the compiler arranges for these expressions to be the last expression in each continuation, thus continuations which suspend will return `Suspend` signals. The importance of this is developed in discussion of the main loop. 
    
 9. The start! function.
+
    Execution of a flow is begun by invoking a `start!` function, passing the `Flow` data structure and any arguments. E.g.,
    ```clojure
    (start! greeting 'monday')
    ```
    
-10. Starting. 
-   The `start!` function generates a StackFrame where the address is a special continuation which identifies the beginning of the flow, denoted by a well known address, such as `{flow-name}/0`. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `[greeting/0, {:day-of-week "monday"}, nil]`. Remember, these values are the address, the bindings and the result-key. A binding for a stack is established, the initial frame is pushed onto the stack, and the main loop is invoked with a result-value of `nil` and process the result as described below. The result of the post-processing step is returned.
+10. Starting.
+ 
+    The `start!` function generates a StackFrame where the address is a special continuation which identifies the beginning of the flow, denoted by a well known address, such as `{flow-name}/0`. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `[greeting/0, {:day-of-week "monday"}, nil]`. Remember, these values are the address, the bindings and the result-key. A binding for a stack is established, the initial frame is pushed onto the stack, and the main loop is invoked with a result-value of `nil` and process the result as described below. The result of the post-processing step is returned.
    
-11. Operation of the main loop, 
+11. Operation of the main loop,
+ 
     The main loop is a function taking a single argument, the `result-value`.
     a. If the stack is not empty, pop the frame at the top of the stack (the top frame), otherwise exit, returning the `result-value`.
     b. If the result-key of the top frame is non nil, add the `result-value` to the bindings, storing it under the `result-key`. E.g., `(assoc bindings result-key result-value)` in Clojure. The bindings thus prepared are called "the result bindings".
@@ -105,16 +116,20 @@ We'll discuss how the infrastructure produces this code and uses it to implement
     d. The continuation will return either a `Suspend` signal or some other value, if the return value is not a `Suspend` signal, recursively call the main loop (i.e., GOTO step a) with the return value provided as the `result-value`.
     e. If a `Suspend` signal is received, exit the main loop, returning the signal. 
     
-12. Processing the result of the main loop
-  As seen above, the main loop either returns a `Suspend` signal or a value. The former indicates that external input is needed to continue, whereas the latter indicates that the flow initiated by `start!` has completed. At this stage, the contents of the stack are saved to durable storage under a unique id in a structure referred to as a "Run". The client which initiated the process receives the Run, which contains the state of the computation, as well as other useful data which is described below (Responding to the client during the run). This post processing step returns a run.
+12. Processing the result of the main loop.
+
+    As seen above, the main loop either returns a `Suspend` signal or a value. The former indicates that external input is needed to continue, whereas the latter indicates that the flow initiated by `start!` has completed. At this stage, the contents of the stack are saved to durable storage under a unique id in a structure referred to as a "Run". The client which initiated the process receives the Run, which contains the state of the computation, as well as other useful data which is described below (Responding to the client during the run). This post processing step returns a run.
   
 13. Continuing.
-   The `continue!` function is a function of two arguments: an id which references a run and an optional `result-value`. It retrieves the Run from durable storage, regenerating the stack. The main loop is then invoked with the `result-value` and processed as described above, and the result of the post-processing step is returned.
+
+    The `continue!` function is a function of two arguments: an id which references a run and an optional `result-value`. It retrieves the Run from durable storage, regenerating the stack. The main loop is then invoked with the `result-value` and processed as described above, and the result of the post-processing step is returned.
    
-14. Responding to the client during the run
-   Since it is necessary to communicate with the client while a run is ongoing, some other mechanism must be used than the result, which is only available at the end of the run. To be precise, a response is generated by the initial `start!` call and each invokation of the `continue!` call.  There are many possible mechanisms for generating a response - setting values in a map as the run is ongoing, appending values to a list or simply setting a global value. In our implementation, we choose to append to a list, as this accurately captures order. A post-processing function could be used to convert the list into some other structure - a map, set, or other value.
+14. Responding to the client during the run.
+
+    Since it is necessary to communicate with the client while a run is ongoing, some other mechanism must be used than the result, which is only available at the end of the run. To be precise, a response is generated by the initial `start!` call and each invokation of the `continue!` call.  There are many possible mechanisms for generating a response - setting values in a map as the run is ongoing, appending values to a list or simply setting a global value. In our implementation, we choose to append to a list, as this accurately captures order. A post-processing function could be used to convert the list into some other structure - a map, set, or other value.
   
-15. Saving the Run to Durable Storage
+15. Saving the Run to durable storage.
+
     A Run contains three potentially complex data fields which represent objects generated during the computation: the response, the bindings and the result. While scalar values and composite objects like sets, maps, lists and arrays composed of scalars are easy to store. Other types of objects require special treatment. For example, functions cannot be easily persisted. A programmer may bind an object like the Flow data structure, but it since the entire definition of this object resides in the program, it is unnecessary to commit it to storage. In addition, it contains functions, so the problem for persisting functions applies again to Flow objects. In addition, Runs representing other asynchronous processes may be referenced in the bindings, and their state may evolve from the time the bindings were persisted to durable storage. For this reason, a mechanism for "freezing" and "thawing" objects which respects the different requirements for different types of objects is required. We use an existing library, [nippy](https://github.com/ptaoussanis/nippy ), which can be extended with custom functions for different types of entities, which we briefly outline here: 
   
     A. Storage-based objects: if an object represents an entity backed by durable storage, it will be stored in a structure which wraps only the information needed to retrieve the entity. Thawing the object requires retrieving it from durable storage.
@@ -124,13 +139,16 @@ We'll discuss how the infrastructure produces this code and uses it to implement
     C. Functions: globally defined functions can be handled as per (B), but lexically scoped functions, anonymous functions and closures need special treatment by the compiler.      
     
 16. Guarding against invalid continuation.
+
     By adding a `permit` value to the `Suspend` signal, and storing this value in the Run, a requirement can be created for the caller of `continue!`. This is useful for preventing a client from responding to an earlier part of the flow. The `listen!` function is modified to take an optional argument `:permit` which must be matched with a value provided to the `continue!` function. The simplest version of this would just be to match the values exactly, but more sophisticated matching is possible by including a function. For example, the permit could be a private key. The client could be provided a public key and required to encode some value (e.g., the result-value) with that key and provide it as the permit.
   
-19. Enabling timers and timeouts.
-  By storing an expiry time and optional default value in a suspended Run, it is possible to both allow for timing out of external events and create a mechanism for implementing timers. The `listen!` operator is modified to take  optional `:expires` and `:default` arguments. These are returned as values inside the `Suspend` signal and stored in the run in the post-processing step. The system arranges to periodically check for expired runs, simply continuing them with the default value (and appropriate `permit`).
+17. Enabling timers and timeouts.
+
+    By storing an expiry time and optional default value in a suspended Run, it is possible to both allow for timing out of external events and create a mechanism for implementing timers. The `listen!` operator is modified to take  optional `:expires` and `:default` arguments. These are returned as values inside the `Suspend` signal and stored in the run in the post-processing step. The system arranges to periodically check for expired runs, simply continuing them with the default value (and appropriate `permit`).
   
 20. Ensuring consistency.
-  Runs are optimistically locked before retrieval from storage. We include this as one of the states of the `:state` field, but it could also be implemented as a boolean field, which is set to `true` when a run is acquired from storage. Only unlocked runs can be acquired. When runs are saved back to storage after post-processing, the lock is released. 
+
+    Runs are optimistically locked before retrieval from storage. We include this as one of the states of the `:state` field, but it could also be implemented as a boolean field, which is set to `true` when a run is acquired from storage. Only unlocked runs can be acquired. When runs are saved back to storage after post-processing, the lock is released. 
  
 ### Summary
 
