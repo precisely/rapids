@@ -5,16 +5,18 @@ The `deflow` macro enables writing procedures, called flows, which await events 
 
 The macro implements a compiler which analyzes a body of code, determining places where execution suspends for an external event, partitioning it into functions (continuations) which execute instructions before or after a point where execution suspends. The compiler associates each continuation with a unique address.  
 
-A runtime environment maintains a stack which contains records called stack frames which identify the next continuation to be executed (by storing its address), as well as other values, which will be discussed below. As execution proceeds, code inside continuations push new stack frames onto the stack. A runtime loop calls the continuations and analyze the results, either passing values from one continuation to the next or suspending execution to allow receipt of a value from an external event. This mechanism will be discussed below.
+A runtime environment maintains a stack which contains records called stack frames which identify the next continuation to be executed (by storing its address), as well as other values, which will be discussed below. As execution proceeds, code inside continuations push new stack frames onto the stack, which act as pointers to other continuations to be executed next. A runtime loop pops frames from the stack, executing continuations until a special Suspend signal is received. We'll get into details in a moment. 
 
-To start, first consider this extremely simple flow which greets a user, asks for their name, and replies using their name and a value provided at the beginning of the flow:
+First, consider this extremely simple flow which greets a user, asks for their name, and produces a reply that includes the user's name and the boolean which determines how excited the bot is, provided at the beginning of the flow:
 
 ```clojure
-(deflow greeting [day-of-week]
+(deflow greeting [excited?]
   (respond! "Hi. What is your name?")
-  (let [name (listen!)] ;; listen! is a suspending operation 
-    (respond! "Nice to meet you," name)
-    (respond! "It's a very nice " day-of-week)
+  (let [name (listen!)] ;; listen! is a suspending operation
+    (respond! (str "Hi, " name))
+    (respond! (if excited? 
+                  "It's super duper, duper, duper, duper, (breathes) duper, duper, duper, duper nice to meet you!" 
+                  "Nice to meet you."))
     name)) ;; return the name of the user
 ```
 
@@ -24,21 +26,23 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 ```clojure
 #<Flow
- :name greeting 
- :entry-point (fn [day-of-week] (flow/call [greeting 0] {:day-of-week day-of-week}))
+ :name greeting
+ :entry-point (fn [excited?] (flow/call [greeting 0] {:excited? excited?}))
  :continuations
- { #address[greeting 0]            (fn [{:keys [day-of-week]}]
+ { #address[greeting 0]            (fn [{:keys [excited?]}]
                                      (respond! "Hi. What is your name?")
-                                     (resume-at [#address[greeting 1 let 0 1], 
-                                                [day-of-week], name]
+                                     (resume-at [#address[greeting 1 let 0 1],
+                                                [excited?], name]
                                        (listen!)))
-   #address[greeting 1 let 0 1]    (fn [{:keys [day-of-week, name]}]
-                                     (respond! "Nice to meet you," name)
-                                     (respond! "It's a very nice " day-of-week)
+   #address[greeting 1 let 0 1]    (fn [{:keys [excited?, name]}]
+                                     (respond! (str "Hi, " name))
+                                     (respond! (if excited? 
+                                                   "It's super duper, duper, duper, duper, (breathes) duper, duper, duper, duper nice to meet you!" 
+                                                   "Nice to meet you."))
                                      name)}>
 ```
 
-The deflow macro produces a Flow record which contains a map containing two functions (continuations). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second continuation, providing both the bindings of the lexical context up to that point (`[day-of-week`]) and the binding for the value which will eventually be received by `listen!` (`name`). Also notice that the second continuation takes both the existing bindings and the new binding as an argument. 
+The deflow macro produces a Flow record which contains a map containing two functions (continuations). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second continuation, providing both the bindings of the lexical context up to that point (`[excited?`]) and the binding for the value which will eventually be received by `listen!` (`name`). Also notice that the second continuation takes both the existing bindings and the new binding as an argument.
 
 We'll discuss how the infrastructure produces this code and uses it to implement long running processes in the next section. For now, just imagine that the execution of these two functions can be separated by an arbitrarily long period of time and executed on different CPUs. This gives you a flavor for how longterm models complex user interactions as functions and allows them to be delivered using traditional scalable web architecture.  
 
@@ -107,13 +111,13 @@ We'll discuss how the infrastructure produces this code and uses it to implement
    Execution of a flow is begun by invoking a `start!` function, passing the `Flow` data structure and any arguments. E.g.,
    
    ```clojure
-   (start! greeting 'monday') ;  returns a Run object
+   (start! greeting true) ;  returns a Run object
    ```
    
 10. Starting.
- 
-    The `start!` function generates a StackFrame where the address is a special continuation which identifies the beginning of the flow, denoted by a well known address, such as `{flow-name}/0`. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `[greeting/0, {:day-of-week "monday"}, nil]`. Remember, these values are the address, the bindings and the result-key. A binding for a stack is established, the initial frame is pushed onto the stack, and the main loop is invoked with a result-value of `nil` and process the result as described below. The result of the post-processing step is returned.
-   
+
+    The `start!` function generates a StackFrame where the address is a special continuation which identifies the beginning of the flow, denoted by a well known address, such as `{flow-name}/0`. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `[greeting/0, {:excited? true}, nil]`. Remember, these values are the address, the bindings and the result-key. A binding for a stack is established, the initial frame is pushed onto the stack, and the main loop is invoked with a result-value of `nil` and process the result as described below. The result of the post-processing step is returned.
+
 11. Operation of the main loop,
  
     The main loop is a function taking a single argument, the `result-value`.
