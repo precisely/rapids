@@ -1,6 +1,4 @@
 (ns longterm.signals
-  (:require [longterm.runstore :as rs]
-            [longterm.util :as util])
   (:import (java.time LocalDateTime)))
 
 ;;
