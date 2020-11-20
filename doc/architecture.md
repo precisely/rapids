@@ -1,4 +1,4 @@
-# Architecture
+# Longterm Architecture
 
 ## Intro
 The `deflow` macro enables writing procedures, called flows, which await events in the real world, and which may occur over long periods of time. They’re conceptually similar to asynchronous processes in Javascript and other languages, however, while async functions and threads execute within the context of a single continuously running computer, the execution of a longterm flow may pass between different CPUs, as the program pauses for external events for arbitrarily long time periods.
@@ -7,7 +7,7 @@ The macro implements a compiler which analyzes a body of code, determining place
 
 A runtime environment maintains a stack which contains records called stack frames which identify the next continuation to be executed (by storing its address), as well as other values, which will be discussed below. As execution proceeds, code inside continuations push new stack frames onto the stack, which act as pointers to other continuations to be executed next. A runtime loop pops frames from the stack, executing continuations until a special Suspend signal is received. We'll get into details in a moment. 
 
-First, consider this extremely simple flow which greets a user, asks for their name, and greets the user using their name:
+First, consider this extremely simple flow which asks the user for their name and greets them, either enthusiastically or not:
 
 ```clojure
 (deflow greeting [excited?]
