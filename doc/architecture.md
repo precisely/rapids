@@ -163,27 +163,27 @@ After the architecture overview, we describe how clients might interact with the
       (respond! "c")
       (respond! "d"))
     ```
-    
+
     The initial `start!` call creates a run and replies with a data structure representing a newly created Run object. The response thus far is reported:
-    
+
     ```clojure
     (start! responder)
-    ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1", 
-    ;;         :response ["a" "b"]}, 
+    ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1",
+    ;;         :response ["a" "b"]},
     ;;         :state :suspended}
     ```
-    
+
     When the run is continued, a new response vector is allocated and the next runlet is executed. Compare the response vector below with the one from the previous response:
-     
+
     ```clojure
-       (continue "72278789-99b8-4626-aa5c-ef7997305cb1" "RESULTVALUE") 
-       ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1", 
-       ;;         :response ["RESULTVALUE" "c" "d"], 
+       (continue "72278789-99b8-4626-aa5c-ef7997305cb1" "RESULTVALUE")
+       ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1",
+       ;;         :response ["RESULTVALUE" "c" "d"],
        ;;         :state :complete}
     ```
 
     The response vector can be thought of as a set of instructions to a particular client. A chatbot client would treat these as commands to create text bubbles, buttons and so on. A robot client might expect objects that represent operations for moving and sensing. A more traditional user interface might include primitives for displaying pages and making updates to those pages. Another type of client might be a lab which reports status of processing a sample, but doesn't expect much in the way of a response from the server.
-    
+
 15. Storing and regenerating state.
 
     A Run contains three potentially complex data fields which represent objects generated during the computation: the response, the bindings and the result. While scalar values and composite objects like sets, maps, lists and arrays composed of scalars are easy to store. Other types of objects require special treatment. For example, functions cannot be easily persisted. A programmer may bind an object like the Flow data structure, but since the entire definition of this object resides in the program, committing it to durable storage would be wasteful. In addition, it contains functions, so the problem for persisting functions applies also to Flow objects. In addition, Runs representing other asynchronous processes may be referenced in the bindings, and their state may evolve from the time the bindings were persisted to durable storage. For this reason, a mechanism for "freezing" and "thawing" objects which respects the different requirements for different types of objects is required. We use an existing library, [nippy](https://github.com/ptaoussanis/nippy ), which can be extended with custom functions for different types of entities, which we briefly outline here:
@@ -198,7 +198,11 @@ After the architecture overview, we describe how clients might interact with the
 
 16. Storing and regenerating closures.
 
-    Closures require special handling by the compiler since they are special data types which cannot be persisted, but which
+    Closures require special handling by the compiler. Persisting functions at runtime to a durable store is difficult - but also unnecessary. Closures, however, contain data that must be passed between continuations. The compiler includes a partitioner that recognizes local function definitions. In Clojure, this is implemented by recognizing forms that begin with `fn` or `fn*`. When such forms are encountered, the compiler arranges for the function to be included in a vector associated with the flow object itself. The index of the local function in this array is called the _local function index_.
+
+    The `(fn ...)` form is substituted with a record representing the closure, `Closure`. It is a three tuple containing (1) a reference to the flow, (2) the local function index and (3) the bindings up to that point. By analyzing the function body, it's possible to reduce the size of the object which must be stored in the closure to just the variables captured by the closure, however, since the storage system could also include a compression layer, this may not provide much additional value.
+
+    Note that the `Closure` object contains only persistable data, and contains all of the information required to call the local function with the appropriate local bindings. By making this object callable (a simple matter of implementing the `IFn` interface in Clojure), it can be passed to other continuations within the flow or even to other flows.  A similar technique can be used for implementing local flow definitions and treating them as first class objects.
 
 17. Guarding against invalid continuation.
 
