@@ -27,7 +27,7 @@ The `listen!` function represents a point where execution pauses for input. The 
 First let's jump to the output of the compiler to get a flavor of what is going on.
 
 ```clojure
-#<Flow
+#Flow {
  :name greeting
  :entry-point (fn [excited?] (flow/call [greeting 0] {:excited? excited?}))
  :continuations
@@ -41,7 +41,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
                                      (respond! (if excited?
                                                    "It's super duper, duper, duper, duper, duper, duper, duper, duper, (breathes) duper, duper, duper, duper, duper, duper, duper nice to meet you!"
                                                    "Nice to meet you."))
-                                     name)}>
+                                     name)}}
 ```
 
 The deflow macro produces a Flow record which contains a map with two functions (continuations). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second continuation (explained below), providing both the symbols of the lexical context up to that point (`[excited?]`) and the symbol for the result value (called the "result key") which will eventually be received by `listen!` (`name`). Also notice that the second continuation takes a parameter list comprised of the previous continuation's lexical symbols and the result key.
@@ -176,10 +176,10 @@ After the architecture overview, we describe how clients might interact with the
     When the run is continued, a new response vector is allocated and the next runlet is executed. Compare the response vector below with the one from the previous response:
 
     ```clojure
-       (continue "72278789-99b8-4626-aa5c-ef7997305cb1" "RESULTVALUE")
-       ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1",
-       ;;         :response ["RESULTVALUE" "c" "d"],
-       ;;         :state :complete}
+    (continue "72278789-99b8-4626-aa5c-ef7997305cb1" "RESULTVALUE")
+    ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1",
+    ;;         :response ["RESULTVALUE" "c" "d"],
+    ;;         :state :complete}
     ```
 
     The response vector can be thought of as a set of instructions to a particular client. A chatbot client would treat these as commands to create text bubbles, buttons and so on. A robot client might expect objects that represent operations for moving and sensing. A more traditional user interface might include primitives for displaying pages and making updates to those pages. Another type of client might be a lab which reports status of processing a sample, but doesn't expect much in the way of a response from the server.
