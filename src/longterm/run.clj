@@ -27,6 +27,13 @@
 (def FrozenClass (.getClass (byte-array 0)))
 (defn frozen? [o] (instance? FrozenClass o))
 
+(s/def ::run (s/keys
+               :req-un [::id, ::state]
+               :opt-un [::stack, ::suspend, ::result, ::response, ::run-response,
+                        ::return-mode, ::parent-run-id, ::error,
+                        ::next, ::next-id
+                        ::updated-at, ::created-at]))
+
 (s/def ::id (s/or :string string? :number number? :uuid uuid?))
 (s/def ::state RunStates)
 (s/def ::return-mode ReturnModes)
@@ -39,12 +46,6 @@
 (s/def ::response vector?)
 (s/def ::run-response vector?)
 (s/def ::start-form list?)
-(s/def ::run (s/keys
-               :req-un [::id, ::state]
-               :opt-un [::stack, ::suspend, ::result, ::response, ::run-response,
-                        ::return-mode, ::parent-run-id, ::error,
-                        ::next, ::next-id
-                        ::updated-at, ::created-at]))
 (s/def ::next ::run)
 
 (s/def :stored/object frozen?)

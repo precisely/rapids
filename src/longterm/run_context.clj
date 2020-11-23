@@ -11,7 +11,8 @@
             [longterm.runstore :as rs]
             [longterm.stack-frame :as sf]
             [longterm.signals :refer [make-suspend-signal]]
-            [longterm.signals :as s]))
+            [longterm.signals :as s]
+            [longterm.run :as r]))
 
 (def ^{:dynamic true
        :doc     "The id of the run that initiated the current runlet (which may be a child or parent)"}
@@ -136,20 +137,20 @@
 
 (defn return-mode?
   ([& modes]
-   (apply rs/run-in-mode? (current-run) modes)))
+   (apply r/run-in-mode? (current-run) modes)))
 
 (defn redirected?
   ([] (redirected? (current-run)))
 
   ([run]
    (and (rs/run-in-state? run :suspended)
-     (rs/run-in-mode? run :redirect))))
+     (r/run-in-mode? run :redirect))))
 
 (defn blocked?
   ([] (blocked? (current-run)))
   ([run]
    (and (rs/run-in-state? run :suspended)
-     (rs/run-in-mode? run :block))))
+     (r/run-in-mode? run :block))))
 
 ;;
 ;; modifiers
