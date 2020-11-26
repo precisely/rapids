@@ -235,7 +235,7 @@
     (let [run (simulate-event! (start! suspending-let-body-flow 3) :body "body-event-data")]
       (is (= (:result run) [9, 27, "body-event-data"])))))
 
-(deflow simple-loop [n]
+(deflow non-suspending-loop [n]
   (log! :before-suspend)
   (<* :permit :initial-wait)
   (log! :after-suspend)
@@ -253,10 +253,21 @@
       (recur (+ a 1))
       a)))
 
+(deflow recur-in-body-after-suspend
+  "This subtle alternative effectively tests whether partition-body handles a recur-containing expression.
+  In the loop-with-suspending-body, the if expr is suspending. However in this version, the if expr is
+  non-suspending."
+  []
+  (loop [a 1]
+    (<*)
+    (if (< a 2)
+      (recur (+ a 1))
+      :end)))
+
 (deftest ^:unit LoopTest
-  (testing "simple loop with no suspending operations works like a normal loop"
+  (testing "a loop with no suspending operations works like a normal loop"
     (clear-log!)
-    (let [run (start! simple-loop 3)]
+    (let [run (start! non-suspending-loop 3)]
       (is (run-in-state? run :suspended))
       (is-log [:before-suspend])
       (let [run (simulate-event! run :initial-wait)]
@@ -320,7 +331,16 @@
                 '((loop [a 1]
                     (<* :permit :a)
                     (recur 2)
-                    (println "I'm in the tail pos"))))))))))
+                    (println "I'm in the tail pos")))))))))
+
+  (testing "recur-in-body-after-suspend"
+    (let [run (start! recur-in-body-after-suspend)]
+      (is (run-in-state? run :suspended))
+      (let [run (simulate-event! run)]
+        (is (run-in-state? run :suspended))
+        (let [run (simulate-event! run)]
+          (is (run-in-state? run :complete))
+          (is (= (:result run) :end)))))))
 
 (deflow responding-flow []
   (*> :r1)
@@ -367,7 +387,7 @@
 (deftest ^:unit FunctionTest
   (testing "should throw an error attempting to partition a fn with suspending expressions"
     (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
-      (longterm.deflow/expand-flow
+          (longterm.deflow/expand-flow
             `fn-with-suspend "" [] `((fn [] (listen! :permit :boo)))))))
 
   (testing "should successfully partition when a normal fn is present in the body"
