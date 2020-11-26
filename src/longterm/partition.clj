@@ -56,7 +56,7 @@
 (declare partition-body partition-expr partition-fncall-expr
   partition-list-expr partition-flow-expr
   partition-functional-expr partition-bindings
-  partition-if-expr partition-let-expr partition-fn*-expr
+  partition-if-expr partition-let-expr partition-fn-expr
   partition-do-expr partition-loop-expr partition-special-expr partition-recur-expr
   partition-vector-expr partition-map-expr macroexpand-keeping-metadata
   partition-suspend-expr throw-partition-error
@@ -124,7 +124,7 @@
                              clean-pset)]
            (if any-suspend?
              [start-body, pset, any-suspend?]
-             [body, nil, false])))))))
+             [part-body, nil, false])))))))
 
 ;;
 ;; Expressions
@@ -182,15 +182,15 @@
     do (partition-do-expr expr mexpr partition-addr address params)
     let (partition-let-expr expr mexpr partition-addr address params)
     let* (partition-let-expr expr mexpr partition-addr address params)
-    fn (partition-fn*-expr expr mexpr partition-addr address params)
-    fn* (partition-fn*-expr expr mexpr partition-addr address params)
+    fn (partition-fn-expr expr mexpr partition-addr address params)
+    fn* (partition-fn-expr expr mexpr partition-addr address params)
     loop (partition-loop-expr expr mexpr address params)
     loop* (partition-loop-expr expr mexpr address params)
     quote [expr, nil, false]
     recur (partition-recur-expr expr mexpr partition-addr address params)
     (throw-partition-error "Special operator not yet available in flows" expr "Operator: %s" op)))
 
-(defn partition-fn*-expr
+(defn partition-fn-expr
   "Throws if fn* contain suspending ops - this partitioner acts as a guard
   against knowing or inadvertent inclusion of a suspending operation inside a fn.
   This might happen inadvertently if the user uses a macro (like for) which
@@ -226,18 +226,13 @@
         (partition-body body, partition-addr, body-address, (vec (concat params keys)))
 
         [bind-start, bind-pset, bind-suspend?]
-        (partition-bindings keys, args, partition-addr, binding-address, params,
-          (if body-suspend? body-start (vec body)))
+        (partition-bindings keys, args, partition-addr, binding-address, params, body-start)
 
         pset            (pset/combine body-pset bind-pset)]
-    (cond
-      bind-suspend?
+    (if bind-suspend?
       [bind-start, pset, true]
 
-      body-suspend?
-      [(with-meta `(let ~bindings ~@body-start) (meta expr)), pset, true]
-
-      :else [expr, nil, false])))
+      [(with-meta `(let ~bindings ~@body-start) (meta expr)), pset, body-suspend?])))
 
 (defn partition-if-expr
   [expr mexpr partition-addr address params]
@@ -269,14 +264,12 @@
     [start, full-pset, suspend?]))
 
 (defn partition-do-expr
-  [expr mexpr partition address params]
+  [_ mexpr partition address params]
   (let [[op & body] mexpr
         address (a/child address 'do)
         [bstart, pset, suspend?] (partition-body body partition address params)]
     (assert (= op 'do))
-    (if suspend?
-      [`(do ~@bstart), pset, suspend?]
-      [expr, nil, false])))
+    [`(do ~@bstart), pset, suspend?]))
 
 (defn partition-loop-expr
   "Partitions a (loop ...) expression, establishing a binding-point for recur. If
@@ -371,9 +364,9 @@
 
           same-partition (and (false? suspend?) (= partition loop-address))]
       (if same-partition
-        [expr, nil, false, true] ; plain vanilla recur!
+        [start, nil, false]   ; plain vanilla recur!
         (if suspend?
-          [start, pset, true]
+          [start, pset, true] ;; arguments suspended
           (if same-partition
             [expr, nil, false]
             [(make-call args), pset, false]))))))
@@ -410,7 +403,7 @@
           (partition-bindings keys args partition-address address params
             pcall-body)]
       (if suspend?
-        [start, pset, suspend?] ; partition bindings has provided the correct result
+        [start, pset, true]   ; partition bindings has provided the correct result
         [(call-form args), nil, false]))))
 
 (defn partition-map-expr
@@ -421,12 +414,9 @@
          (vector? params)]}
   ;; TODO: this could be simplified...
   (let [fake-op     (symbol "_map_")
-        pseudo-expr (cons fake-op (apply concat (map identity expr)))
-        [start, pset, suspend?] (partition-functional-expr fake-op pseudo-expr pseudo-expr partition-addr address params
-                                  (fn [args] (into {} (map vec (partition 2 args)))))]
-    (if suspend?
-      [start, pset suspend?]
-      [expr, nil, false])))
+        pseudo-expr (cons fake-op (apply concat (map identity expr)))]
+    (partition-functional-expr fake-op pseudo-expr pseudo-expr partition-addr address params
+      (fn [args] (into {} (map vec (partition 2 args)))))))
 
 (defn partition-vector-expr
   [expr partition-addr address params]
@@ -434,13 +424,6 @@
         expr-with-op (with-meta `(~fake-op ~@expr) (meta expr))]
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
       #(vec %))))
-
-(defn partition-flow-call-expr
-  [op, expr, mexpr, partition-addr, address, params]
-  (let [[start, pset, _] (partition-functional-expr op expr mexpr partition-addr address params
-                           (fn [args]
-                             `(op ~op ~@args)))]
-    [start, pset, true]))
 
 (defn partition-flow-expr
   [op, expr, mexpr, partition-addr, address, params]
