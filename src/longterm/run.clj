@@ -3,12 +3,13 @@
             [longterm.signals :as signals]
             [taoensso.nippy :refer [freeze thaw]]
             [clojure.spec.alpha :as s]
-            [longterm.stack-frame :as sf])
+            [longterm.stack-frame :as sf]
+            [clojure.tools.macro :refer [macrolet]])
   (:import (java.util UUID)))
 
 (declare run-in-state? set-runstore! create-run! save-run! get-run acquire-run!)
 
-(defrecord Run [id state stack])
+(defrecord Run [id state stack result run-response response])
 
 (defn run? [run] (instance? Run run))
 
@@ -57,50 +58,50 @@
 (s/def :stored/run-response :stored/object)
 
 (defn make-run
-  [& {:keys [id, stack, state, response, run-response]
-      :or   {id           (UUID/randomUUID)
-             state        :running
-             stack        ()
-             response     []
-             run-response []}
-      :as   fields}]
-  {:post [(s/assert ::run %)]}
-  (map->Run (into fields {:id       id, :state state, :stack stack,
-                          :response response, :run-response run-response})))
+  ([] (make-run {}))
 
-(defprotocol IRunStore
-  (rs-create! [rs record])
-  (rs-update! [rs record]
-    "Saves the run's fields to storage. Implementations should error if an attempt is
-    made to update the state from :suspended. Callers should use the rs-acquire method instead.")
-  (rs-get [rs run-id])
-  (rs-acquire! [rs run-id permit]
-    "Retrieves a Run, atomically transitioning it from :suspended to :running
-    Implementations should return:
-      Run instance - if successful
-      nil - if run not found
-      RunState - if current run state is not :suspended"))
-
+  ([{:keys [id, stack, state, response, run-response, result]
+     :or   {id           (UUID/randomUUID)
+            state        :running
+            stack        ()
+            response     []
+            run-response []}
+     :as   fields}]
+   {:post [(s/assert ::run %)]}
+   (map->Run (into (or fields {})
+               {:id           id,
+                :state        state,
+                :stack        stack,
+                :response     response,
+                :result       result,
+                :run-response run-response}))))
 
 (defn run-to-record [run]
   "Generates a map where keyword "
-  (let [key-mappings {:state        [[:state #(.getName %)]]
-                      :stack        [[:stack freeze]]
-                      :result       [[:result freeze]]
-                      :run-response [[:run_response freeze]]
-                      :suspend      [[:suspend_permit #(if % (-> % :permit freeze))]
-                                     [:suspend_default #(if % (-> % :default freeze))]
-                                     [:suspend_expires #(if % (:expires %))]]
-                      :return-mode  [[:return_mode #(if % (.getName %))]]
-                      :parent-run-id  [[:parent_run_id identity]]
-                      :next-id  [[:next_id identity]]
-                      :error        [[:error freeze]]
-                      :response     [[:response freeze]]}
+  (let [key-mappings {:state         [[:state #(.getName %)]]
+                      :stack         [[:stack freeze]]
+                      :result        [[:result freeze]]
+                      :run-response  [[:run_response freeze]]
+                      :suspend       [[:suspend freeze]
+                                      [:suspend_permit #(:permit %)]
+                                      [:suspend_expires #(:expires %)]]
+                      :return-mode   [[:return_mode #(if % (.getName %))]]
+                      :parent-run-id [[:parent_run_id identity]]
+                      :next-id       [[:next_id identity]]
+                      :error         [[:error freeze]]
+                      :response      [[:response freeze]]}
         make-mapping (fn [[k value]]
+                       (println "make-mapping " k value)
                        (ifit [mapping (get key-mappings k)]
-                         (apply concat (map #(vector (first %) ((second %) value)) mapping))
+                         (let [mapping (apply concat
+                                         (map
+                                           #(let [[rec-key xform] %]
+                                              (vector rec-key (xform value))) mapping))]
+                           (println "make-mapping => " mapping)
+                           mapping)
                          [k value]))
         hashargs     (apply concat (map make-mapping run))]
+    (println "run-to-record => " hashargs)
     (apply hash-map hashargs)))
 
 (defn or-nil? [o p]
@@ -113,31 +114,28 @@
 
 (defn run-from-record [record]
   {:post [(s/assert ::run %)]}
-  (letfn [(assoc-if [run field xform]
-            (let [rec-field (sausage-to-snake field)]
+  (let [state (-> record :state keyword)]
+
+    (letfn [(assoc-if-fn [run field rec-field xform]
               (ifit [val (rec-field record)
                      val (if val (xform val))]
-                (assoc run field val)
-                run)))
-          (thaw-if [key] (ifit [val (key record)] (thaw val)))]
-    (let [state (-> record :state keyword)]
-      (-> (make-run :id (:id record) :state state)
-        (assoc-if :start-form read-string)
-        (assoc-if :stack thaw)
-        (assoc-if :result thaw)
-        (assoc-if :response thaw)
-        (assoc-if :run-response thaw)
-        (assoc-if :parent-run-id identity)
-        (assoc-if :id identity)
-        (assoc-if :next-id identity)
-        (assoc-if :return-mode keyword)
-        (assoc-if :error thaw)
-        (#(if (= state :suspended)
-            (assoc % :suspend (signals/make-suspend-signal
-                                (thaw-if :suspend_permit)
-                                (:suspend_expires record)
-                                (thaw-if :suspend_default)))
-            %))))))
+                (do (println "retrieved " field " => " val)
+                    (assoc run field val))
+                run))]
+      (macrolet [(assoc-if [run field xform]
+                   `(~'assoc-if-fn ~run ~field ~(sausage-to-snake field) ~xform))]
+        (-> (make-run {:id (:id record) :state state})
+          (assoc-if :start-form read-string)
+          (assoc-if :stack thaw)
+          (assoc-if :result thaw)
+          (assoc-if :response thaw)
+          (assoc-if :run-response thaw)
+          (assoc-if :parent-run-id identity)
+          (assoc-if :id identity)
+          (assoc-if :next-id identity)
+          (assoc-if :return-mode keyword)
+          (assoc-if :error thaw)
+          (assoc-if :suspend thaw))))))
 
 (defn valid-permit?
   "Checks whether the permit is valid - for now, this is just a check that the permit

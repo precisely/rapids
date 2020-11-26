@@ -36,6 +36,7 @@
             :url  "https://precise.ly/longterm"}
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [clojure.java-time "0.3.2"]
+                 [org.clojure/tools.macro "0.1.2"]
                  [org.clojure/data.codec "0.1.1"]
                  [com.taoensso/nippy "3.1.0"]
                  [potemkin "0.4.5"]]

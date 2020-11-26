@@ -5,7 +5,9 @@
     [longterm.util :refer :all]
     [longterm.run-context :as rc]
     [longterm.signals :as s]
-    [longterm.stack-frame :as sf]))
+    [longterm.stack-frame :as sf]
+    [longterm.run :as r]
+    [clojure.spec.alpha :as spec]))
 
 (declare start! continue!)
 (declare resume-at)
@@ -17,9 +19,9 @@
   Returns a Run in :suspended or :complete state, not necessarily the run which "
   [flow & args]
   {:pre  [(refers-to? flow/flow? flow)]
-   :post [(rs/run-in-state? % :suspended :complete :error)]}
+   :post [(r/run? %)]}
   (let [start-form `(~(:name flow) ~@args)
-        new-run    (assoc (rs/create-run! :running) :start-form start-form)]
+        new-run    (assoc (rs/create-run! :state :suspended) :start-form start-form)]
     (rc/with-run-context [new-run]
       ;; create the initial stack-continuation to kick of the process
       (eval-loop! (fn [_] (flow/entry-point flow args))))))
@@ -46,8 +48,8 @@
 
   ([run-id permit result response]
    {:pre  [(not (nil? run-id))
-           (not (rs/run-in-state? run-id :any))] ; en
-    :post [(rs/run-in-state? % :suspended :complete)]}
+           (not (r/run-in-state? run-id :any))] ; en
+    :post [(r/run-in-state? % :suspended :complete)]}
    (rc/with-run-context [(rc/acquire! run-id permit)]
      (if-not (s/suspend-signal? (rc/current-suspend-signal))
        (throw (Exception. (format "Attempt to continue Run %s which is not suspended" (rc/id)))))
@@ -93,7 +95,7 @@
   ([continuation] (reduce-stack! continuation nil))
 
   ([continuation result]
-   {:pre [(rs/run-in-state? (rc/current-run) :running)
+   {:pre [(r/run-in-state? (rc/current-run) :running)
           (or (fn? continuation) (nil? continuation))]}
    (if continuation
      (let [next-result (continuation result)]

@@ -28,7 +28,7 @@
     (testing "it correctly transforms a suspended run with all fields set"
       (let [now (local-date-time)
             run (make-run ; fill every field of the run
-                  :state :suspended
+                  {:state :suspended
                   :stack (list (sf/make-stack-frame (a/create `foo 1 2) {:b 2} 'result-key))
                   :suspend (signals/make-suspend-signal :foo now {:a 1})
                   :run-response ["hello" "there"]
@@ -36,7 +36,7 @@
                   :return-mode :redirect
                   :parent-run-id (UUID/randomUUID)
                   :next-id (UUID/randomUUID)
-                  :error (Exception. "foo"))
+                  :error (Exception. "foo")})
             processed-run (-> run run-to-record run-from-record)]
         (letfn [(same? [k] (= (k run) (k processed-run)))]
           (is (= (same? :state)))

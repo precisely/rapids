@@ -1,22 +1,26 @@
 (ns longterm.runstore
   (:require
     [longterm.util :refer [in? new-uuid]]
-    [longterm.run :as r]))
+    [longterm.run :as r]
+    [longterm.util :refer :all]))
 
 (declare run-in-state? set-runstore! create-run! save-run! get-run acquire-run!)
 
 (def runstore (atom nil))
 
-
 (defprotocol IRunStore
-  (rs-create! [rs state])
-  (rs-update! [rs run]
-    "Saves the run to storage. Implementations should error if an attempt is
-    made to update the state from :suspended. Callers should use the rs-acquire method instead.")
+  (rs-tx-begin [rs]
+    "Begin a transaction")
+  (rs-tx-commit [rs]
+    "Commit a transaction")
+  (rs-create! [rs record])
+  (rs-update! [rs record]
+    "Saves the record to storage created by acquire!")
   (rs-get [rs run-id]
-    "Gets a copy of the run as it is on disk")
+    "Retrieves a run without locking.")
   (rs-acquire! [rs run-id]
-    "Retrieves a Run, atomically transitioning it from :suspended to :running
+    "Retrieves a run record, locking it against updates by other processes.
+
     Implementations should return:
       Run instance - if successful
       nil - if run not found
@@ -30,19 +34,24 @@
   (reset! runstore rs))
 
 (defn create-run!
-  ([] (create-run! {}))
-  ([run]
-   {:pre  [(satisfies? IRunStore @runstore)]
-    :post [(r/run? %)]}
-   (let [run (r/run-from-record (rs-create! @runstore (r/run-to-record run)))]
-     run)))
+  [& {:keys [id, stack, state, response, run-response] :as fields}]
+  {:pre  [#_(satisfies? IRunStore @runstore)]
+   :post [(r/run? %)]}
+  (println "create-run!" fields)
+  (let [run (r/run-from-record (rs-create! @runstore (r/run-to-record (r/make-run (or fields {})))))]
+    run))
 
 (defn save-run!
-  [run]
-  {:pre  [(r/run? run) (not (= (:state run) :running))]
-   :post [(r/run? %)]}
-  (let [new (r/run-from-record (rs-update! @runstore (r/run-to-record run)))]
-    new))
+  ([run] (save-run! run false))
+  ([run release]
+   {:pre  [(satisfies? IRunStore @runstore)
+           (r/run? run)
+           (not (= (:state run) :running))]
+    :post [(r/run? %)]}
+   (let [expires (-> run :suspend :expires)
+         saved-record (rs-update! @runstore (r/run-to-record run) release)
+         new (r/run-from-record saved-record)]
+     new)))
 
 (defn get-run
   [run-id]
@@ -54,9 +63,12 @@
   [run-id permit]
   {:pre  [(not (nil? run-id))]
    :post [(run-in-state? % :running)]}
-  (let [run (r/run-from-record (rs-acquire! @runstore run-id))]
+  (let [record (rs-acquire! @runstore run-id)
+        _ (println "acquired record = " record)
+        {id :id, :as run} (r/run-from-record record)]
+    (println "run permit=" (-> run :suspend :permit) "required permit = " permit)
     (if (r/valid-permit? run permit)
       run
-      (throw (Exception. "Invalid permit provided for run %" (:id run))))))
+      (throw (Exception. (str "Invalid permit provided for run " id))))))
 
 

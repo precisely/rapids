@@ -33,12 +33,16 @@
   Runs are persisted to disk at the last moment, when the outer-most with-run-cache
   body completes."
   `(letfn [(dobody# [] (assert (bound? #'*run-cache*)) ~@body)]
+     ;; TODO: (try
      (if (bound? #'*run-cache*)
        (dobody#)
        (binding [*run-cache* {}]
+         ;; (rs-tx-start @runstore)
          (let [result# (dobody#)]
            (save-cache!)
            result#)))))
+;; TODO: figure out exception handling strategy
+;;(catch Exception e (rollback))))
 
 (defmacro with-run-context
   "Executes body returning the Run produced by run-form, "
@@ -61,8 +65,8 @@
   (doseq [[_ run] *run-cache*]
     (when (:dirty run)
       (cache-run! (dissoc run :dirty))
-      (assert (rs/run-in-state? run :error :complete :suspended))
-      (rs/save-run! run))))
+      (assert (r/run-in-state? run :error :complete :suspended))
+      (rs/save-run! run true))))
 
 (defn cache-run! [run]
   (assert (bound? #'*run-cache*))
@@ -133,7 +137,7 @@
 ;;; Predicates
 ;;;
 (defn suspended? []
-  (rs/run-in-state? (current-run) :suspended))
+  (r/run-in-state? (current-run) :suspended))
 
 (defn return-mode?
   ([& modes]
@@ -143,13 +147,13 @@
   ([] (redirected? (current-run)))
 
   ([run]
-   (and (rs/run-in-state? run :suspended)
+   (and (r/run-in-state? run :suspended)
      (r/run-in-mode? run :redirect))))
 
 (defn blocked?
   ([] (blocked? (current-run)))
   ([run]
-   (and (rs/run-in-state? run :suspended)
+   (and (r/run-in-state? run :suspended)
      (r/run-in-mode? run :block))))
 
 ;;
@@ -219,7 +223,7 @@
   to the child-run *after* it has completed a runlet. So this run will be decorated with a next-id, indicating
   a potential transfer of control. Thus, the redirection may not be directly to child-run, but to another
   run which child-run spawned."
-  {:pre [(not (rs/run-in-state? child-run :running :error))]}
+  {:pre [(not (r/run-in-state? child-run :running :error))]}
   (case (:state child-run)
     :suspended (if (blocked? child-run)
                  child-run
@@ -246,7 +250,7 @@
 (defn- redirect-to-suspended-run!
   "Suspends the current run,"
   [child-run expires default]
-  {:pre [(rs/run-in-state? child-run :suspended)
+  {:pre [(r/run-in-state? child-run :suspended)
          (:next-id child-run)
          (-> child-run :parent-run-id nil?)]}
   (let [child-run (update-run! child-run #(assoc %
@@ -254,7 +258,7 @@
                                             :return-mode :redirect))]
 
     (update-run!
-      #(do (assert (rs/run-in-state? % :running))
+      #(do (assert (r/run-in-state? % :running))
            (assoc %
              :state :suspended,
              :suspend (make-suspend-signal (:id child-run), expires, default))))
@@ -271,7 +275,7 @@
 
   Returns the appropriate signal (or completion value) from the new run which has control."
   [run]
-  {:pre [(rs/run-in-state? run :complete :suspended)]}
+  {:pre [(r/run-in-state? run :complete :suspended)]}
   (let [next-run-id (-> run :next-id)]
     (harvest-response-from! run)
     (set! *current-run-id* next-run-id)
@@ -313,7 +317,7 @@
         next-run (remove-next! (get *run-cache* next-run-id))]
     (update-run! run
       #(let [next-id (or (:id next-run)
-                       (if (rs/run-in-state? run :suspended)
+                       (if (r/run-in-state? run :suspended)
                          (:id %)))]
          (assoc %
            :next-id next-id,
