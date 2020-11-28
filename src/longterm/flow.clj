@@ -9,7 +9,7 @@
    name
    ;; Function with arbitrary signature
    entry-point
-   ;; A map of address-point strings to functions of the form (fn [& {:keys [...]}])
+   ;; A map of address-point strings to functions of the form (fn [{:keys [...]}])
    continuations
    ;; For debugging purposes:
    partitions]
@@ -27,11 +27,11 @@
    {:pre [(a/address? address)
           (map? bindings)]}
    (let [flow (address/resolved-flow address)
-         continuation (get-in flow [:continuations address])
-         args (apply concat (map (fn [[key val]] [(keyword key) val]) bindings))]
+         partition (get-in flow [:partitions address])
+         continuation (get-in flow [:continuations address])]
      (if-not (fn? continuation)
        (throw (Exception. (format "Attempt to continue flow at undefined partition %s" address))))
-     (apply continuation args))))
+     (continuation bindings))))
 
 (defn entry-point
   [flow args]

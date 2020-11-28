@@ -1,5 +1,7 @@
 (ns longterm.partition-set
-  (:require [longterm.address :refer [address?]]))
+  (:require [longterm.address :refer [address?]]
+            [longterm.address :as a]
+            [clojure.string :as str]))
 
 ;;;; ContinuationSet
 
@@ -34,8 +36,9 @@
 (defn continuation-def
   "Returns the s-expr representing the continuation at address"
   [pset address]
-  (let [cdef (get pset address)]
-    `(fn [& {:keys ~(:params cdef)}] ~@(:body cdef))))
+  (let [cdef (get pset address)
+        name  (symbol (a/to-string address))]
+    `(fn ~name [{:keys ~(:params cdef)}] ~@(:body cdef))))
 
 (defn continuation-set-def
   "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"

@@ -22,11 +22,11 @@
         address (address/create qualified)
         [start-body, pset, _] (p/partition-body (vec code) address address params)
         pset (pset/add pset address params start-body)
-        c-args (params-to-continuation-args params)
+        entry-continuation-bindings (p/bindings-expr-from-params params)
         entry-point-name (symbol (str name "__entry-point"))]
     `(let [cset# ~(pset/continuation-set-def pset)          ; compiles the fndefs in the pset
            entry-continuation# (get cset# ~address)
-           entry-point# (fn ~entry-point-name [~@args] (entry-continuation# ~@c-args))]
+           entry-point# (fn ~entry-point-name [~@args] (entry-continuation# ~entry-continuation-bindings))]
        (def ~name ~docstring?
          (Flow. '~qualified, entry-point#, cset#, ~pset)))))
 
