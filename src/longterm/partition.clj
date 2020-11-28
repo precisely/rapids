@@ -6,8 +6,7 @@
             [longterm.recur :refer [with-tail-position with-binding-point]]
             [longterm.partition-set :as pset]
             [longterm.signals :refer [suspending-operator?]]
-            [longterm.recur :refer :all])
-  (:import (longterm.address Address)))
+            [longterm.recur :refer :all]))
 
 ;;;; Partitioner
 
@@ -56,8 +55,8 @@
 (declare partition-body partition-expr partition-fncall-expr
   partition-list-expr partition-flow-expr
   partition-functional-expr partition-bindings
-  partition-if-expr partition-let-expr partition-fn-expr
-  partition-do-expr partition-loop-expr partition-special-expr partition-recur-expr
+  partition-if-expr partition-let*-expr partition-fn*-expr
+  partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
   partition-vector-expr partition-map-expr macroexpand-keeping-metadata
   partition-suspend-expr throw-partition-error
   nsymbols resume-at bindings-expr-from-params)
@@ -157,7 +156,7 @@
       (map? mexpr) (partition-map-expr expr partition-addr address params)
       :otherwise [expr, nil, nil])))
 
-(defn special-form-op? [x] (in? '[if do let let* fn fn* loop loop* quote recur] x))
+(defn special-form-op? [x] (in? '[if do let* fn* loop* quote recur] x))
 (defn partition-list-expr
   [expr mexpr partition-addr address params]
   {:pre [(vector? params)]}
@@ -180,17 +179,14 @@
   (case op
     if (partition-if-expr expr mexpr partition-addr address params)
     do (partition-do-expr expr mexpr partition-addr address params)
-    let (partition-let-expr expr mexpr partition-addr address params)
-    let* (partition-let-expr expr mexpr partition-addr address params)
-    fn (partition-fn-expr expr mexpr partition-addr address params)
-    fn* (partition-fn-expr expr mexpr partition-addr address params)
-    loop (partition-loop-expr expr mexpr address params)
-    loop* (partition-loop-expr expr mexpr address params)
+    let* (partition-let*-expr expr mexpr partition-addr address params)
+    fn* (partition-fn*-expr expr mexpr partition-addr address params)
+    loop* (partition-loop*-expr expr mexpr address params)
     quote [expr, nil, false]
     recur (partition-recur-expr expr mexpr partition-addr address params)
     (throw-partition-error "Special operator not yet available in flows" expr "Operator: %s" op)))
 
-(defn partition-fn-expr
+(defn partition-fn*-expr
   "Throws if fn* contain suspending ops - this partitioner acts as a guard
   against knowing or inadvertent inclusion of a suspending operation inside a fn.
   This might happen inadvertently if the user uses a macro (like for) which
@@ -213,13 +209,12 @@
       (assert (not suspending?))
       [expr, nil, false])))
 
-(defn partition-let-expr
+(defn partition-let*-expr
   [expr mexpr partition-addr address params]
-  (let [expr-op         (first expr)
-        address         (a/child address 'let)
+  (let [address         (a/child address 'let)
         binding-address (a/child address 0)
         body-address    (a/child address 1)
-        [_ bindings & body] (if (= expr-op 'let) expr mexpr)
+        [_ bindings & body] mexpr
         [keys, args] (map vec (reverse-interleave bindings 2))
 
         [body-start, body-pset, body-suspend?]
@@ -271,7 +266,7 @@
     (assert (= op 'do))
     [`(do ~@bstart), pset, suspend?]))
 
-(defn partition-loop-expr
+(defn partition-loop*-expr
   "Partitions a (loop ...) expression, establishing a binding-point for recur. If
   this expression suspends, the start body will be a let construct for establishing
   the initial parameters which calls a partition with a loop, which acts as the binding
