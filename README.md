@@ -140,3 +140,20 @@ First build your target:
 ```
 lein build
 ``` 
+
+### Notes
+
+#### REPL vs CI Test inconsistency
+
+Occassionally, tests will pass in the REPL, but fail in CI, or at the command-line with `lein test`. In the instances I've seen so far, this occurs because of differences in the macroexpansion environment between `lein test` and REPL environments inside test functions. I think this is because test functions are compiled by `lein test` before being executed, whereas they are evaluated by the REPL. This leads to symbols remaining unqualified at execution time in the `lein test` environment. 
+
+The solution is to use backtick and carefully unquote/quote the symbols which should remain unqualified.
+
+```clojure
+(deftest Foo 
+  (testing "works fine in REPL, but throws an error in lein test"
+    (eval '(deflow foo [] (<*))))
+
+  (testing "works in both REPL and lein test"
+    (eval `(deflow ~'foo [] (<*)))))
+```
