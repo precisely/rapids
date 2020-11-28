@@ -14,4 +14,4 @@
     (let [current-time (now)
           in-3-days (-> 3 days from-now)]
       (is (= 3
-            (-> in-3-days .getDayOfMonth  (- (-> current-time .getDayOfMonth))))))))
+            (t/time-between current-time in-3-days :days))))))

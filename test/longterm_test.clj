@@ -615,3 +615,9 @@
     (let [run (start! apply-flows `[[my-respond 1 2 3] [my-respond 3 4 5]])]
       (is (= (:state run) :complete))
       (is (= (:response run [1 2 3 4 5 6]))))))
+
+
+(deftest ^:unit Destructuring
+  (testing "quick and dirty tests that destructuring expressions compile without error"
+    (is (flow? (var-get (eval `(deflow ~'foo [~'s] (let [[~'head & ~'rest] ~'s, ~'val (<*)] (* ~'head ~'val)))))))
+    (is (flow? (var-get (eval `(deflow ~'foo [~'s] (loop [[~'head & ~'rest] ~'s] (<*) (if ~'rest (recur ~'rest))))))))))

@@ -1,7 +1,6 @@
 (ns ^:language longterm.deflow_test
   (:require [clojure.test :refer :all]
-            [longterm :refer :all]
-            [longterm.flow :refer [flow?]]))
+            [longterm :refer :all]))
 
 (deflow suspending-flow [] (listen! :permit :a))
 (deflow flow-calling-flow [] (suspending-flow))
