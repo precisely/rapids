@@ -10,8 +10,12 @@
   (flow/entry-point flow args))
 
 (defn ^:suspending fapply
-  ([flow & args]
-   (flow/entry-point flow (concat (butlast args) (last args)))))
+  ([flow] (flow/entry-point flow ()))
+  ([flow a1] (flow/entry-point flow a1))
+  ([flow a1 a2] (flow/entry-point flow (cons a1 a2)))
+  ([flow a1 a2 a3] (flow/entry-point flow (cons a1 (cons a2 a3))))
+  ([flow a1 a2 a3 & args]
+   (flow/entry-point flow (cons a1 (cons a2 (cons a3 (concat (butlast args) (last args))))))))
 
 (defn ^:suspending listen!
   [& {:keys [permit expires default]}]

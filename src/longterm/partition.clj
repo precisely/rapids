@@ -42,8 +42,8 @@
 ;;; The partitions contain all the information necessary for generating
 ;;; continuations, the functions that actually implement a flow.
 ;;;
-;;; <a1> => ```(fn [& {:keys [arg]}] (resume-at [<a2> {:arg arg} 'result] (flow2 arg)))```
-;;; <a2> => ```(fn [& {:keys [arg result]}] (print "(flow2 %s) = %s" arg result))```
+;;; <a1> => ```(fn [{:keys [arg]}] (resume-at [<a2> {:arg arg} 'result] (flow2 arg)))```
+;;; <a2> => ```(fn [{:keys [arg result]}] (print "(flow2 %s) = %s" arg result))```
 ;;;
 ;;; The addresses represented by <p1> and <p2> are records that describe a unique point
 ;;; in the flow.
@@ -338,7 +338,7 @@
   [expr, mexpr, partition-address, address, params]
   (letfn [(make-call [params]
             (let [loop-params (:params *recur-binding-point*)
-                  bindings    `(hash-map ~@(interleave (map #(list 'quote %) loop-params) params))]
+                  bindings    (bindings-expr-from-params loop-params params)]
               (if-not (= (count params) (count loop-params))
                 (throw-partition-error "Mismatched argument count to recur" expr "expected: %s args, got: %s"
                   (count params) (count loop-params)))
@@ -517,8 +517,10 @@
 ;;
 ;; HELPERS
 ;;
-(defn bindings-expr-from-params [params]
-  `(hash-map ~@(vec (apply concat (map #(vec `('~% ~%)) params)))))
+(defn bindings-expr-from-params
+  ([params] (bindings-expr-from-params params params))
+  ([key-params, arg-params]
+  `(hash-map ~@(interleave (map keyword key-params) arg-params))))
 
 (defn macroexpand-keeping-metadata
   [expr]

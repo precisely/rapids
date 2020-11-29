@@ -11,7 +11,7 @@
          (or (nil? result-key)
            (and (symbol? result-key)
              (not (qualified-symbol? result-key))))]}
-  (StackFrame. address, bindings, result-key))
+  (StackFrame. address, bindings, (keyword result-key)))
 
 (defn stack-continuation
   "Returns a function `(fn [value] ...)` which calls a flow continuation with the bindings

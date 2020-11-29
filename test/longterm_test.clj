@@ -27,6 +27,7 @@
 
   ([run permit]
    (simulate-event! run permit nil))
+
   ([run permit value]
    {:pre [(run-in-state? run :any)]}
    (continue! (:id run) permit value)))
@@ -611,11 +612,10 @@
       (is (= (:state run) :complete))
       (is (= (:response run [1 2 3 4 5 6])))))
 
-  (testing "fapply applies a flow symbol to the remaining args"
-    (let [run (start! apply-flows `[[my-respond 1 2 3] [my-respond 3 4 5]])]
-      (is (= (:state run) :complete))
-      (is (= (:response run [1 2 3 4 5 6]))))))
-
+  #_(testing "fapply applies a flow symbol to the remaining args"
+      (let [run (start! apply-flows `[[my-respond 1 2 3] [my-respond 3 4 5]])]
+        (is (= (:state run) :complete))
+        (is (= (:response run [1 2 3 4 5 6]))))))
 
 (deftest ^:unit Destructuring
   (testing "quick and dirty tests that destructuring expressions compile without error"

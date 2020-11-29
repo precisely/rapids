@@ -44,15 +44,15 @@
 
 (defn to-string
   [a]
-  (str (:flow a) ":" (string/join "/" (:point a))))
+  (str (.getName (:flow a)) "__" (string/join "_" (:point a))))
 
-(defn from-string
-  [s]
-  (let [[matched? name pointdefs] (re-find #"^([^;:\s]*)\:([^:\s]*)" s)]
-    (if matched?
-      (let [points (map #(if (re-find #"^\d" %) (int %) (symbol %)) (string/split pointdefs "/"))]
-        (apply create (symbol name) points))
-      (throw (Exception. (format "Expecting Address string definition, but received %s" s))))))
+;(defn from-string
+;  [s]
+;  (let [[matched? name pointdefs] (re-find #"^([^;:\s]*)\:([^:\s]*)" s)]
+;    (if matched?
+;      (let [points (map #(if (re-find #"^\d" %) (int %) (symbol %)) (string/split pointdefs "/"))]
+;        (apply create (symbol name) points))
+;      (throw (Exception. (format "Expecting Address string definition, but received %s" s))))))
 
 (defn child
   [address & point]

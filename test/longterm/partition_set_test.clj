@@ -33,15 +33,15 @@
                 (set [addr1 addr2 addr3]))))))
 
     (testing "continuation-def"
-      (is (= (continuation-def {:a (->Partition '[a b] '[(* a b)])} :a)
-            '(clojure.core/fn [& {:keys [a b]}] (* a b)))))
+      (is (= (continuation-def {addr1 (->Partition '[a b] '[(* a b)])} addr1)
+            '(clojure.core/fn main__1 [{:keys [a b]}] (* a b)))))
 
     (testing "continuation-set-def"
-      (is (= (continuation-set-def {:a (->Partition '[a b] '[(* a b)])
-                                    :b (->Partition '[a c] '[(+ c a)])})
-            '(clojure.core/hash-map
-               :a (clojure.core/fn [& {:keys [a b]}] (* a b))
-               :b (clojure.core/fn [& {:keys [a c]}] (+ c a))))))))
+      (is (= (continuation-set-def {addr1 (->Partition '[a b] '[(* a b)])
+                                    addr2 (->Partition '[a c] '[(+ c a)])})
+            `(clojure.core/hash-map
+               ~addr1 ~'(clojure.core/fn main__1 [{:keys [a b]}] (* a b))
+               ~addr2 ~'(clojure.core/fn main__2 [{:keys [a c]}] (+ c a))))))))
 
 
 
