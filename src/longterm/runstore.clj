@@ -14,7 +14,7 @@
   (rs-tx-commit [rs]
     "Commit a transaction")
   (rs-create! [rs record])
-  (rs-update! [rs record]
+  (rs-update! [rs record expires]
     "Saves the record to storage created by acquire!")
   (rs-get [rs run-id]
     "Retrieves a run without locking.")
@@ -35,21 +35,19 @@
 
 (defn create-run!
   [& {:keys [id, stack, state, response, run-response] :as fields}]
-  {:pre  [#_(satisfies? IRunStore @runstore)]
+  {:pre  [(satisfies? IRunStore @runstore)]
    :post [(r/run? %)]}
-  (println "create-run!" fields)
   (let [run (r/run-from-record (rs-create! @runstore (r/run-to-record (r/make-run (or fields {})))))]
     run))
 
 (defn save-run!
-  ([run] (save-run! run false))
-  ([run release]
+  ([run]
    {:pre  [(satisfies? IRunStore @runstore)
            (r/run? run)
            (not (= (:state run) :running))]
     :post [(r/run? %)]}
    (let [expires (-> run :suspend :expires)
-         saved-record (rs-update! @runstore (r/run-to-record run) release)
+         saved-record (rs-update! @runstore (r/run-to-record run) expires)
          new (r/run-from-record saved-record)]
      new)))
 
