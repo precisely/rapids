@@ -91,17 +91,17 @@
                       :error         [[:error freeze]]
                       :response      [[:response freeze]]}
         make-mapping (fn [[k value]]
-                       (println "make-mapping " k value)
+                       ;(println "make-mapping " k value)
                        (ifit [mapping (get key-mappings k)]
                          (let [mapping (apply concat
                                          (map
                                            #(let [[rec-key xform] %]
                                               (vector rec-key (xform value))) mapping))]
-                           (println "make-mapping => " mapping)
+                        ;   (println "make-mapping => " mapping)
                            mapping)
                          [k value]))
         hashargs     (apply concat (map make-mapping run))]
-    (println "run-to-record => " hashargs)
+    ;(println "run-to-record => " hashargs)
     (apply hash-map hashargs)))
 
 (defn or-nil? [o p]
@@ -119,7 +119,7 @@
     (letfn [(assoc-if-fn [run field rec-field xform]
               (ifit [val (rec-field record)
                      val (if val (xform val))]
-                (do (println "retrieved " field " => " val)
+                (do ; (println "retrieved " field " => " val)
                     (assoc run field val))
                 run))]
       (macrolet [(assoc-if [run field xform]

@@ -21,7 +21,7 @@
   {:pre  [(refers-to? flow/flow? flow)]
    :post [(r/run? %)]}
   (let [start-form `(~(:name flow) ~@args)
-        new-run    (assoc (rs/create-run! :state :suspended) :start-form start-form)]
+        new-run    (assoc (rs/create-run! :state :running) :start-form start-form)]
     (rc/with-run-context [new-run]
       ;; create the initial stack-continuation to kick of the process
       (eval-loop! (fn [_] (flow/entry-point flow args))))))
@@ -30,7 +30,7 @@
   "Processes an external event, finds the associated run and calls the continuation at the
   top of the stack, passing a result, which gets injected into the flow as the
   value of s suspending call.
-
+~
   Args:
     run-id - id the run to continue
     permit - if a Suspend :permit value was provided, it must match
@@ -48,7 +48,7 @@
 
   ([run-id permit result response]
    {:pre  [(not (nil? run-id))
-           (not (r/run-in-state? run-id :any))] ; en
+           (not (r/run? run-id ))] ; en
     :post [(r/run-in-state? % :suspended :complete)]}
    (rc/with-run-context [(rc/acquire! run-id permit)]
      (if-not (s/suspend-signal? (rc/current-suspend-signal))

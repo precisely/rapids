@@ -87,7 +87,7 @@
                                (cache-run! (assoc retrieved :state :running, :suspend nil)))
                 :running retrieved
                 (throw (Exception. (str "Cannot acquire run " run-id " from cache in state " (:state retrieved)))))))]
-    (let [cached-run (acquire-from-cache!)]
+    (let [cached-run (load! run-id)]
       (or cached-run
         ;; when acquiring from the runstore, reset the response:
         (cache-run! (assoc (rs/acquire-run! run-id permit) :response [], :run-response []))))))
@@ -97,7 +97,7 @@
   [run-id]
   (or
     (get *run-cache* run-id)
-    (ifit [run (rs/get-run run-id)]
+    (ifit [run (rs/lock-run! run-id)]
       (cache-run! run))))
 
 ;;;
@@ -111,7 +111,7 @@
 (defn root-run
   "Returns the root run"
   []
-  (load! *root-run-id*))
+  (acquire! *root-run-id*))
 
 ;;
 ;; accessors
@@ -186,7 +186,7 @@
   (update-run! #(assoc % :state :complete, :result result)))
 
 (defn set-suspend! [suspend]
-  (update-run! #(assoc % :state :suspended, :suspend suspend))
+  (update-run! #(assoc % :suspend suspend))
   suspend)
 
 (defn set-listen! [permit expires default]
@@ -204,9 +204,7 @@
          (cache-run! (assoc child,
                        :return-mode :block,
                        :parent-run-id (:id %)))
-         (assoc %
-           :state :suspended,
-           :suspend suspend)))
+         (assoc % :suspend suspend)))
     (if (redirected?)
       (s/make-return-signal)  ; returns a Control signal
       suspend)))              ; returns a Suspend signal
@@ -223,11 +221,11 @@
   to the child-run *after* it has completed a runlet. So this run will be decorated with a next-id, indicating
   a potential transfer of control. Thus, the redirection may not be directly to child-run, but to another
   run which child-run spawned."
-  {:pre [(not (r/run-in-state? child-run :running :error))]}
+  {:pre [(not (r/run-in-state? child-run :error))]}
   (case (:state child-run)
-    :suspended (if (blocked? child-run)
-                 child-run
-                 (redirect-to-suspended-run! child-run expires default))
+    :running (if (blocked? child-run)
+               child-run
+               (redirect-to-suspended-run! child-run expires default))
     :complete child-run))     ;; do not actually redirect - just return the run
 
 (defn return-from-redirect!
@@ -240,7 +238,7 @@
         result   (transfer-control-post-facto! parent-run)]
     ;; we must get the child run from the cache again because transfer-control has altered it
     ;; return it to default mode - not parent
-    (update-run! (load! child-id) #(assoc % :parent-run-id nil :return-mode nil))
+    (update-run! (load! child-id) #(assoc % :parent-run-id nil, :return-mode nil))
     result))
 
 
@@ -250,7 +248,7 @@
 (defn- redirect-to-suspended-run!
   "Suspends the current run,"
   [child-run expires default]
-  {:pre [(r/run-in-state? child-run :suspended)
+  {:pre [(r/run-in-state? child-run :running)
          (:next-id child-run)
          (-> child-run :parent-run-id nil?)]}
   (let [child-run (update-run! child-run #(assoc %

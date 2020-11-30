@@ -29,7 +29,7 @@
    (simulate-event! run permit nil))
 
   ([run permit value]
-   {:pre [(run-in-state? run :any)]}
+   {:pre [(run? run)]}
    (continue! (:id run) permit value)))
 
 (deflow suspending-flow

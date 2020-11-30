@@ -24,18 +24,8 @@
         (fn [p]
           (assoc p run-id record)))
       (get @processes run-id)))
-  (rs-acquire! [this run-id]
-    (swap! (:processes this)
-      (fn [processes]
-        (let [{state :state, :as rec} (get processes run-id)]
-          (if rec
-            (do
-              (if-not (= state "suspended")
-                (throw (Exception. (format "Cannot acquire Run %s from state %s"
-                                     run-id state))))
-              (assoc-in processes [run-id :state] "running"))
-            (throw (Exception. (format "Cannot acquire Run: %s not found."
-                                 run-id)))))))
+  (rs-lock! [this run-id]
+    ;; db version would actually lock the run against further updates
     (rs-get this run-id))
   (rs-get [this run-id]
     (let [run (get @(:processes this) run-id)]

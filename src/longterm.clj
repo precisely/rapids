@@ -11,7 +11,7 @@
 
 (import-vars
   [longterm.runstore set-runstore! create-run! save-run! get-run acquire-run!]
-  [longterm.run run-in-state? run-in-mode?]
+  [longterm.run run? run-in-state? run-in-mode?]
   [longterm.deflow deflow]
   [longterm.flow flow?]
   [longterm.run-context current-run]

@@ -18,7 +18,7 @@
     "Saves the record to storage created by acquire!")
   (rs-get [rs run-id]
     "Retrieves a run without locking.")
-  (rs-acquire! [rs run-id]
+  (rs-lock! [rs run-id]
     "Retrieves a run record, locking it against updates by other processes.
 
     Implementations should return:
@@ -46,9 +46,9 @@
            (r/run? run)
            (not (= (:state run) :running))]
     :post [(r/run? %)]}
-   (let [expires (-> run :suspend :expires)
+   (let [expires      (-> run :suspend :expires)
          saved-record (rs-update! @runstore (r/run-to-record run) expires)
-         new (r/run-from-record saved-record)]
+         new          (r/run-from-record saved-record)]
      new)))
 
 (defn get-run
@@ -57,16 +57,17 @@
    :post [(r/run? %)]}
   (r/run-from-record (rs-get @runstore run-id)))
 
-(defn acquire-run!
-  [run-id permit]
+(defn lock-run!
+  [run-id]
   {:pre  [(not (nil? run-id))]
-   :post [(run-in-state? % :running)]}
-  (let [record (rs-acquire! @runstore run-id)
-        _ (println "acquired record = " record)
-        {id :id, :as run} (r/run-from-record record)]
-    (println "run permit=" (-> run :suspend :permit) "required permit = " permit)
-    (if (r/valid-permit? run permit)
-      run
-      (throw (Exception. (str "Invalid permit provided for run " id))))))
+   :post [(r/run? %)]}
+  ;; TODO: We may need a way to explicitly release the db lock on the record
+  ;;       E.g., if code handles the exception thrown here, then the record which
+  ;;       was locked by `rs-acquire!` ought to be unlocked. This is more about
+  ;;       good hygiene to avoid potential deadlocks; not yet critical.
+  (let [record (rs-lock! @runstore run-id)]
+    (if record
+      (r/run-from-record record)
+      (throw (Exception. (str "Run not found " run-id))))))
 
 
