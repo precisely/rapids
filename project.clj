@@ -48,7 +48,8 @@
               :dependencies [[org.clojure/core.match "1.0.0"]] ; used by tests
               :plugins      [[lein-cloverage "1.1.2"]
                              [lein-localrepo "0.5.4"]]
-              }}
+              }
+             }
   :repl-options {:init-ns longterm}
 
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"

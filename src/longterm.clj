@@ -10,7 +10,7 @@
             [potemkin :refer [import-vars]]))
 
 (import-vars
-  [longterm.runstore set-runstore! create-run! save-run! get-run acquire-run!]
+  [longterm.runstore set-runstore! create-run! save-run! get-run lock-run!]
   [longterm.run run? run-in-state? run-in-mode?]
   [longterm.deflow deflow]
   [longterm.flow flow?]

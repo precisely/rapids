@@ -66,31 +66,23 @@
     (when (:dirty run)
       (cache-run! (dissoc run :dirty))
       (assert (r/run-in-state? run :error :complete :suspended))
-      (rs/save-run! run true))))
+      (rs/save-run! run))))
 
 (defn cache-run! [run]
   (assert (bound? #'*run-cache*))
   (set! *run-cache* (assoc *run-cache* (:id run) run))
   run)
 
-(defn check-permit [run permit]
-  (if (not= (-> run :suspend :permit) permit)
-    (throw (Exception. "Invalid permit provided for run " (:id run)))))
-
 (defn acquire!
-  "Atomically acquires the run in :running state - from the cache or storage"
+  "Acquires the run, setting it in :running state, and clearing the suspend object"
   [run-id permit]
-  (letfn [(acquire-from-cache! []
-            (ifit [retrieved (get *run-cache* run-id)]
-              (case (:state retrieved)
-                :suspended (do (check-permit retrieved permit)
-                               (cache-run! (assoc retrieved :state :running, :suspend nil)))
-                :running retrieved
-                (throw (Exception. (str "Cannot acquire run " run-id " from cache in state " (:state retrieved)))))))]
-    (let [cached-run (load! run-id)]
-      (or cached-run
-        ;; when acquiring from the runstore, reset the response:
-        (cache-run! (assoc (rs/acquire-run! run-id permit) :response [], :run-response []))))))
+  (let [retrieved (load! run-id)]
+    (if-not (r/run-in-state? retrieved :suspended)
+      (throw (Exception. (str "Cannot acquire Run " run-id " from cache in state " (:state retrieved)))))
+    (if (not= (-> retrieved :suspend :permit) permit)
+      (throw (Exception. (str "Cannot acquire Run " run-id " invalid permit"))))
+
+    (cache-run! (assoc retrieved :state :running, :run-response [], :suspend nil))))
 
 (defn load!
   "Gets the run from the cache or storage"
@@ -111,7 +103,7 @@
 (defn root-run
   "Returns the root run"
   []
-  (acquire! *root-run-id*))
+  (load! *root-run-id*))
 
 ;;
 ;; accessors
@@ -160,9 +152,11 @@
 ;; modifiers
 ;;
 (defn initialize-runlet [initial-response]
-  (update-run! #(assoc % :suspend nil, :run-response initial-response)))
+  (update-run! #(assoc % :suspend nil, :response initial-response, :run-response initial-response)))
 
 (defn push-stack! [address bindings result-key]
+  {:post [(r/run? %)
+          (linked-list? (:stack %))]}
   (let [frame (sf/make-stack-frame address bindings result-key)]
     (update-run! #(assoc % :stack (cons frame (:stack %))))))
 
@@ -186,7 +180,7 @@
   (update-run! #(assoc % :state :complete, :result result)))
 
 (defn set-suspend! [suspend]
-  (update-run! #(assoc % :suspend suspend))
+  (update-run! #(assoc % :state :suspended, :suspend suspend))
   suspend)
 
 (defn set-listen! [permit expires default]
@@ -204,7 +198,7 @@
          (cache-run! (assoc child,
                        :return-mode :block,
                        :parent-run-id (:id %)))
-         (assoc % :suspend suspend)))
+         (assoc % :state :suspended, :suspend suspend)))
     (if (redirected?)
       (s/make-return-signal)  ; returns a Control signal
       suspend)))              ; returns a Suspend signal
@@ -223,9 +217,9 @@
   run which child-run spawned."
   {:pre [(not (r/run-in-state? child-run :error))]}
   (case (:state child-run)
-    :running (if (blocked? child-run)
-               child-run
-               (redirect-to-suspended-run! child-run expires default))
+    :suspended (if (blocked? child-run)
+                 child-run
+                 (redirect-to-suspended-run! child-run expires default))
     :complete child-run))     ;; do not actually redirect - just return the run
 
 (defn return-from-redirect!
@@ -248,7 +242,7 @@
 (defn- redirect-to-suspended-run!
   "Suspends the current run,"
   [child-run expires default]
-  {:pre [(r/run-in-state? child-run :running)
+  {:pre [(r/run-in-state? child-run :suspended)
          (:next-id child-run)
          (-> child-run :parent-run-id nil?)]}
   (let [child-run (update-run! child-run #(assoc %

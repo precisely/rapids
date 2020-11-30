@@ -49,11 +49,8 @@
   ([run-id permit result response]
    {:pre  [(not (nil? run-id))
            (not (r/run? run-id ))] ; en
-    :post [(r/run-in-state? % :suspended :complete)]}
+    :post [(not (r/run-in-state? % :running))]}
    (rc/with-run-context [(rc/acquire! run-id permit)]
-     (if-not (s/suspend-signal? (rc/current-suspend-signal))
-       (throw (Exception. (format "Attempt to continue Run %s which is not suspended" (rc/id)))))
-     ;; clear the Suspend object and set initial responses
      (rc/initialize-runlet response)
      (eval-loop! (next-continuation!) result))))
 
@@ -69,14 +66,6 @@
   []
   (ifit (rc/pop-stack!)
     (sf/stack-continuation it)))
-
-(defn- check-valid-parent [parent-run child-run]
-  (let [{true-parent-id :id} parent-run,
-        {child-id        :id,
-         child-parent-id :parent-run-id} child-run]
-    (if-not (= child-parent-id true-parent-id)
-      (throw (Exception. (str "Attempt to block on or redirect to child run " child-id " from parent run " true-parent-id
-                           " when child run has a different parent: " child-parent-id))))))
 
 (declare process-run! reduce-stack! process-run-value!)
 (defn- eval-loop!

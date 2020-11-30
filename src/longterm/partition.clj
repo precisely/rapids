@@ -1,6 +1,7 @@
 (ns longterm.partition
   (:require [longterm.address :as a]
             [longterm.util :refer :all]
+            [longterm.partition-utils :refer :all]
             [longterm.run-context :as rc]
             [longterm.flow :as flow]
             [longterm.recur :refer [with-tail-position with-binding-point]]
@@ -330,7 +331,7 @@
           pset                   (pset/combine body-pset bindings-pset loop-pset)]
       (if any-suspend?
         [binding-start, pset, any-suspend?]
-        [expr, nil, false]))))
+        [expr, pset, false]))))
 
 (defn partition-recur-expr
   "Returns:
@@ -359,11 +360,11 @@
 
           same-partition (and (false? suspend?) (= partition loop-address))]
       (if same-partition
-        [start, nil, false]   ; plain vanilla recur!
+        [start, pset, false]   ; plain vanilla recur!
         (if suspend?
           [start, pset, true] ;; arguments suspended
           (if same-partition
-            [expr, nil, false]
+            [expr, pset, false]
             [(make-call args), pset, false]))))))
 
 ;;
@@ -514,32 +515,3 @@
    `(let [bindings# ~(bindings-expr-from-params params)]
       (rc/push-stack! ~address bindings# '~result-key)
       ~@body)))
-;;
-;; HELPERS
-;;
-(defn bindings-expr-from-params
-  ([params] (bindings-expr-from-params params params))
-  ([key-params, arg-params]
-  `(hash-map ~@(interleave (map keyword key-params) arg-params))))
-
-(defn macroexpand-keeping-metadata
-  [expr]
-  (let [expr-meta (meta expr)
-        mexpr     (macroexpand expr)]
-    (if expr-meta
-      (with-meta mexpr expr-meta)
-      mexpr)))
-
-(defn nsymbols
-  ([address n] (nsymbols address n 0))
-
-  ([address n start]
-   (let [base (str "p|" (clojure.string/join "-" (:point address)))]
-     (map #(symbol (str base "|" %)) (range start n)))))
-
-(defn throw-partition-error
-  ([name expr] (throw-partition-error name expr nil))
-  ([name expr msg & args]
-   (let [loc        (ifit (:line (meta expr)) (format " (line %s)" it) "")
-         extra-info (if msg (str ". " (apply format msg args)) "")]
-     (throw (Exception. (format "%s%s%s: %s" name loc extra-info expr))))))

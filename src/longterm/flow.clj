@@ -2,7 +2,8 @@
   (:require [longterm.address :as address]
             [longterm.util :refer [refers-to?]]
             [longterm.defrecordfn :refer [defrecordfn]]
-            [longterm.address :as a]))
+            [longterm.address :as a]
+            [taoensso.nippy :refer [extend-freeze extend-thaw]]))
 
 (defrecordfn Flow
   [;; Global symbol defined as this flow
@@ -46,3 +47,14 @@
   (print-simple
     (str "#<Flow " (:name o) ">")
     w))
+
+;;
+;; nippy
+;;
+(extend-freeze Flow ::flow ; A unique (namespaced) type identifier
+  [x data-output]
+  (.writeUTF data-output (:name x)))
+
+(extend-thaw ::flow ; Same type id
+  [data-input]
+  (var-get (resolve (.readUTF data-input))))

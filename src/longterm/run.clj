@@ -1,5 +1,5 @@
 (ns longterm.run
-  (:require [longterm.util :refer [in? new-uuid ifit]]
+  (:require [longterm.util :refer [in? new-uuid ifit linked-list?]]
             [longterm.signals :as signals]
             [taoensso.nippy :refer [freeze thaw]]
             [clojure.spec.alpha :as s]
@@ -40,7 +40,7 @@
 (s/def ::return-mode ReturnModes)
 (s/def ::parent-run-id ::id)
 (s/def ::next-id ::id)
-(s/def ::stack (s/and list? (s/* sf/stack-frame?)))
+(s/def ::stack (s/and seq? (s/* sf/stack-frame?)))
 (s/def ::suspend signals/suspend-signal?)
 (s/def ::error #(instance? Exception %))
 (s/def ::result (constantly true))
@@ -97,7 +97,7 @@
                                          (map
                                            #(let [[rec-key xform] %]
                                               (vector rec-key (xform value))) mapping))]
-                        ;   (println "make-mapping => " mapping)
+                           ;   (println "make-mapping => " mapping)
                            mapping)
                          [k value]))
         hashargs     (apply concat (map make-mapping run))]
@@ -119,8 +119,7 @@
     (letfn [(assoc-if-fn [run field rec-field xform]
               (ifit [val (rec-field record)
                      val (if val (xform val))]
-                (do ; (println "retrieved " field " => " val)
-                    (assoc run field val))
+                (assoc run field val)
                 run))]
       (macrolet [(assoc-if [run field xform]
                    `(~'assoc-if-fn ~run ~field ~(sausage-to-snake field) ~xform))]

@@ -2,9 +2,10 @@
   (:require
     [longterm.util :refer [in? new-uuid]]
     [longterm.run :as r]
-    [longterm.util :refer :all]))
+    [longterm.util :refer :all]
+    [clojure.spec.alpha :as s]))
 
-(declare run-in-state? set-runstore! create-run! save-run! get-run acquire-run!)
+(declare run-in-state? set-runstore! create-run! save-run! get-run)
 
 (def runstore (atom nil))
 
@@ -46,6 +47,7 @@
            (r/run? run)
            (not (= (:state run) :running))]
     :post [(r/run? %)]}
+   ;(println "save-run!" run)
    (let [expires      (-> run :suspend :expires)
          saved-record (rs-update! @runstore (r/run-to-record run) expires)
          new          (r/run-from-record saved-record)]

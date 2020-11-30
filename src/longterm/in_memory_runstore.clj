@@ -30,7 +30,9 @@
   (rs-get [this run-id]
     (let [run (get @(:processes this) run-id)]
       (ifit [next-id (:next-id run)]
-        (assoc run :next (get @(:processes this) next-id))
+        (if (not= next-id (:id run))
+          (assoc run :next (get @(:processes this) next-id))
+          run)
         run))))
 
 (defn in-memory-runstore? [x] (instance? InMemoryRunStore x))

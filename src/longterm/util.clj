@@ -1,7 +1,7 @@
 (ns longterm.util
   (:require [clojure.java.io :as io])
   (:import (java.util UUID Properties)
-           (clojure.lang Namespace)))
+           (clojure.lang Namespace Cons)))
 
 (defn refers-to?
   "Dereferences a symbol or var and applies pred to the referenced value"
@@ -53,6 +53,11 @@
     (doto (Properties.)
       (.load pom-properties-reader))))
 
+(defn linked-list?
+  "Unlike the confusingly named `list?` this actually returns true for all lists; i.e., including things constructed with cons"
+  [o]
+  (or (list? o) (instance? Cons o)))
+
 (defmacro ifit
   "If with implicit or explicit binding of the test value:
 
@@ -80,3 +85,6 @@
      (if (bound? #'~k)
        (do-body#)
        (binding [~k ~v] (do-body#)))))
+
+(defn unqualified-symbol? [o]
+  (and (symbol? o) (not (qualified-symbol? o))))
