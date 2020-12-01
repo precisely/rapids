@@ -7,7 +7,8 @@
             [longterm.recur :refer [with-tail-position with-binding-point]]
             [longterm.partition-set :as pset]
             [longterm.signals :refer [suspending-operator?]]
-            [longterm.recur :refer :all]))
+            [longterm.recur :refer :all]
+            [longterm.closure :as closure]))
 
 ;;;; Partitioner
 
@@ -58,9 +59,9 @@
   partition-functional-expr partition-bindings
   partition-if-expr partition-let*-expr partition-fn*-expr
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
-  partition-vector-expr partition-map-expr macroexpand-keeping-metadata
-  partition-suspend-expr throw-partition-error
-  nsymbols resume-at bindings-expr-from-params)
+  partition-vector-expr partition-map-expr
+  partition-suspend-expr
+  resume-at)
 
 (defn partition-body
   "Partitions a list of expressions, e.g., for do, let and deflow forms
@@ -194,21 +195,17 @@
   expands into a (fn ...) expression. This is a bit of a blunt instrument,
   but not sure what else to do right now."
   [expr mexpr partition-addr address params]
-  (letfn [(sig-suspends? [sig]
+  (letfn [(check-non-suspending [sig]
             (let [body (rest sig)
                   [_, _, suspend?] (partition-body body partition-addr address params)]
               (if suspend?
                 (throw-partition-error "Illegal attempt to suspend in function body" expr))
               suspend?))]
-    (let [sigs        (rest mexpr)
-          name        (if (symbol? (first sigs)) (first sigs) nil)
-          sigs        (if name (next sigs) sigs)
-          sigs        (if (vector? (first sigs))
-                        (list sigs)
-                        sigs)
-          suspending? (some #(sig-suspends? %) sigs)]
-      (assert (not suspending?))
-      [expr, nil, false])))
+    (let [[_, sigs]        (closure/extract-fn-defs mexpr)
+          _ (doseq [sig sigs] (check-non-suspending sig))
+          [ctor, pset] (closure/closure-constructor mexpr address params)]
+
+      [ctor, pset, false])))
 
 (defn partition-let*-expr
   [expr mexpr partition-addr address params]

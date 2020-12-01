@@ -3,6 +3,7 @@
             longterm.run-loop
             [longterm.util :refer [qualify-symbol]]
             [longterm.partition :as p]
+            [longterm.partition-utils :refer [bindings-expr-from-params]]
             [longterm.partition-set :as pset])
   (:import (longterm.flow Flow)))
 
@@ -22,7 +23,7 @@
         address (address/create qualified)
         [start-body, pset, _] (p/partition-body (vec code) address address params)
         pset (pset/add pset address params start-body)
-        entry-continuation-bindings (p/bindings-expr-from-params params)
+        entry-continuation-bindings (bindings-expr-from-params params)
         entry-point-name (symbol (str name "__entry-point"))]
     `(let [cset# ~(pset/continuation-set-def pset)          ; compiles the fndefs in the pset
            entry-continuation# (get cset# ~address)

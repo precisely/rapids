@@ -7,7 +7,8 @@
             [longterm.defrecordfn :refer [defrecordfn]]
             [longterm.flow :as flow]
             [longterm.util :refer [in? unqualified-symbol?]]
-            [longterm.partition-utils :refer :all]))
+            [longterm.partition-utils :refer :all]
+            [longterm.partition-set :as pset]))
 
 (declare closure-bindings)
 
@@ -19,18 +20,43 @@
 
 (defn closure? [o] (instance? Closure o))
 
-(defn partition-closure
+(declare extract-fn-defs)
+(defn closure-constructor
   "Given an expr (fn-form) which constructs a function and lexical parameters available for binding,
   returns:
-  [closure-expr, continuation-def]
-  closure-expr returns a Closure within a deflow body.
+  [closure-ctor, pset]
+  closure-ctor expression that returns a Closure within a de& body.
   continuation-def is a definition of a continuation function which returns a closure
   of the fn defined by expr based on the current lexical bindings."
-  [fn-form address params]
+  [fn-form address env-params]
   {:pre  [(s/assert ::fn-form fn-form)
-          (s/assert ::params params)]
+          (s/assert ::params env-params)]
    :post [(s/assert [::fn-form, ::fn-form] %)]}
-  (let [captured-params           (params-used-by fn-form params)
-        closure-continuation-def `(fn [{:keys ~captured-params}] ~fn-form)
-        closure-def              `(->Closure address ~(bindings-expr-from-params captured-params))]
-    [closure-def, closure-continuation-def]))
+  (let [[_, fndefs] (extract-fn-defs fn-form)
+        params          (map first fndefs)
+        bodies          (map rest fndefs)
+        captured-params (closure-captured-bindings params, bodies, env-params)
+        closure-ctor    `(->Closure ~address ~(bindings-expr-from-params captured-params))
+
+        pset            (pset/add (pset/create) address captured-params [fn-form])]
+    [closure-ctor, pset]))
+
+(defn extract-fn-defs [form]
+  "Returns [name, sigs]"
+  (let [[_ & sigs] form
+        name (if (symbol? (first sigs)) (first sigs) nil)
+        sigs (if name (next sigs) sigs)
+        sigs (if (vector? (first sigs))
+               (list sigs)
+               (if (seq? (first sigs))
+                 sigs
+                 ;; Assume single arity syntax
+                 (throw (IllegalArgumentException.
+                          (if (seq sigs)
+                            (str "Parameter declaration "
+                              (first sigs)
+                              " should be a vector")
+                            (str "Parameter declaration missing"))))))]
+    [name, sigs]))
+
+

@@ -17,6 +17,7 @@
 ;;;
 (defrecord Partition [params body])
 
+(defn partition? [o] (instance? Partition o))
 (defn partition-set? [o] (map? o))
 
 (defn create []

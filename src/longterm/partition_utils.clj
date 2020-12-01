@@ -1,7 +1,7 @@
 (ns longterm.partition-utils
   (:require [longterm.util :refer [ifit in? unqualified-symbol?]]
             [clojure.walk :refer [postwalk]]
-            [clojure.set :refer [intersection]]))
+            [clojure.set :refer [intersection difference]]))
 
 ;;
 ;; HELPERS
@@ -38,12 +38,15 @@
   (set (filter unqualified-symbol?
          (postwalk #(cond
                       (seq? %) (flatten %)
+                      (set? %) (flatten (vec %))
                       (map? %) (flatten (map identity %))
                       :else %) form))))
 
-(defn params-used-by
+(defn closure-captured-bindings
   "Given a form and a vector of unqualified symbols, returns the symbols which appear in form"
-  [form env-params]
-  (let [form-bindings (unqualified-symbols-in form)]
-    (vec (intersection form-bindings env-params))))
+  [fn-params fn-body env-params]
+  (let [form-symbols (unqualified-symbols-in fn-body)
+        body-bindings (intersection form-symbols (set env-params))
+        captured-bindings (difference body-bindings (set fn-params))]
+    (vec captured-bindings)))
 
