@@ -201,14 +201,14 @@
               (if suspend?
                 (throw-partition-error "Illegal attempt to suspend in function body" expr))
               suspend?))]
-    (let [[_, sigs]        (closure/extract-fn-defs mexpr)
+    (let [[_, sigs] (closure/extract-fn-defs mexpr)
           _ (doseq [sig sigs] (check-non-suspending sig))
           [ctor, pset] (closure/closure-constructor mexpr address params)]
 
       [ctor, pset, false])))
 
 (defn partition-let*-expr
-  [expr mexpr partition-addr address params]
+  [_, mexpr, partition-addr, address, params]
   (let [address         (a/child address 'let)
         binding-address (a/child address 0)
         body-address    (a/child address 1)
@@ -222,10 +222,12 @@
         (partition-bindings keys, args, partition-addr, binding-address, params, body-start)
 
         pset            (pset/combine body-pset bind-pset)]
-    (if bind-suspend?
-      [bind-start, pset, true]
-
-      [(with-meta `(let ~bindings ~@body-start) (meta expr)), pset, body-suspend?])))
+    [bind-start, pset, (or bind-suspend? body-suspend?)]))
+;; TODO: REMOVE:
+;(if bind-suspend?
+;  [bind-start, pset, true]
+;
+;  [(with-meta `(let ~bindings ~@body-start) (meta expr)), pset, body-suspend?])))
 
 (defn partition-if-expr
   [expr mexpr partition-addr address params]
@@ -357,7 +359,7 @@
 
           same-partition (and (false? suspend?) (= partition loop-address))]
       (if same-partition
-        [start, pset, false]   ; plain vanilla recur!
+        [start, pset, false]  ; plain vanilla recur!
         (if suspend?
           [start, pset, true] ;; arguments suspended
           (if same-partition
@@ -480,7 +482,7 @@
                   new-params, start, (or suspend? any-suspend?), pset))
               (do
                 (recur rest-keys, rest-args
-                  (conj current-bindings [key arg]),
+                  (conj current-bindings [key arg-start]),
                   partition-address, next-address,
                   part-params, start, any-suspend?, pset))))
 

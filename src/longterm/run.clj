@@ -92,11 +92,11 @@
                       :response      [[:response freeze]]}
         make-mapping (fn [[k value]]
                        ;(println "make-mapping " k value)
-                       (ifit [mapping (get key-mappings k)]
+                       (ifit [km (get key-mappings k)]
                          (let [mapping (apply concat
                                          (map
                                            #(let [[rec-key xform] %]
-                                              (vector rec-key (xform value))) mapping))]
+                                              (vector rec-key (xform value))) km))]
                            ;   (println "make-mapping => " mapping)
                            mapping)
                          [k value]))

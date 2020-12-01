@@ -15,7 +15,7 @@
 (defrecordfn Closure [address bindings]
   (fn [& args] (apply (flow/exec address bindings) args)))
 
-(s/def ::fn-form (s/and seq? #(in? '[fn fn*] %)))
+;(s/def ::fn-form (s/and seq? (s/cat :op (s/or :unqual-fn 'fn :unqual-fn* 'fn* :fn `fn :fn* `fn*))))
 (s/def ::params (s/* unqualified-symbol?))
 
 (defn closure? [o] (instance? Closure o))
@@ -29,9 +29,8 @@
   continuation-def is a definition of a continuation function which returns a closure
   of the fn defined by expr based on the current lexical bindings."
   [fn-form address env-params]
-  {:pre  [(s/assert ::fn-form fn-form)
-          (s/assert ::params env-params)]
-   :post [(s/assert [::fn-form, ::fn-form] %)]}
+  {:pre  [;(s/assert ::fn-form fn-form)
+          (s/assert ::params env-params)]}
   (let [[_, fndefs] (extract-fn-defs fn-form)
         params          (map first fndefs)
         bodies          (map rest fndefs)
