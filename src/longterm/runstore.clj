@@ -2,12 +2,11 @@
   (:require
     [longterm.util :refer [in? new-uuid]]
     [longterm.run :as r]
-    [longterm.util :refer :all]
-    [clojure.spec.alpha :as s]))
+    [longterm.util :refer :all]))
 
 (declare run-in-state? set-runstore! create-run! save-run! get-run)
 
-(def runstore (atom nil))
+(def ^:dynamic *runstore* (atom nil))
 
 (defprotocol IRunStore
   (rs-tx-begin [rs]
@@ -32,24 +31,24 @@
 ;;
 
 (defn set-runstore! [rs]
-  (reset! runstore rs))
+  (reset! *runstore* rs))
 
 (defn create-run!
   [& {:keys [id, stack, state, response, run-response] :as fields}]
-  {:pre  [(satisfies? IRunStore @runstore)]
+  {:pre  [(satisfies? IRunStore @*runstore*)]
    :post [(r/run? %)]}
-  (let [run (r/run-from-record (rs-create! @runstore (r/run-to-record (r/make-run (or fields {})))))]
+  (let [run (r/run-from-record (rs-create! @*runstore* (r/run-to-record (r/make-run (or fields {})))))]
     run))
 
 (defn save-run!
   ([run]
-   {:pre  [(satisfies? IRunStore @runstore)
+   {:pre  [(satisfies? IRunStore @*runstore*)
            (r/run? run)
            (not (= (:state run) :running))]
     :post [(r/run? %)]}
    ;(println "save-run!" run)
    (let [expires      (-> run :suspend :expires)
-         saved-record (rs-update! @runstore (r/run-to-record run) expires)
+         saved-record (rs-update! @*runstore* (r/run-to-record run) expires)
          new          (r/run-from-record saved-record)]
      new)))
 
@@ -57,7 +56,7 @@
   [run-id]
   {:pre  [(not (nil? run-id))]
    :post [(r/run? %)]}
-  (r/run-from-record (rs-get @runstore run-id)))
+  (r/run-from-record (rs-get @*runstore* run-id)))
 
 (defn lock-run!
   [run-id]
@@ -67,9 +66,11 @@
   ;;       E.g., if code handles the exception thrown here, then the record which
   ;;       was locked by `rs-acquire!` ought to be unlocked. This is more about
   ;;       good hygiene to avoid potential deadlocks; not yet critical.
-  (let [record (rs-lock! @runstore run-id)]
+  (let [record (rs-lock! @*runstore* run-id)]
     (if record
       (r/run-from-record record)
       (throw (Exception. (str "Run not found " run-id))))))
 
 
+(defn tx-begin! [] (rs-tx-begin @*runstore*))
+(defn tx-commit! [] (rs-tx-commit @*runstore*))

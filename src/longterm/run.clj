@@ -136,9 +136,3 @@
           (assoc-if :error thaw)
           (assoc-if :suspend thaw))))))
 
-(defn valid-permit?
-  "Checks whether the permit is valid - for now, this is just a check that the permit
-  field is identitcal to the passed permit value, but in future it could include a running
-  a guard function provided by a suspending operation"
-  [run permit]
-  (= (:permit run) permit))

@@ -12,7 +12,9 @@
             [longterm.stack-frame :as sf]
             [longterm.signals :refer [make-suspend-signal]]
             [longterm.signals :as s]
-            [longterm.run :as r]))
+            [longterm.run :as r]
+            [taoensso.nippy :refer [extend-freeze extend-thaw]])
+  (:import (longterm.run Run)))
 
 (def ^{:dynamic true
        :doc     "The id of the run that initiated the current runlet (which may be a child or parent)"}
@@ -37,9 +39,10 @@
      (if (bound? #'*run-cache*)
        (dobody#)
        (binding [*run-cache* {}]
-         ;; (rs-tx-start @runstore)
+         (rs/tx-begin!)
          (let [result# (dobody#)]
            (save-cache!)
+           (rs/tx-commit!)
            result#)))))
 ;; TODO: figure out exception handling strategy
 ;;(catch Exception e (rollback))))
@@ -315,3 +318,13 @@
            :next-id next-id,
            :next (if (not= next-id run-id) next-run))))))
 
+;;
+;; nippy
+;;
+(extend-freeze Run ::run
+  [x data-output]
+  (.writeUTF data-output (:id x)))
+
+(extend-thaw ::run
+  [data-input]
+  (load! (.readUTF data-input)))
