@@ -6,7 +6,7 @@
 
 (deftest ^:unit RunStore
   (testing "runstore is set to default InMemoryRunStore"
-    (is (in-memory-runstore? @longterm.runstore/runstore))))
+    (is (in-memory-runstore? @longterm.runstore/*runstore*))))
 
 (def ^:dynamic *log* (atom []))
 (defn clear-log!

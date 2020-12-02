@@ -14,7 +14,8 @@
             [longterm.signals :as s]
             [longterm.run :as r]
             [taoensso.nippy :refer [extend-freeze extend-thaw]])
-  (:import (longterm.run Run)))
+  (:import [longterm.run Run]
+           [java.util UUID]))
 
 (def ^{:dynamic true
        :doc     "The id of the run that initiated the current runlet (which may be a child or parent)"}
@@ -322,9 +323,16 @@
 ;; nippy
 ;;
 (extend-freeze Run ::run
-  [x data-output]
-  (.writeUTF data-output (:id x)))
+  [run data-output]
+  (let [run-id (prn-str (:id run))]
+    (.writeUTF data-output run-id)))
 
 (extend-thaw ::run
   [data-input]
-  (load! (.readUTF data-input)))
+  (let [run-id (read-string (.readUTF data-input))]
+    (if (bound? #'*run-cache*)
+      (load! run-id)
+
+      ;; special handling for when a run is retrieved outside of a run-cache context
+      ;; just get the run without locking it or storing it in the cache
+      (rs/get-run run-id))))

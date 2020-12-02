@@ -27,7 +27,7 @@
     (dissoc m k)))
 
 (defn new-uuid []
-  (str (UUID/randomUUID)))
+  (UUID/randomUUID))
 
 (defn reverse-interleave [s n]
   "Reverses interleave of sequence s into n lists"

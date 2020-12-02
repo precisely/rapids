@@ -6,8 +6,11 @@
 
 (defrecord InMemoryRunStore [processes expiry-index]
   IRunStore
+  (rs-tx-begin! [_])
+  (rs-tx-commit! [_])
+  (rs-tx-rollback! [_])
   (rs-create! [this record]
-    (let [run-id    (str (new-uuid))
+    (let [run-id    (new-uuid)
           record    (assoc record :id run-id)
           processes (:processes this)]
       (swap! processes assoc run-id record)

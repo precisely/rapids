@@ -53,8 +53,9 @@
 ;;
 (extend-freeze Flow ::flow ; A unique (namespaced) type identifier
   [x data-output]
-  (.writeUTF data-output (:name x)))
+  (.writeUTF data-output (str (:name x))))
 
 (extend-thaw ::flow ; Same type id
   [data-input]
-  (var-get (resolve (.readUTF data-input))))
+  (let [flow-name (.readUTF data-input)]
+    (var-get (resolve (symbol flow-name)))))

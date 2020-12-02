@@ -4,8 +4,10 @@
             [taoensso.nippy :refer [freeze thaw]]
             [clojure.spec.alpha :as s]
             [longterm.stack-frame :as sf]
-            [clojure.tools.macro :refer [macrolet]])
-  (:import (java.util UUID)))
+            [clojure.tools.macro :refer [macrolet]]
+            [java-time :as t])
+  (:import (java.util UUID)
+           (java.time LocalDateTime)))
 
 (declare run-in-state? set-runstore! create-run! save-run! get-run acquire-run!)
 
@@ -35,28 +37,48 @@
                         ::next, ::next-id
                         ::updated-at, ::created-at]))
 
-(s/def ::id (s/or :string string? :number number? :uuid uuid?))
-(s/def ::state RunStates)
-(s/def ::return-mode ReturnModes)
-(s/def ::parent-run-id ::id)
-(s/def ::next-id ::id)
-(s/def ::stack (s/and seq? (s/* sf/stack-frame?)))
-(s/def ::suspend signals/suspend-signal?)
+(s/def ::id uuid?) ;(s/or :string string? :number number? :uuid uuid?))
 (s/def ::error #(instance? Exception %))
-(s/def ::result (constantly true))
-(s/def ::response vector?)
-(s/def ::run-response vector?)
-(s/def ::start-form list?)
 (s/def ::next ::run)
+(s/def ::next-id ::id)
+(s/def ::parent-run-id ::id)
+(s/def ::response vector?)
+(s/def ::result (constantly true))
+(s/def ::return-mode ReturnModes)
+(s/def ::run-response vector?)
+(s/def ::state RunStates)
+(s/def ::stack (s/and seq? (s/* sf/stack-frame?)))
+(s/def ::start-form list?)
+(s/def ::suspend signals/suspend-signal?)
 
-(s/def :stored/object frozen?)
-(s/def :stored/value string?)
-(s/def :stored/return-mode string?)
-(s/def :stored/result :stored/object)
-(s/def :stored/response :stored/object)
-(s/def :stored/error :stored/object)
-(s/def :stored/run-response :stored/object)
+(s/def ::frozen frozen?)
+(s/def ::datetime #(instance? LocalDateTime %))
 
+(s/def :record/id ::id)
+(s/def :record/error (s/nilable ::frozen))
+(s/def :record/expires (s/nilable ::datetime))
+(s/def :record/next_id (s/nilable ::id))
+(s/def :record/parent_run_id (s/nilable ::id))
+(s/def :record/response ::frozen)
+(s/def :record/result (s/nilable ::frozen))
+(s/def :record/return_mode (s/nilable (set (map #(name %) ReturnModes))))
+(s/def :record/run_response ::frozen)
+(s/def :record/state (set (map #(name %) RunStates)))
+(s/def :record/stack ::frozen)
+(s/def :record/start_form (s/nilable string?))
+(s/def :record/suspend (s/nilable ::frozen))
+(s/def :record/suspend_expires (s/nilable ::datetime))
+(s/def :record/suspend_permit (s/nilable string?))
+(s/def :record/updated_at ::datetime)
+(s/def :record/created_at ::datetime)
+
+(s/def ::record (s/keys :req-un [:record/id :record/state]
+                  :opt-un [:record/error,
+                           :record/next_id, :record/parent_run_id,
+                           :record/response, :record/result, :record/return_mode, :record/run_response,
+                           :record/state, :record/stack, :record/start_form,
+                           :record/suspend, :record/suspend_expires, :record/suspend_permit
+                           :record/updated_at, :record/created_at]))
 (defn make-run
   ([] (make-run {}))
 
@@ -76,22 +98,25 @@
                 :result       result,
                 :run-response run-response}))))
 
-(defn run-to-record [run]
-  "Generates a map where keyword "
-  (let [key-mappings {:state         [[:state #(.getName %)]]
+(defn key-to-str [key]
+  (if key (name key)))
+
+(defn run-to-record
+  "Maps a run to a hash-map containing a constrained set of values suitable for storage in a database:
+  uuids, strings, date-times and binary objects (usually representing complex closure structures)."
+  [run]
+  {:post [(s/assert ::record %)]}
+  (let [key-mappings {:state         [[:state key-to-str]]
                       :stack         [[:stack freeze]]
                       :result        [[:result freeze]]
                       :run-response  [[:run_response freeze]]
-                      :suspend       [[:suspend freeze]
-                                      [:suspend_permit #(:permit %)]
-                                      [:suspend_expires #(:expires %)]]
-                      :return-mode   [[:return_mode #(if % (.getName %))]]
+                      :suspend       [[:suspend freeze]]
+                      :return-mode   [[:return_mode key-to-str]]
                       :parent-run-id [[:parent_run_id identity]]
                       :next-id       [[:next_id identity]]
                       :error         [[:error freeze]]
                       :response      [[:response freeze]]}
         make-mapping (fn [[k value]]
-                       ;(println "make-mapping " k value)
                        (ifit [km (get key-mappings k)]
                          (let [mapping (apply concat
                                          (map
@@ -101,7 +126,6 @@
                            mapping)
                          [k value]))
         hashargs     (apply concat (map make-mapping run))]
-    ;(println "run-to-record => " hashargs)
     (apply hash-map hashargs)))
 
 (defn or-nil? [o p]

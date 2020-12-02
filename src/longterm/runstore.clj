@@ -9,9 +9,11 @@
 (def ^:dynamic *runstore* (atom nil))
 
 (defprotocol IRunStore
-  (rs-tx-begin [rs]
+  (rs-tx-begin! [rs]
     "Begin a transaction")
-  (rs-tx-commit [rs]
+  (rs-tx-commit! [rs]
+    "Commit a transaction")
+  (rs-tx-rollback! [rs]
     "Commit a transaction")
   (rs-create! [rs record])
   (rs-update! [rs record expires]
@@ -71,6 +73,16 @@
       (r/run-from-record record)
       (throw (Exception. (str "Run not found " run-id))))))
 
+(defn tx-begin! [] (rs-tx-begin! @*runstore*))
+(defn tx-commit! [] (rs-tx-commit! @*runstore*))
+(defn tx-rollback! [] (rs-tx-rollback! @*runstore*))
 
-(defn tx-begin! [] (rs-tx-begin @*runstore*))
-(defn tx-commit! [] (rs-tx-commit @*runstore*))
+(defmacro with-transaction [runstore & body]
+  `(let [*runstore* (atom ~runstore)]
+     (tx-begin!)
+     (try
+       (let [result# (do ~@body)]
+         (tx-commit!)
+         result#)
+       (catch Exception _
+         (tx-rollback!)))))
