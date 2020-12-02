@@ -125,7 +125,7 @@
                              clean-pset)]
            (if any-suspend?
              [start-body, pset, any-suspend?]
-             [part-body, nil, false])))))))
+             [part-body, (pset/remove-unforced pset), false])))))))
 
 ;;
 ;; Expressions
@@ -223,11 +223,6 @@
 
         pset            (pset/combine body-pset bind-pset)]
     [bind-start, pset, (or bind-suspend? body-suspend?)]))
-;; TODO: REMOVE:
-;(if bind-suspend?
-;  [bind-start, pset, true]
-;
-;  [(with-meta `(let ~bindings ~@body-start) (meta expr)), pset, body-suspend?])))
 
 (defn partition-if-expr
   [expr mexpr partition-addr address params]

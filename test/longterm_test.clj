@@ -385,9 +385,9 @@
 
 (deflow flow-with-anonymous-fn [] (map #(* % %) (<* :permit :list)))
 
-(deflow flow-with-closure [x y z]
-  (let [closure  #(* % x)]
-    (list (map closure y) z)))
+(deflow flow-with-closure [captured uncaptured-list]
+  (let [closure  #(* % captured)]
+    (map closure uncaptured-list)))
 
 (deftest ^:unit FunctionTest
   (testing "should throw an error attempting to partition a fn with suspending expressions"
@@ -396,11 +396,11 @@
             `fn-with-suspend "" [] `((fn [] (listen! :permit :boo)))))))
 
   (testing "flow-with-closure"
-    (let [run (start! flow-with-closure 2 [3 4 5] 6)]
+    (let [run (start! flow-with-closure 2 [3 4 5])]
       (is (run? run))
-      (is (= (:result run) '((6 8 10) 6)))))
+      (is (= (:result run) '(6 8 10)))))
 
-  #_(testing "should successfully partition when a normal fn is present in the body"
+  (testing "should successfully partition when a normal fn is present in the body"
     (let [run (simulate-event! (start! flow-with-anonymous-fn) :list '(1 2 3))]
       (is (run-in-state? run :complete))
       (is (= (:result run) '(1 4 9))))))

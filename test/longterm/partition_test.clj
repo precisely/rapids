@@ -3,6 +3,7 @@
             [longterm.util :refer :all]
             [clojure.core.match :refer [match]]
             [longterm.partition :refer :all]
+            [longterm.partition-set :refer [addresses]]
             [longterm.address :as address]
             [longterm.operators :as operators])
   (:import (longterm.flow Flow)))
@@ -51,7 +52,7 @@
                 [_] false)))
         (testing "the partition set should contain a partition which evals the outer flow"
           (is (map? pset))
-          (is (= (count pset) 1))
+          (is (= (-> pset addresses count) 1))
           (let [pdef   (get pset next-address)
                 params (:params pdef)]
             (is (not (nil? pdef)))
@@ -65,15 +66,15 @@
 (deftest ^:unit PartitionBody
   (testing "body without forms"
     (is (match [(partition-body [] partition-address address [])]
-          [[[], nil false]] true
+          [[[], {} false]] true
           [_] false)))
 
-  (testing "body with non-suspending forms"
+  (testing "body without suspending forms"
     (let [[start, pset, suspend?] (partition-body `[(a) (b)] partition-address address [])]
       (is (match [start]
             [[([`a] :seq), ([`b] :seq)]] true
             [_] false))
-      (is (= (count pset) 0))
+      (is (= (count (dissoc pset :unforced)) 0)) ;; only the :unforced key
       (is (false? suspend?))))
 
   (testing "body with a single suspending form"
@@ -81,7 +82,7 @@
       (is (match [start]
             [[([`operators/fcall `fl1] :seq)]] true
             [_] false))
-      (is (= (count pset) 0))
+      (is (= (-> pset addresses count) 0))
       (is (true? suspend?))))
 
   (testing "body split by a suspending form"
@@ -97,7 +98,7 @@
         (is (true? suspend?)))
 
       (testing "there should be one continuation with the final expr"
-        (is (= (count pset) 1))
+        (is (= (-> pset addresses count) 1))
         (let [cdef (get pset part2-address)]
           (is (= (get cdef :params) '[]))
           (is (= (get cdef :body) `[(b)])))))))
@@ -125,7 +126,7 @@
 
   (testing "vector with suspending expressions"
     (let [[start, pset, suspend?] (partition-vector-expr `[(fl1) (fl2) 3] partition-address address [])]
-      (is (= 2 (count pset)))
+      (is (= 2 (-> pset addresses count)))
       (is (true? suspend?))
       (is (match [start]
             [([`longterm.partition/resume-at [_ [] _] ([`operators/fcall `fl1] :seq)] :seq)] true

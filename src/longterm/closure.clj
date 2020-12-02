@@ -13,7 +13,9 @@
 (declare closure-bindings)
 
 (defrecordfn Closure [address bindings]
-  (fn [& args] (apply (flow/exec address bindings) args)))
+  (fn [this & args]
+    (let [closure-fn (flow/exec (:address this) (:bindings this))]
+      (apply closure-fn args))))
 
 ;(s/def ::fn-form (s/and seq? (s/cat :op (s/or :unqual-fn 'fn :unqual-fn* 'fn* :fn `fn :fn* `fn*))))
 (s/def ::params (s/* unqualified-symbol?))
@@ -37,7 +39,7 @@
         captured-params (closure-captured-bindings params, bodies, env-params)
         closure-ctor    `(->Closure ~address ~(bindings-expr-from-params captured-params))
 
-        pset            (pset/add (pset/create) address captured-params [fn-form])]
+        pset            (pset/add (pset/create) address captured-params [fn-form] true)]
     [closure-ctor, pset]))
 
 (defn extract-fn-defs [form]
