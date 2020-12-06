@@ -40,13 +40,9 @@
   Returns:
     run - in :suspended or :complete state
   "
-  ([run-id] (continue! run-id nil nil []))
-
-  ([run-id permit] (continue! run-id permit nil []))
-
-  ([run-id permit result] (continue! run-id permit result []))
-
-  ([run-id permit result response]
+  ([run-id] (continue! run-id {} []))
+  ([run-id {:keys [result permit] :as keys}] (continue! run-id keys []))
+  ([run-id {:keys [result permit]} response]
    {:pre  [(not (nil? run-id))
            (not (r/run? run-id ))] ; en
     :post [(not (r/run-in-state? % :running))]}
@@ -113,14 +109,15 @@
   current run as the value"
   []
   (rc/return-from-redirect!
-    (continue! (rc/parent-run-id) (rc/id) (rc/current-run))))
+    (continue! (rc/parent-run-id) {:permit (rc/id) :result (rc/current-run)})))
 
 (defn- process-run-value! [value]
   {:pre [(not (s/signal? value))]}
   (rc/set-result! value)
   (case (rc/return-mode)
     :redirect #(process-run! (return-to-parent!))
-    :block #(continue! (rc/parent-run-id) (rc/id) value)
+    :block #(continue!
+              (rc/parent-run-id) {:permit (rc/id) :result value})
     nil nil
     (throw (Exception.
              (str "Unexpected return mode '" (rc/return-mode) "' for run " (rc/id)

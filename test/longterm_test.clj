@@ -28,9 +28,9 @@
   ([run permit]
    (simulate-event! run permit nil))
 
-  ([run permit value]
+  ([run permit data]
    {:pre [(run? run)]}
-   (continue! (:id run) permit value)))
+   (continue! (:id run) {:permit permit :result data})))
 
 (deflow suspending-flow
   [val]
@@ -467,7 +467,7 @@
 
 
         (testing "Continuing the child run..."
-          (let [completed-child (continue! (:id child-run))]
+          (let [completed-child (simulate-event! child-run)]
             (testing "returns a completed child run"
               (is (run-in-state? completed-child :complete))
               (is (= (:id child-run) (:id completed-child))))
@@ -538,7 +538,7 @@
 
       (testing "continuing the redirect run to a block returns control to the parent run"
         ;#_(println "CONTINUE! level2-run")
-        (let [continue-level2 (continue! (:id level2-run))
+        (let [continue-level2 (simulate-event! level2-run)
               [level3-run, redirect-result] @*log*]
 
           (testing "but the object returned is the redirected child run (level2)"
@@ -581,7 +581,7 @@
 
           (testing "completing the level3 run should cause the caller (level2) to complete"
             #_(println "CONTINUE! level3")
-            (let [level3-continue (continue! (:id level3-run))]
+            (let [level3-continue (simulate-event! level3-run)]
               (testing "level3 run completes"
                 (is (= (:id level3-continue) (:id level3-run)))
                 (is (= :complete (:state level3-continue))))
