@@ -41,14 +41,14 @@
     run - in :suspended or :complete state
   "
   ([run-id] (continue! run-id {} []))
-  ([run-id {:keys [result permit] :as keys}] (continue! run-id keys []))
-  ([run-id {:keys [result permit]} response]
+  ([run-id {:keys [data permit] :as keys}] (continue! run-id keys []))
+  ([run-id {:keys [data permit]} response]
    {:pre  [(not (nil? run-id))
-           (not (r/run? run-id ))] ; en
+           (not (r/run? run-id))] ; guard against accidentally passing a run instead of a run-id
     :post [(not (r/run-in-state? % :running))]}
    (rc/with-run-context [(rc/acquire! run-id permit)]
      (rc/initialize-runlet response)
-     (eval-loop! (next-continuation!) result))))
+     (eval-loop! (next-continuation!) data))))
 
 ;;
 ;; Helpers
@@ -109,7 +109,7 @@
   current run as the value"
   []
   (rc/return-from-redirect!
-    (continue! (rc/parent-run-id) {:permit (rc/id) :result (rc/current-run)})))
+    (continue! (rc/parent-run-id) {:permit (rc/id) :data (rc/current-run)})))
 
 (defn- process-run-value! [value]
   {:pre [(not (s/signal? value))]}
@@ -117,7 +117,7 @@
   (case (rc/return-mode)
     :redirect #(process-run! (return-to-parent!))
     :block #(continue!
-              (rc/parent-run-id) {:permit (rc/id) :result value})
+              (rc/parent-run-id) {:permit (rc/id) :data value})
     nil nil
     (throw (Exception.
              (str "Unexpected return mode '" (rc/return-mode) "' for run " (rc/id)

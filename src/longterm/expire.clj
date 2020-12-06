@@ -6,5 +6,5 @@
   {:pre [(r/run-in-state? run :suspended)]}
   (let [{permit :permit,
          default :default}   (-> run :suspend)]
-    (rl/continue! (:id run) {:permit permit :result default})))
+    (rl/continue! (:id run) {:permit permit :data default})))
 
