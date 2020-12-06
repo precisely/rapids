@@ -40,10 +40,8 @@
      (if (bound? #'*run-cache*)
        (dobody#)
        (binding [*run-cache* {}]
-         (rs/tx-begin!)
          (let [result# (dobody#)]
            (save-cache!)
-           (rs/tx-commit!)
            result#)))))
 ;; TODO: figure out exception handling strategy
 ;;(catch Exception e (rollback))))

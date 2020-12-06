@@ -6,7 +6,8 @@
             [longterm.stack-frame :as sf]
             [longterm.address :as a]
             [longterm.runstore :as rs]
-            [longterm.flow :as flow]))
+            [longterm.flow :as flow]
+            [longterm.signals :as signals]))
 
 (deftest ^:unit RunSerialization
   (testing "Run object stored as a binding will reflect the state of the run in the db"
@@ -14,6 +15,7 @@
           address     (a/create `foo)
           stack-frame (sf/make-stack-frame address {:child-run child-run} nil)
           parent-run  (r/make-run {:state :suspended,
+                                   :suspend (signals/make-suspend-signal nil nil nil)
                                    :stack (list stack-frame)})]
       ;; ensure run1 and run2 are saved to the runstore
       (with-run-context [parent-run]
@@ -22,7 +24,7 @@
 
       ;; alter child-run (change state)
       (with-run-context [child-run]
-        (cache-run! (assoc child-run :state :complete)))
+        (cache-run! (assoc child-run :suspend nil, :state :complete)))
 
       ;; retrieve parent run
       (let [loaded-parent-run (rs/get-run (:id parent-run))
@@ -35,8 +37,9 @@
   (testing "Run object stored as a binding will reflect the state of the run in the db"
     (let [address     (a/create `foo)
           stack-frame (sf/make-stack-frame address {:foo-flow foo} nil)
-          parent-run  (r/make-run {:state :suspended,
-                                   :stack (list stack-frame)})]
+          parent-run  (r/make-run {:state   :suspended,
+                                   :suspend (signals/make-suspend-signal nil nil nil)
+                                   :stack   (list stack-frame)})]
       ;; ensure run1 and run2 are saved to the runstore
       (with-run-context [parent-run]
         (cache-run! parent-run))

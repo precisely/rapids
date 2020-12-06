@@ -106,7 +106,10 @@
   "Maps a run to a hash-map containing a constrained set of values suitable for storage in a database:
   uuids, strings, date-times and binary objects (usually representing complex closure structures)."
   [run]
-  {:post [(s/assert ::record %)]}
+  {:pre [(if (run-in-state? run :suspended)
+           (-> run :suspend signals/suspend-signal?)
+           (-> run :suspend nil?))]
+   :post [(s/assert ::record %)]}
   ;; TODO - simplify this code - no need for vector of vectors anymore
   (let [key-mappings {:id            [[:id identity]]
                       :error         [[:error freeze]]
