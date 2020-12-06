@@ -158,10 +158,10 @@
 (defn initialize-runlet [initial-response]
   (update-run! #(assoc % :suspend nil, :response initial-response, :run-response initial-response)))
 
-(defn push-stack! [address bindings result-key]
+(defn push-stack! [address bindings data-key]
   {:post [(r/run? %)
           (linked-list? (:stack %))]}
-  (let [frame (sf/make-stack-frame address bindings result-key)]
+  (let [frame (sf/make-stack-frame address bindings data-key)]
     (update-run! #(assoc % :stack (cons frame (:stack %))))))
 
 (defn pop-stack! []

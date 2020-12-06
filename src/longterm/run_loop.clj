@@ -6,8 +6,7 @@
     [longterm.run-context :as rc]
     [longterm.signals :as s]
     [longterm.stack-frame :as sf]
-    [longterm.run :as r]
-    [clojure.spec.alpha :as spec]))
+    [longterm.run :as r]))
 
 (declare start! continue!)
 (declare resume-at)
@@ -58,7 +57,7 @@
 
   Returns:
    function (fn [value] ...) which causes execution of the next partition, where value
-   will be bound to the result-key established by `resume-at`"
+   will be bound to the data-key established by `resume-at`"
   []
   (ifit (rc/pop-stack!)
     (sf/stack-continuation it)))

@@ -29,7 +29,7 @@
       (let [now (local-date-time)
             run (make-run ; fill every field of the run
                   {:state :suspended
-                  :stack (list (sf/make-stack-frame (a/create `foo 1 2) {:b 2} 'result-key))
+                  :stack (list (sf/make-stack-frame (a/create `foo 1 2) {:b 2} 'data-key))
                   :suspend (signals/make-suspend-signal :foo now {:a 1})
                   :run-response ["hello" "there"]
                   :response [:hello :there]

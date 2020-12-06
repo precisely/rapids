@@ -141,7 +141,7 @@
     address - Address of the expression
     params - vector of currently bound parameters at this address point
             these become keys when defining continuations
-    result-key - where the code should
+    data-key - where the code should
 
   Returns:
   [
@@ -497,15 +497,15 @@
   "Generates code that continues execution at address after flow-form is complete.
   address - names the continuation
   params - list of parameters needed by the continuation
-  result-key - the key to which the value of form will be bound in the continuation
+  data-key - the key to which the value of form will be bound in the continuation
   body - expression which may suspend the run
 
   Returns:
   value of body"
-  ([[address params result-key] & body]
+  ([[address params data-key] & body]
    (:pre [(a/address? address)
           (vector? params)
-          (or (nil? result-key) (symbol? result-key))])
+          (or (nil? data-key) (symbol? data-key))])
    `(let [bindings# ~(bindings-expr-from-params params)]
-      (rc/push-stack! ~address bindings# '~result-key)
+      (rc/push-stack! ~address bindings# '~data-key)
       ~@body)))
