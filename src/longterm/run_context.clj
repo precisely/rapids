@@ -81,7 +81,7 @@
   "Acquires the run, setting it in :running state, and clearing the suspend object"
   [run-id permit]
   (let [retrieved (load! run-id)]
-    (if-not (r/run-in-state? retrieved :suspended)
+    (if-not (r/run-in-state? retrieved :suspended :created)
       (throw (Exception. (str "Cannot acquire Run " run-id " from cache in state " (:state retrieved)))))
     (if (not= (-> retrieved :suspend :permit) permit)
       (throw (Exception. (str "Cannot acquire Run " run-id " invalid permit"))))

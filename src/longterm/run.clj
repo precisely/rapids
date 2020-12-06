@@ -4,8 +4,7 @@
             [taoensso.nippy :refer [freeze thaw]]
             [clojure.spec.alpha :as s]
             [longterm.stack-frame :as sf]
-            [clojure.tools.macro :refer [macrolet]]
-            [java-time :as t])
+            [clojure.tools.macro :refer [macrolet]])
   (:import (java.util UUID)
            (java.time LocalDateTime)))
 
@@ -15,7 +14,7 @@
 
 (defn run? [run] (instance? Run run))
 
-(def ^:const RunStates #{:suspended :running :error :complete})
+(def ^:const RunStates #{:created :suspended :running :error :complete})
 (defn run-in-state?
   [run & states]
   (let [state  (:state run)
@@ -37,7 +36,7 @@
                         ::next, ::next-id
                         ::updated-at, ::created-at]))
 
-(s/def ::id uuid?) ;(s/or :string string? :number number? :uuid uuid?))
+(s/def ::id uuid?)            ;(s/or :string string? :number number? :uuid uuid?))
 (s/def ::error #(instance? Exception %))
 (s/def ::next ::run)
 (s/def ::next-id ::id)
@@ -84,7 +83,7 @@
 
   ([{:keys [id, stack, state, response, run-response, result]
      :or   {id           (UUID/randomUUID)
-            state        :running
+            state        :created
             stack        ()
             response     []
             run-response []}
@@ -132,7 +131,7 @@
   (or (nil? o) (p o)))
 
 (defn sausage-to-snake
-  "Converts a :sausage-style-keyword to a :snake_style_keyword "
+  "Converts a :sausage-style-keyword to a :snake_style_keyword"
   [k]
   (keyword (clojure.string/replace (.getName k) "-" "_")))
 
