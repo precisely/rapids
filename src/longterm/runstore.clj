@@ -32,8 +32,31 @@
 ;; Public API based on runstore and stack/*stack* globals
 ;;
 
-(defn set-runstore! [rs]
+(defn set-runstore!
+  "Sets the runstore - useful for setting a top-level runstore.
+  It is not recommended to use both set-runstore! and with-runstore."
+  [rs]
   (reset! *runstore* rs))
+
+(defmacro with-runstore
+  "Creates a binding for the runstore"
+  [[runstore] & body]
+  `(binding [*runstore* (atom ~runstore)]
+     ~@body))
+
+(defmacro with-transaction
+  "Executes all operations in body in a transaction. The runstore should use a single
+  connection (i.e., not a connection pool) for the duration of this call."
+  [[runstore] & body]
+  `(with-runstore [~runstore]
+     (tx-begin!)
+     (try
+       (let [result# (do ~@body)]
+         (tx-commit!)
+         result#)
+       (catch Exception e#
+         (tx-rollback!)
+         (throw e#)))))
 
 (defn create-run!
   [& {:keys [id, stack, state, response, run-response] :as fields}]
@@ -77,12 +100,3 @@
 (defn tx-commit! [] (rs-tx-commit! @*runstore*))
 (defn tx-rollback! [] (rs-tx-rollback! @*runstore*))
 
-(defmacro with-transaction [runstore & body]
-  `(let [*runstore* (atom ~runstore)]
-     (tx-begin!)
-     (try
-       (let [result# (do ~@body)]
-         (tx-commit!)
-         result#)
-       (catch Exception _
-         (tx-rollback!)))))

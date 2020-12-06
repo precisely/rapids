@@ -1,9 +1,11 @@
 (ns longterm.run
   (:require [longterm.util :refer [in? new-uuid ifit linked-list?]]
             [longterm.signals :as signals]
+            [longterm.address :as a]
             [taoensso.nippy :refer [freeze thaw]]
             [clojure.spec.alpha :as s]
             [longterm.stack-frame :as sf]
+            [java-time :as t]
             [clojure.tools.macro :refer [macrolet]])
   (:import (java.util UUID)
            (java.time LocalDateTime)))
@@ -47,7 +49,7 @@
 (s/def ::run-response vector?)
 (s/def ::state RunStates)
 (s/def ::stack (s/and seq? (s/* sf/stack-frame?)))
-(s/def ::start-form list?)
+(s/def ::start-form string?)
 (s/def ::suspend signals/suspend-signal?)
 
 (s/def ::frozen frozen?)
@@ -105,16 +107,19 @@
   uuids, strings, date-times and binary objects (usually representing complex closure structures)."
   [run]
   {:post [(s/assert ::record %)]}
-  (let [key-mappings {:state         [[:state key-to-str]]
-                      :stack         [[:stack freeze]]
-                      :result        [[:result freeze]]
-                      :run-response  [[:run_response freeze]]
-                      :suspend       [[:suspend freeze]]
-                      :return-mode   [[:return_mode key-to-str]]
-                      :parent-run-id [[:parent_run_id identity]]
-                      :next-id       [[:next_id identity]]
+  ;; TODO - simplify this code - no need for vector of vectors anymore
+  (let [key-mappings {:id            [[:id identity]]
                       :error         [[:error freeze]]
-                      :response      [[:response freeze]]}
+                      :result        [[:result freeze]]
+                      :next-id       [[:next_id identity]]
+                      :parent-run-id [[:parent_run_id identity]]
+                      :response      [[:response freeze]]
+                      :return-mode   [[:return_mode key-to-str]]
+                      :run-response  [[:run_response freeze]]
+                      :start-form    [[:start_form identity]]
+                      :state         [[:state key-to-str]]
+                      :stack         [[:stack freeze]]
+                      :suspend       [[:suspend freeze]]}
         make-mapping (fn [[k value]]
                        (ifit [km (get key-mappings k)]
                          (let [mapping (apply concat
@@ -122,9 +127,8 @@
                                            #(let [[rec-key xform] %]
                                               (vector rec-key (xform value))) km))]
                            ;   (println "make-mapping => " mapping)
-                           mapping)
-                         [k value]))
-        hashargs     (apply concat (map make-mapping run))]
+                           mapping)))
+        hashargs     (apply concat (remove nil? (map make-mapping run)))]
     (apply hash-map hashargs)))
 
 (defn or-nil? [o p]
@@ -147,7 +151,7 @@
       (macrolet [(assoc-if [run field xform]
                    `(~'assoc-if-fn ~run ~field ~(sausage-to-snake field) ~xform))]
         (-> (make-run {:id (:id record) :state state})
-          (assoc-if :start-form read-string)
+          (assoc-if :start-form identity)
           (assoc-if :stack thaw)
           (assoc-if :result thaw)
           (assoc-if :response thaw)
@@ -159,3 +163,25 @@
           (assoc-if :error thaw)
           (assoc-if :suspend thaw))))))
 
+(defn contains-some? [m & ks]
+  (some #(contains? m %) ks))
+
+(defn make-test-run
+  "Returns a run and a record"
+  [& remove-keys]
+  {:post [(not (contains-some? % remove-keys))]}
+  (let [run    (make-run      ; fill every field of the run
+                 (apply dissoc {:state         :suspended
+                                :start-form    `(foo :a 1)
+                                :stack         (list (sf/make-stack-frame (a/create `foo 1 2) {:b 2} 'result-key))
+                                :suspend       (signals/make-suspend-signal :foo (t/local-date-time) {:a 1})
+                                :run-response  ["hello" "there"]
+                                :response      [:hello :there]
+                                :result        {:data "some-result"}
+                                :return-mode   :redirect
+                                :parent-run-id (UUID/randomUUID)
+                                :next-id       (UUID/randomUUID)
+                                :error         (Exception. "foo")}
+                   remove-keys))
+        record (run-to-record run)]
+    [run record]))

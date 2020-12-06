@@ -329,7 +329,8 @@
 
 (extend-thaw ::run
   [data-input]
-  (let [run-id (read-string (.readUTF data-input))]
+  (let [thawed-str (.readUTF data-input)
+        run-id (read-string thawed-str)]
     (if (bound? #'*run-cache*)
       (load! run-id)
 
