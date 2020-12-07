@@ -11,7 +11,11 @@
             [longterm.runstore :as rs]
             [longterm.stack-frame :as sf]
             [longterm.signals :refer [make-suspend-signal]]
-            [longterm.signals :as s]))
+            [longterm.signals :as s]
+            [longterm.run :as r]
+            [taoensso.nippy :refer [extend-freeze extend-thaw]])
+  (:import [longterm.run Run]
+           [java.util UUID]))
 
 (def ^{:dynamic true
        :doc     "The id of the run that initiated the current runlet (which may be a child or parent)"}
@@ -32,12 +36,15 @@
   Runs are persisted to disk at the last moment, when the outer-most with-run-cache
   body completes."
   `(letfn [(dobody# [] (assert (bound? #'*run-cache*)) ~@body)]
+     ;; TODO: (try
      (if (bound? #'*run-cache*)
        (dobody#)
        (binding [*run-cache* {}]
          (let [result# (dobody#)]
            (save-cache!)
            result#)))))
+;; TODO: figure out exception handling strategy
+;;(catch Exception e (rollback))))
 
 (defmacro with-run-context
   "Executes body returning the Run produced by run-form, "
@@ -60,7 +67,7 @@
   (doseq [[_ run] *run-cache*]
     (when (:dirty run)
       (cache-run! (dissoc run :dirty))
-      (assert (rs/run-in-state? run :error :complete :suspended))
+      (assert (r/run-in-state? run :error :complete :suspended))
       (rs/save-run! run))))
 
 (defn cache-run! [run]
@@ -68,31 +75,23 @@
   (set! *run-cache* (assoc *run-cache* (:id run) run))
   run)
 
-(defn check-permit [run permit]
-  (if (not= (-> run :suspend :permit) permit)
-    (throw (Exception. "Invalid permit provided for run " (:id run)))))
-
 (defn acquire!
-  "Atomically acquires the run in :running state - from the cache or storage"
+  "Acquires the run, setting it in :running state, and clearing the suspend object"
   [run-id permit]
-  (letfn [(acquire-from-cache! []
-            (ifit [retrieved (get *run-cache* run-id)]
-              (case (:state retrieved)
-                :suspended (do (check-permit retrieved permit)
-                               (cache-run! (assoc retrieved :state :running, :suspend nil)))
-                :running retrieved
-                (throw (Exception. (str "Cannot acquire run " run-id " from cache in state " (:state retrieved)))))))]
-    (let [cached-run (acquire-from-cache!)]
-      (or cached-run
-        ;; when acquiring from the runstore, reset the response:
-        (cache-run! (assoc (rs/acquire-run! run-id permit) :response [], :run-response []))))))
+  (let [{{s-permit :permit} :suspend :as retrieved} (load! run-id)]
+    (if-not (r/run-in-state? retrieved :suspended :created)
+      (throw (Exception. (str "Cannot acquire Run " run-id " from cache in state " (:state retrieved)))))
+    (when (not= s-permit permit)
+      (throw (Exception. (str "Cannot acquire Run " run-id " invalid permit"))))
+
+    (cache-run! (assoc retrieved :state :running, :run-response [], :suspend nil))))
 
 (defn load!
   "Gets the run from the cache or storage"
   [run-id]
   (or
     (get *run-cache* run-id)
-    (ifit [run (rs/get-run run-id)]
+    (ifit [run (rs/lock-run! run-id)]
       (cache-run! run))))
 
 ;;;
@@ -132,33 +131,35 @@
 ;;; Predicates
 ;;;
 (defn suspended? []
-  (rs/run-in-state? (current-run) :suspended))
+  (r/run-in-state? (current-run) :suspended))
 
 (defn return-mode?
   ([& modes]
-   (apply rs/run-in-mode? (current-run) modes)))
+   (apply r/run-in-mode? (current-run) modes)))
 
 (defn redirected?
   ([] (redirected? (current-run)))
 
   ([run]
-   (and (rs/run-in-state? run :suspended)
-     (rs/run-in-mode? run :redirect))))
+   (and (r/run-in-state? run :suspended)
+     (r/run-in-mode? run :redirect))))
 
 (defn blocked?
   ([] (blocked? (current-run)))
   ([run]
-   (and (rs/run-in-state? run :suspended)
-     (rs/run-in-mode? run :block))))
+   (and (r/run-in-state? run :suspended)
+     (r/run-in-mode? run :block))))
 
 ;;
 ;; modifiers
 ;;
 (defn initialize-runlet [initial-response]
-  (update-run! #(assoc % :suspend nil, :run-response initial-response)))
+  (update-run! #(assoc % :suspend nil, :response initial-response, :run-response initial-response)))
 
-(defn push-stack! [address bindings result-key]
-  (let [frame (sf/make-stack-frame address bindings result-key)]
+(defn push-stack! [address bindings data-key]
+  {:post [(r/run? %)
+          (linked-list? (:stack %))]}
+  (let [frame (sf/make-stack-frame address bindings data-key)]
     (update-run! #(assoc % :stack (cons frame (:stack %))))))
 
 (defn pop-stack! []
@@ -199,9 +200,7 @@
          (cache-run! (assoc child,
                        :return-mode :block,
                        :parent-run-id (:id %)))
-         (assoc %
-           :state :suspended,
-           :suspend suspend)))
+         (assoc % :state :suspended, :suspend suspend)))
     (if (redirected?)
       (s/make-return-signal)  ; returns a Control signal
       suspend)))              ; returns a Suspend signal
@@ -218,7 +217,7 @@
   to the child-run *after* it has completed a runlet. So this run will be decorated with a next-id, indicating
   a potential transfer of control. Thus, the redirection may not be directly to child-run, but to another
   run which child-run spawned."
-  {:pre [(not (rs/run-in-state? child-run :running :error))]}
+  {:pre [(not (r/run-in-state? child-run :error))]}
   (case (:state child-run)
     :suspended (if (blocked? child-run)
                  child-run
@@ -235,7 +234,7 @@
         result   (transfer-control-post-facto! parent-run)]
     ;; we must get the child run from the cache again because transfer-control has altered it
     ;; return it to default mode - not parent
-    (update-run! (load! child-id) #(assoc % :parent-run-id nil :return-mode nil))
+    (update-run! (load! child-id) #(assoc % :parent-run-id nil, :return-mode nil))
     result))
 
 
@@ -245,7 +244,7 @@
 (defn- redirect-to-suspended-run!
   "Suspends the current run,"
   [child-run expires default]
-  {:pre [(rs/run-in-state? child-run :suspended)
+  {:pre [(r/run-in-state? child-run :suspended)
          (:next-id child-run)
          (-> child-run :parent-run-id nil?)]}
   (let [child-run (update-run! child-run #(assoc %
@@ -253,7 +252,7 @@
                                             :return-mode :redirect))]
 
     (update-run!
-      #(do (assert (rs/run-in-state? % :running))
+      #(do (assert (r/run-in-state? % :running))
            (assoc %
              :state :suspended,
              :suspend (make-suspend-signal (:id child-run), expires, default))))
@@ -270,7 +269,7 @@
 
   Returns the appropriate signal (or completion value) from the new run which has control."
   [run]
-  {:pre [(rs/run-in-state? run :complete :suspended)]}
+  {:pre [(r/run-in-state? run :complete :suspended)]}
   (let [next-run-id (-> run :next-id)]
     (harvest-response-from! run)
     (set! *current-run-id* next-run-id)
@@ -312,9 +311,27 @@
         next-run (remove-next! (get *run-cache* next-run-id))]
     (update-run! run
       #(let [next-id (or (:id next-run)
-                       (if (rs/run-in-state? run :suspended)
+                       (if (r/run-in-state? run :suspended)
                          (:id %)))]
          (assoc %
            :next-id next-id,
            :next (if (not= next-id run-id) next-run))))))
 
+;;
+;; nippy
+;;
+(extend-freeze Run ::run
+  [run data-output]
+  (let [run-id (prn-str (:id run))]
+    (.writeUTF data-output run-id)))
+
+(extend-thaw ::run
+  [data-input]
+  (let [thawed-str (.readUTF data-input)
+        run-id (read-string thawed-str)]
+    (if (bound? #'*run-cache*)
+      (load! run-id)
+
+      ;; special handling for when a run is retrieved outside of a run-cache context
+      ;; just get the run without locking it or storing it in the cache
+      (rs/get-run run-id))))

@@ -1,31 +1,31 @@
 (ns longterm.stack-frame
   (:require [longterm.flow :as flow]))
 
-(defrecord StackFrame [address bindings result-key])
+(defrecord StackFrame [address bindings data-key])
 (defn stack-frame? [o] (instance? StackFrame o))
 
 (defn make-stack-frame
-  [address bindings result-key]
+  [address bindings data-key]
   {:pre [(longterm.address/address? address)
          (map? bindings)
-         (or (nil? result-key)
-           (and (symbol? result-key)
-             (not (qualified-symbol? result-key))))]}
-  (StackFrame. address, bindings, (keyword result-key)))
+         (or (nil? data-key)
+           (and (symbol? data-key)
+             (not (qualified-symbol? data-key))))]}
+  (StackFrame. address, bindings, (keyword data-key)))
 
 (defn stack-continuation
-  "Returns a function `(fn [value] ...)` which calls a flow continuation with the bindings
-  provided by the stack frame, plus a `value` which will be bound to the result-key
+  "Returns a function `(fn [data] ...)` which calls a flow continuation with the bindings
+  provided by the stack frame, plus a `value` which will be bound to the data-key
   provided in `(resume-at ...)`. This is how external events transmit a value into a point
   a flow."
   [frame]
   {:pre [(stack-frame? frame)]}
   (let [address    (:address frame)
-        result-key (:result-key frame)
+        data-key (:data-key frame)
         bindings   (:bindings frame)]
-    (fn [result]
-      (let [bindings-with-result (if result-key
+    (fn [data]
+      (let [bindings-with-data (if data-key
                                    (assoc bindings
-                                     result-key result)
+                                     data-key data)
                                    bindings)]
-        (flow/exec address bindings-with-result)))))
+        (flow/exec address bindings-with-data)))))

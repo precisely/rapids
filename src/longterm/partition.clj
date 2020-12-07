@@ -1,12 +1,14 @@
 (ns longterm.partition
   (:require [longterm.address :as a]
             [longterm.util :refer :all]
+            [longterm.partition-utils :refer :all]
             [longterm.run-context :as rc]
             [longterm.flow :as flow]
             [longterm.recur :refer [with-tail-position with-binding-point]]
             [longterm.partition-set :as pset]
             [longterm.signals :refer [suspending-operator?]]
-            [longterm.recur :refer :all]))
+            [longterm.recur :refer :all]
+            [longterm.closure :as closure]))
 
 ;;;; Partitioner
 
@@ -57,9 +59,9 @@
   partition-functional-expr partition-bindings
   partition-if-expr partition-let*-expr partition-fn*-expr
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
-  partition-vector-expr partition-map-expr macroexpand-keeping-metadata
-  partition-suspend-expr throw-partition-error
-  nsymbols resume-at bindings-expr-from-params)
+  partition-vector-expr partition-map-expr
+  partition-suspend-expr
+  resume-at)
 
 (defn partition-body
   "Partitions a list of expressions, e.g., for do, let and deflow forms
@@ -123,7 +125,7 @@
                              clean-pset)]
            (if any-suspend?
              [start-body, pset, any-suspend?]
-             [part-body, nil, false])))))))
+             [part-body, (pset/remove-unforced pset), false])))))))
 
 ;;
 ;; Expressions
@@ -139,7 +141,7 @@
     address - Address of the expression
     params - vector of currently bound parameters at this address point
             these become keys when defining continuations
-    result-key - where the code should
+    data-key - where the code should
 
   Returns:
   [
@@ -193,24 +195,20 @@
   expands into a (fn ...) expression. This is a bit of a blunt instrument,
   but not sure what else to do right now."
   [expr mexpr partition-addr address params]
-  (letfn [(sig-suspends? [sig]
+  (letfn [(check-non-suspending [sig]
             (let [body (rest sig)
                   [_, _, suspend?] (partition-body body partition-addr address params)]
               (if suspend?
                 (throw-partition-error "Illegal attempt to suspend in function body" expr))
               suspend?))]
-    (let [sigs        (rest mexpr)
-          name        (if (symbol? (first sigs)) (first sigs) nil)
-          sigs        (if name (next sigs) sigs)
-          sigs        (if (vector? (first sigs))
-                        (list sigs)
-                        sigs)
-          suspending? (some #(sig-suspends? %) sigs)]
-      (assert (not suspending?))
-      [expr, nil, false])))
+    (let [[_, sigs] (closure/extract-fn-defs mexpr)
+          _ (doseq [sig sigs] (check-non-suspending sig))
+          [ctor, pset] (closure/closure-constructor mexpr address params)]
+
+      [ctor, pset, false])))
 
 (defn partition-let*-expr
-  [expr mexpr partition-addr address params]
+  [_, mexpr, partition-addr, address, params]
   (let [address         (a/child address 'let)
         binding-address (a/child address 0)
         body-address    (a/child address 1)
@@ -224,10 +222,7 @@
         (partition-bindings keys, args, partition-addr, binding-address, params, body-start)
 
         pset            (pset/combine body-pset bind-pset)]
-    (if bind-suspend?
-      [bind-start, pset, true]
-
-      [(with-meta `(let ~bindings ~@body-start) (meta expr)), pset, body-suspend?])))
+    [bind-start, pset, (or bind-suspend? body-suspend?)]))
 
 (defn partition-if-expr
   [expr mexpr partition-addr address params]
@@ -330,7 +325,7 @@
           pset                   (pset/combine body-pset bindings-pset loop-pset)]
       (if any-suspend?
         [binding-start, pset, any-suspend?]
-        [expr, nil, false]))))
+        [expr, pset, false]))))
 
 (defn partition-recur-expr
   "Returns:
@@ -359,11 +354,11 @@
 
           same-partition (and (false? suspend?) (= partition loop-address))]
       (if same-partition
-        [start, nil, false]   ; plain vanilla recur!
+        [start, pset, false]  ; plain vanilla recur!
         (if suspend?
           [start, pset, true] ;; arguments suspended
           (if same-partition
-            [expr, nil, false]
+            [expr, pset, false]
             [(make-call args), pset, false]))))))
 
 ;;
@@ -482,7 +477,7 @@
                   new-params, start, (or suspend? any-suspend?), pset))
               (do
                 (recur rest-keys, rest-args
-                  (conj current-bindings [key arg]),
+                  (conj current-bindings [key arg-start]),
                   partition-address, next-address,
                   part-params, start, any-suspend?, pset))))
 
@@ -502,44 +497,15 @@
   "Generates code that continues execution at address after flow-form is complete.
   address - names the continuation
   params - list of parameters needed by the continuation
-  result-key - the key to which the value of form will be bound in the continuation
+  data-key - the key to which the value of form will be bound in the continuation
   body - expression which may suspend the run
 
   Returns:
   value of body"
-  ([[address params result-key] & body]
+  ([[address params data-key] & body]
    (:pre [(a/address? address)
           (vector? params)
-          (or (nil? result-key) (symbol? result-key))])
+          (or (nil? data-key) (symbol? data-key))])
    `(let [bindings# ~(bindings-expr-from-params params)]
-      (rc/push-stack! ~address bindings# '~result-key)
+      (rc/push-stack! ~address bindings# '~data-key)
       ~@body)))
-;;
-;; HELPERS
-;;
-(defn bindings-expr-from-params
-  ([params] (bindings-expr-from-params params params))
-  ([key-params, arg-params]
-  `(hash-map ~@(interleave (map keyword key-params) arg-params))))
-
-(defn macroexpand-keeping-metadata
-  [expr]
-  (let [expr-meta (meta expr)
-        mexpr     (macroexpand expr)]
-    (if expr-meta
-      (with-meta mexpr expr-meta)
-      mexpr)))
-
-(defn nsymbols
-  ([address n] (nsymbols address n 0))
-
-  ([address n start]
-   (let [base (str "p|" (clojure.string/join "-" (:point address)))]
-     (map #(symbol (str base "|" %)) (range start n)))))
-
-(defn throw-partition-error
-  ([name expr] (throw-partition-error name expr nil))
-  ([name expr msg & args]
-   (let [loc        (ifit (:line (meta expr)) (format " (line %s)" it) "")
-         extra-info (if msg (str ". " (apply format msg args)) "")]
-     (throw (Exception. (format "%s%s%s: %s" name loc extra-info expr))))))

@@ -99,9 +99,6 @@ Adds the passed run's response to the current response, and sets the run as the 
 ```
 The methods of IRunStore should return Run instances. If additional fields are needed, simply `assoc` them onto this object. 
 
-
-
-
 ## Deployment
 
 ### S3 Deployment

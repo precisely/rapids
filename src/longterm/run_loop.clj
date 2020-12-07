@@ -5,7 +5,8 @@
     [longterm.util :refer :all]
     [longterm.run-context :as rc]
     [longterm.signals :as s]
-    [longterm.stack-frame :as sf]))
+    [longterm.stack-frame :as sf]
+    [longterm.run :as r]))
 
 (declare start! continue!)
 (declare resume-at)
@@ -17,9 +18,9 @@
   Returns a Run in :suspended or :complete state, not necessarily the run which "
   [flow & args]
   {:pre  [(refers-to? flow/flow? flow)]
-   :post [(rs/run-in-state? % :suspended :complete :error)]}
-  (let [start-form `(~(:name flow) ~@args)
-        new-run    (assoc (rs/create-run! :running) :start-form start-form)]
+   :post [(r/run? %)]}
+  (let [start-form (prn-str `(~(:name flow) ~@args))
+        new-run    (assoc (rs/create-run!) :state :running, :start-form start-form)]
     (rc/with-run-context [new-run]
       ;; create the initial stack-continuation to kick of the process
       (eval-loop! (fn [_] (flow/entry-point flow args))))))
@@ -28,7 +29,7 @@
   "Processes an external event, finds the associated run and calls the continuation at the
   top of the stack, passing a result, which gets injected into the flow as the
   value of s suspending call.
-
+~
   Args:
     run-id - id the run to continue
     permit - if a Suspend :permit value was provided, it must match
@@ -38,22 +39,15 @@
   Returns:
     run - in :suspended or :complete state
   "
-  ([run-id] (continue! run-id nil nil []))
-
-  ([run-id permit] (continue! run-id permit nil []))
-
-  ([run-id permit result] (continue! run-id permit result []))
-
-  ([run-id permit result response]
+  ([run-id] (continue! run-id {} []))
+  ([run-id {:keys [data permit] :as keys}] (continue! run-id keys []))
+  ([run-id {:keys [data permit]} response]
    {:pre  [(not (nil? run-id))
-           (not (rs/run-in-state? run-id :any))] ; en
-    :post [(rs/run-in-state? % :suspended :complete)]}
+           (not (r/run? run-id))] ; guard against accidentally passing a run instead of a run-id
+    :post [(not (r/run-in-state? % :running))]}
    (rc/with-run-context [(rc/acquire! run-id permit)]
-     (if-not (s/suspend-signal? (rc/current-suspend-signal))
-       (throw (Exception. (format "Attempt to continue Run %s which is not suspended" (rc/id)))))
-     ;; clear the Suspend object and set initial responses
      (rc/initialize-runlet response)
-     (eval-loop! (next-continuation!) result))))
+     (eval-loop! (next-continuation!) data))))
 
 ;;
 ;; Helpers
@@ -63,18 +57,10 @@
 
   Returns:
    function (fn [value] ...) which causes execution of the next partition, where value
-   will be bound to the result-key established by `resume-at`"
+   will be bound to the data-key established by `resume-at`"
   []
   (ifit (rc/pop-stack!)
     (sf/stack-continuation it)))
-
-(defn- check-valid-parent [parent-run child-run]
-  (let [{true-parent-id :id} parent-run,
-        {child-id        :id,
-         child-parent-id :parent-run-id} child-run]
-    (if-not (= child-parent-id true-parent-id)
-      (throw (Exception. (str "Attempt to block on or redirect to child run " child-id " from parent run " true-parent-id
-                           " when child run has a different parent: " child-parent-id))))))
 
 (declare process-run! reduce-stack! process-run-value!)
 (defn- eval-loop!
@@ -93,7 +79,7 @@
   ([continuation] (reduce-stack! continuation nil))
 
   ([continuation result]
-   {:pre [(rs/run-in-state? (rc/current-run) :running)
+   {:pre [(r/run-in-state? (rc/current-run) :running)
           (or (fn? continuation) (nil? continuation))]}
    (if continuation
      (let [next-result (continuation result)]
@@ -122,14 +108,15 @@
   current run as the value"
   []
   (rc/return-from-redirect!
-    (continue! (rc/parent-run-id) (rc/id) (rc/current-run))))
+    (continue! (rc/parent-run-id) {:permit (rc/id) :data (rc/current-run)})))
 
 (defn- process-run-value! [value]
   {:pre [(not (s/signal? value))]}
   (rc/set-result! value)
   (case (rc/return-mode)
     :redirect #(process-run! (return-to-parent!))
-    :block #(continue! (rc/parent-run-id) (rc/id) value)
+    :block #(continue!
+              (rc/parent-run-id) {:permit (rc/id) :data value})
     nil nil
     (throw (Exception.
              (str "Unexpected return mode '" (rc/return-mode) "' for run " (rc/id)
