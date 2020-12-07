@@ -1,7 +1,7 @@
-# Longterm Architecture
+# Rapids Architecture
 
 ## Intro
-The `deflow` macro enables writing procedures, called flows, which await events in the real world, and which may occur over long periods of time. They’re conceptually similar to asynchronous processes in Javascript and other languages, however, while async functions and threads execute within the context of a single continuously running computer, the execution of a longterm flow may pass between different CPUs, as the program pauses for external events for arbitrarily long time periods.
+The `deflow` macro enables writing procedures, called flows, which await events in the real world, and which may occur over long periods of time. They’re conceptually similar to asynchronous processes in Javascript and other languages, however, while async functions and threads execute within the context of a single continuously running computer, the execution of a rapids flow may pass between different CPUs, as the program pauses for external events for arbitrarily long time periods.
 
 The macro implements a compiler which analyzes a body of code, determining places where execution suspends for an external event, partitioning it into functions (continuations) which execute instructions before or after a point where execution suspends. The compiler associates each continuation with a unique address.
 
@@ -22,7 +22,7 @@ First, consider this extremely simple flow which asks the user for their name an
     name)) ;; return the name of the user
 ```
 
-The `listen!` function represents a point where execution pauses for input. The compiler recognizes `listen!` as a suspending expression - a point where execution pauses. Execution resumes when the system receives data from an external event (e.g., the user provides their name to a client, and the client generates an HTTP `POST` request on the longterm server). When execution resumes, the user's input (called the "result-value") is bound to the `name` variable. Note that bindings (in this case just one symbol, `excited?`) are preserved in the second half of the code body.
+The `listen!` function represents a point where execution pauses for input. The compiler recognizes `listen!` as a suspending expression - a point where execution pauses. Execution resumes when the system receives data from an external event (e.g., the user provides their name to a client, and the client generates an HTTP `POST` request on the rapids server). When execution resumes, the user's input (called the "result-value") is bound to the `name` variable. Note that bindings (in this case just one symbol, `excited?`) are preserved in the second half of the code body.
 
 First let's jump to the output of the compiler to get a flavor of what is going on.
 
@@ -46,7 +46,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 The deflow macro produces a Flow record which contains a map with two functions (continuations). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second continuation (explained below), providing both the symbols of the lexical context up to that point (`[excited?]`) and the symbol for the result value (called the "result key") which will eventually be received by `listen!` (`name`). Also notice that the second continuation takes a parameter list comprised of the previous continuation's lexical symbols and the result key.
 
-We'll discuss how the infrastructure produces this code and uses it to implement long running processes in the next section. For now, just imagine that the execution of these two functions can be separated by an arbitrarily long period of time and executed on different CPUs. This gives you a flavor for how longterm models complex user interactions as functions and allows them to be delivered using traditional scalable web architecture.
+We'll discuss how the infrastructure produces this code and uses it to implement long running processes in the next section. For now, just imagine that the execution of these two functions can be separated by an arbitrarily long period of time and executed on different CPUs. This gives you a flavor for how rapids models complex user interactions as functions and allows them to be delivered using traditional scalable web architecture.
 
 After the architecture overview, we describe how clients might interact with the service to make use of long term flows. At the end, we mention advanced topics which describe operators which allow coordinating clients of the service with each other.
 
@@ -333,7 +333,7 @@ After the architecture overview, we describe how clients might interact with the
 
 26. Advanced higher order flows.
 
-    Higher order functions such as map, reduce and filter may be defined using the facilities described thus far. Thus, it is possible to define longterm map, reduce and filter flows using deflow:
+    Higher order functions such as map, reduce and filter may be defined using the facilities described thus far. Thus, it is possible to define rapids map, reduce and filter flows using deflow:
 
     E.g.,
     ```clojure
@@ -454,7 +454,7 @@ In other situations, a response might be generated without action by the client,
   input) ;; return the user's input
  ```
 
-Note what happens here: the run times out, sends an email then executes the top of the flow again, generating the `"Please answer within a day"` response and suspending for input. However, no HTTP request exists to consume the response. For example, the user may have closed his browser. Nonetheless, the runtime still saves the run to durable storage together with the response generated thus far in this runlet. When the user reads the email and clicks the link, his browser loads a page on a web server. The web server uses the run id parameter to issue a `GET` request to retrieve the stored run from the longterm server and uses it to display the pre-generated response (`"Please answer within a day"`).
+Note what happens here: the run times out, sends an email then executes the top of the flow again, generating the `"Please answer within a day"` response and suspending for input. However, no HTTP request exists to consume the response. For example, the user may have closed his browser. Nonetheless, the runtime still saves the run to durable storage together with the response generated thus far in this runlet. When the user reads the email and clicks the link, his browser loads a page on a web server. The web server uses the run id parameter to issue a `GET` request to retrieve the stored run from the rapids server and uses it to display the pre-generated response (`"Please answer within a day"`).
 
 A slightly different approach would be used for web socket-based systems. Timeout code would check for the presence of an active socket and send a response and only fail-over to email if the socket is no longer active.
 
@@ -538,7 +538,7 @@ Multiple runs may interact during a request. Runs may block and redirect to each
 
 ## REST API Implementation
 
-An obvious use case is to provide the longterm service over a web endpoint. The implementation is simply involves mapping web endpoints to the high level functions described above. It's a trivial exercise to imagine an implementation for websockets, and other transport protocols.
+An obvious use case is to provide the rapids service over a web endpoint. The implementation is simply involves mapping web endpoints to the high level functions described above. It's a trivial exercise to imagine an implementation for websockets, and other transport protocols.
 
 ### Start run
 ```
