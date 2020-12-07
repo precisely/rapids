@@ -26,6 +26,7 @@ figwheel_server.log
 .idea/**/usage.statistics.xml
 .idea/**/dictionaries
 .idea/**/shelf
+projectFilesBackup
 
 # Generated files
 .idea/**/contentModel.xml
