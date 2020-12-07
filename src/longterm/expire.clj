@@ -1,10 +1,9 @@
 (ns longterm.expire
   (:require [longterm.run-loop :as rl]
-            [longterm.run :as r]))
+            [longterm.run-context :as rc]))
 
-(defn expire-run! [run]
-  {:pre [(r/run-in-state? run :suspended)]}
-  (let [{permit :permit,
-         default :default}   (-> run :suspend)]
-    (rl/continue! (:id run) {:permit permit :data default})))
+(defn expire-run! [run-id]
+  (rc/with-run-context [(rc/load! run-id)]
+    (let [{{permit :permit, default :default} :suspend} (rc/current-run)]
+      (rl/continue! run-id {:permit permit :data default}))))
 

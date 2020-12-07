@@ -2,7 +2,8 @@
   (:require
     [longterm.util :refer [in? new-uuid]]
     [longterm.run :as r]
-    [longterm.util :refer :all]))
+    [longterm.util :refer :all]
+    [longterm.signals :as s]))
 
 (declare run-in-state? set-runstore! create-run! save-run! get-run)
 
@@ -70,7 +71,10 @@
   ([run]
    {:pre  [(satisfies? IRunStore @*runstore*)
            (r/run? run)
-           (not (= (:state run) :running))]
+           (not (= (:state run) :running))
+           (if (r/run-in-state? run :suspended)
+             (-> run :suspend s/suspend-signal?)
+             (-> run :suspend nil?))]
     :post [(r/run? %)]}
    ;(println "save-run!" run)
    (let [expires      (-> run :suspend :expires)

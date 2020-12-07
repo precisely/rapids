@@ -38,7 +38,7 @@
                         ::next, ::next-id
                         ::updated-at, ::created-at]))
 
-(s/def ::id uuid?)            ;(s/or :string string? :number number? :uuid uuid?))
+(s/def ::id uuid?)
 (s/def ::error #(instance? Exception %))
 (s/def ::next ::run)
 (s/def ::next-id ::id)

@@ -39,6 +39,7 @@
                  [org.clojure/tools.macro "0.1.2"]
                  [org.clojure/data.codec "0.1.1"]
                  [com.taoensso/nippy "3.1.0"]
+                 [com.taoensso/timbre "5.1.0"]
                  [potemkin "0.4.5"]]
   :clean-targets ^{:protect false} ["target"]
   :plugins [[s3-wagon-private "1.3.4"]]

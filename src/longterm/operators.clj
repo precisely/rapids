@@ -1,7 +1,10 @@
 (ns longterm.operators
   (:require [longterm.run-context :as rc]
             [longterm.run-loop :as rl]
-            [longterm.flow :as flow]))
+            [longterm.flow :as flow]
+            [taoensso.timbre :as log]
+            [clojure.spec.alpha :as s])
+  (:import (java.time LocalDateTime)))
 
 ;;
 ;; Flow methods
@@ -17,9 +20,24 @@
   ([flow a1 a2 a3 & args]
    (flow/entry-point flow (cons a1 (cons a2 (cons a3 (concat (butlast args) (last args))))))))
 
+(s/def ::json (s/alt
+                :string string?
+                :number number?
+                :boolean boolean?
+                :null nil?
+                :map (s/map-of string? ::json)
+                :array (s/and vector? (s/coll-of ::json))))
+(s/def ::permit (s/or :keyword keyword? :json ::json))
 (defn ^:suspending listen!
   [& {:keys [permit expires default]}]
-  (rc/set-listen! permit, expires, default))
+  {:pre [(s/valid? (s/nilable ::permit) permit)
+         (s/valid? (s/nilable #(instance? LocalDateTime %)) expires)]}
+  (let [normalized-permit (if (keyword? permit)
+                            (name permit) permit)]
+    (if (not= normalized-permit permit)
+      (log/warn (str "Keyword permit" permit " normalized to string. Please change this in your code.")))
+
+    (rc/set-listen! normalized-permit, expires, default)))
 
 (defn ^:suspending block!
   "Suspends the current run and starts a run in :block mode"
