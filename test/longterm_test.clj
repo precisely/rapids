@@ -54,48 +54,48 @@
             (is (= (:result ev-result) :foo)))))))
 
   (testing "<* event provides a value"
-    (let [run (simulate-event! (start! event-value-flow :foo), :permit :foo, :data "foo-result")]
+    (let [run (simulate-event! (start! event-value-flow "foo"), :permit "foo", :data "foo-result")]
       (is (= (:result run) "foo-result"))))
 
   (testing "providing a mismatched context throws an exception"
-    (is (thrown? Exception (simulate-event! (start! event-value-flow :expecting), :permit :actual)))))
+    (is (thrown? Exception (simulate-event! (start! event-value-flow "expecting"), :permit "actual")))))
 
 (deflow fl-nest [arg context]
   (* arg (<* :permit context)))
 
 (deflow nested-flow-args [a]
-  (fl-nest (fl-nest (fl-nest a :first) :second) :third))
+  (fl-nest (fl-nest (fl-nest a "first") "second") "third"))
 
 (defn a [n] (* n 10))
 (deflow fl-alternating []
-  (+ (<* :permit :first-arg) (a 2) (fl-nest 100 :third)))
+  (+ (<* :permit "first-arg") (a 2) (fl-nest 100 "third")))
 
 (deflow fl-keywords [& {:keys [a b c]}]
-  (+ a b c (<* :permit :event)))
+  (+ a b c (<* :permit "event")))
 
 (deftest ^:unit FunctionalExpressionTest
   (testing "nested flow arguments"
     (let [run  (start! nested-flow-args 2)
-          run2 (simulate-event! run, :permit :first, :data 3)
-          run3 (simulate-event! run2, :permit :second, :data 5)
-          run4 (simulate-event! run3, :permit :third, :data 7)]
+          run2 (simulate-event! run, :permit "first", :data 3)
+          run3 (simulate-event! run2, :permit "second", :data 5)
+          run4 (simulate-event! run3, :permit "third", :data 7)]
       (is (= (:result run4) (* 2 3 5 7)))))
   (testing "various suspending and non-suspending args"
     (let [run (simulate-event!
-                (simulate-event! (start! fl-alternating), :permit :first-arg, :data 1),
-                :permit :third, :data 3)]
+                (simulate-event! (start! fl-alternating), :permit "first-arg", :data 1),
+                :permit "third", :data 3)]
       (is (run-in-state? run :complete))
       (is (= (:result run) 321))))
 
   (testing "accepts keywords"
     (let [run (simulate-event! (start! fl-keywords :a 1 :b 10 :c 100),
-                :permit :event, :data 1000)]
+                :permit "event", :data 1000)]
       (is (run-in-state? run :complete))
       (is (= (:result run) 1111)))))
 
 (deflow conditional-suspend [test]
   (if test
-    (<* :permit :then)
+    (<* :permit "then")
     (log! :else))
   (log! :done)
   :final-value)
@@ -108,7 +108,7 @@
       (is (run-in-state? run :suspended))
       (is-log [])
       (testing "after event"
-        (let [run (simulate-event! run, :permit :then)]
+        (let [run (simulate-event! run, :permit "then")]
           (is (= (:result run) :final-value))
           (is-log [:done])))))
 
@@ -121,11 +121,11 @@
 (deflow nested-conditional-suspend [level1 level2]
   (if level1
     (if level2
-      (<* :permit :true-true)
+      (<* :permit "true-true")
       (log! :true-false))
     (if level2
       (log! :false-true)
-      (<* :permit :false-false)))
+      (<* :permit "false-false")))
   (log! :done))
 
 (deftest ^:unit NestedConditionals
@@ -134,7 +134,7 @@
     (let [run (start! nested-conditional-suspend true true)]
 
       (is (run-in-state? run :suspended))
-      (let [run-after-event (simulate-event! run, :permit :true-true)]
+      (let [run-after-event (simulate-event! run, :permit "true-true")]
         (is (run-in-state? run-after-event :complete))
         (is-log [:done]))))
 
@@ -155,7 +155,7 @@
     (let [run (start! nested-conditional-suspend false false)]
 
       (is (run-in-state? run :suspended))
-      (let [run-after-event (simulate-event! run, :permit :false-false)]
+      (let [run-after-event (simulate-event! run, :permit "false-false")]
         (is (run-in-state? run-after-event :complete))
         (is-log [:done])))))
 
@@ -187,30 +187,30 @@
 (deflow non-suspending-let-flow [a]
   (let [b (+ 1 a)
         c (* b a)]
-    (if false (<* :permit :foo)) ; satisfy deflow suspend requirement but do nothing
+    (if false (<* :permit "foo")) ; satisfy deflow suspend requirement but do nothing
     [a b c]))
 
 (deflow suspending-let-initial-binding-flow [arg]
-  (let [suspend-value (<* :permit :initial-binding)
+  (let [suspend-value (<* :permit "initial-binding")
         square        (* arg arg)]
     [suspend-value square]))
 
 (deflow suspending-let-internal-binding-flow [arg]
   (let [square        (* arg arg)
-        suspend-value (<* :permit :internal-binding)
+        suspend-value (<* :permit "internal-binding")
         cube          (* arg arg arg)]
     [square suspend-value cube]))
 
 (deflow suspending-let-final-binding-flow [arg]
   (let [square        (* arg arg)
         cube          (* arg arg arg)
-        suspend-value (<* :permit :final-binding)]
+        suspend-value (<* :permit "final-binding")]
     [square cube suspend-value]))
 
 (deflow suspending-let-body-flow [arg]
   (let [square (* arg arg)
         cube   (* arg arg arg)]
-    [square cube (<* :permit :body)]))
+    [square cube (<* :permit "body")]))
 
 (deftest ^:unit LetTest
   (testing "non-suspending let expressions work"
@@ -219,27 +219,27 @@
 
   (testing "correctly binds a suspending initial value"
     (let [run (simulate-event! (start! suspending-let-initial-binding-flow 3),
-                :permit :initial-binding, :data "event-data")]
+                :permit "initial-binding", :data "event-data")]
       (is (= (:result run) ["event-data", 9]))))
 
   (testing "correctly binds a suspending internal value"
     (let [run (simulate-event! (start! suspending-let-internal-binding-flow 3),
-                :permit :internal-binding, :data "event-data")]
+                :permit "internal-binding", :data "event-data")]
       (is (= (:result run) [9, "event-data", 27]))))
 
   (testing "correctly binds a suspending final value"
     (let [run (simulate-event! (start! suspending-let-final-binding-flow 3),
-                :permit :final-binding, :data "event-data")]
+                :permit "final-binding", :data "event-data")]
       (is (= (:result run) [9, 27, "event-data"]))))
 
   (testing "correctly handles body with suspending value"
     (let [run (simulate-event! (start! suspending-let-body-flow 3),
-                :permit :body, :data "body-event-data")]
+                :permit "body", :data "body-event-data")]
       (is (= (:result run) [9, 27, "body-event-data"])))))
 
 (deflow non-suspending-loop [n]
   (log! :before-suspend)
-  (<* :permit :initial-wait)
+  (<* :permit "initial-wait")
   (log! :after-suspend)
   (loop [a 1]
     (log! :looped)
@@ -251,7 +251,7 @@
   (log! :before-loop)
   (loop [a 1]
     (log! :inside-loop)
-    (if (<* :permit :continue-loop)
+    (if (<* :permit "continue-loop")
       (recur (+ a 1))
       a)))
 
@@ -272,7 +272,7 @@
     (let [run (start! non-suspending-loop 3)]
       (is (run-in-state? run :suspended))
       (is-log [:before-suspend])
-      (let [run (simulate-event! run, :permit :initial-wait)]
+      (let [run (simulate-event! run, :permit "initial-wait")]
         (is (run-in-state? run :complete))
         (is-log [:before-suspend :after-suspend :looped :looped :looped])
         (is (:result run) 3))))
@@ -282,7 +282,7 @@
       (clear-log!)
       (let [run (start! loop-with-suspending-body)]
         (is (run-in-state? run :suspended))
-        (let [run (simulate-event! run, :permit :continue-loop, :data false)]
+        (let [run (simulate-event! run, :permit "continue-loop", :data false)]
           (is (run-in-state? run :complete))
           (is-log [:before-loop :inside-loop])
           (is (= (:result run) 1)))))
@@ -290,9 +290,9 @@
     (testing "multiple iterations"
       (clear-log!)
       (let [run (start! loop-with-suspending-body) ; a = 1
-            run (simulate-event! run, :permit :continue-loop, :data true) ; a + 1 = 2
-            run (simulate-event! run, :permit :continue-loop, :data true) ; a + 1 = 3
-            run (simulate-event! run, :permit :continue-loop, :data false)] ; a + 1 = 4
+            run (simulate-event! run, :permit "continue-loop", :data true) ; a + 1 = 2
+            run (simulate-event! run, :permit "continue-loop", :data true) ; a + 1 = 3
+            run (simulate-event! run, :permit "continue-loop", :data false)] ; a + 1 = 4
         (is (run-in-state? run :complete))
         (is (:result run) 4)
         (is-log [:before-loop :inside-loop :inside-loop :inside-loop])))
@@ -303,7 +303,7 @@
               Exception #"Mismatched argument count to recur"
               (longterm.deflow/expand-flow
                 `foo "" []
-                '((<* :permit :foo)
+                '((<* :permit "foo")
                   (loop [a 1]
                     (recur 2 :extra)))))))
       (testing "loop has more bindings"
@@ -311,7 +311,7 @@
               Exception #"Mismatched argument count to recur"
               (longterm.deflow/expand-flow
                 `foo "" []
-                '((<* :permit :foo)
+                '((<* :permit "foo")
                   (loop [a 1 b 2]
                     ;; recur has extra argument
                     (recur 2))))))))
@@ -321,7 +321,7 @@
               Exception #"Can only recur from tail position"
               (longterm.deflow/expand-flow
                 `foo "" []
-                '((<* :permit :a)
+                '((<* :permit "a")
                   (loop [a 1]
                     (recur 2)
                     (println "I'm in the tail pos")))))))
@@ -331,7 +331,7 @@
               (longterm.deflow/expand-flow
                 `foo "" []
                 '((loop [a 1]
-                    (<* :permit :a)
+                    (<* :permit "a")
                     (recur 2)
                     (println "I'm in the tail pos")))))))))
 
@@ -346,18 +346,18 @@
 
 (deflow responding-flow []
   (*> :r1)
-  (<* :permit :s1)
+  (<* :permit "s1")
   (*> :r2)
   (*> :r3)
-  (<* :permit :s2)
+  (<* :permit "s2")
   (*> :r4 :r5))
 
 (deftest ^:unit Respond
   (letfn [(response? [run x] (= (:run-response run) x))]
     (testing "*> adds to an element to the current run's response"
       (let [run1 (start! responding-flow)
-            run2 (simulate-event! run1, :permit :s1)
-            run3 (simulate-event! run2, :permit :s2)]
+            run2 (simulate-event! run1, :permit "s1")
+            run3 (simulate-event! run2, :permit "s2")]
         (testing "responds during start flow"
           (is (response? run1 [:r1])))
         (testing "Each run starts a new response, and responses accumulate during a runlet"
@@ -366,25 +366,25 @@
         (is (response? run3 [:r4 :r5]))))))
 
 (deflow datastructures []
-  {:a (<* :permit :data) :b (<* :permit :data) :c [(<* :permit :data) {:d (<* :permit :data)}]})
+  {:a (<* :permit "data") :b (<* :permit "data") :c [(<* :permit "data") {:d (<* :permit "data")}]})
 
 (deftest ^:unit DataStructures
   (testing "nested data structure with multiple suspending operations"
-    (let [run (reduce #(simulate-event! %1, :permit :data, :data %2) (start! datastructures) [1 2 3 4])]
+    (let [run (reduce #(simulate-event! %1, :permit "data", :data %2) (start! datastructures) [1 2 3 4])]
       (is (run-in-state? run :complete))
       (is (= (:result run)
             {:a 1 :b 2 :c [3 {:d 4}]})))))
 
 (deflow macroexpansion []
-  (or (<* :permit :data) (and (<* :permit :data) (<* :permit :data))))
+  (or (<* :permit "data") (and (<* :permit "data") (<* :permit "data"))))
 
 (deftest ^:unit MacroexpansionTest
   (testing "macroexpansion with suspending forms"
-    (let [run (reduce #(simulate-event! %1, :permit :data, :data %2) (start! macroexpansion) [false true "foo"])]
+    (let [run (reduce #(simulate-event! %1, :permit "data", :data %2) (start! macroexpansion) [false true "foo"])]
       (is (run-in-state? run :complete))
       (is (= (:result run) "foo")))))
 
-(deflow flow-with-anonymous-fn [] (map #(* % %) (<* :permit :list)))
+(deflow flow-with-anonymous-fn [] (map #(* % %) (<* :permit "list")))
 
 (deflow flow-with-closure [captured uncaptured-list]
   (let [closure  #(* % captured)]
@@ -394,7 +394,7 @@
   (testing "should throw an error attempting to partition a fn with suspending expressions"
     (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
           (longterm.deflow/expand-flow
-            `fn-with-suspend "" [] `((fn [] (listen! :permit :boo)))))))
+            `fn-with-suspend "" [] `((fn [] (listen! :permit "boo")))))))
 
   (testing "flow-with-closure"
     (let [run (start! flow-with-closure 2 [3 4 5])]
@@ -402,7 +402,7 @@
       (is (= (:result run) '(6 8 10)))))
 
   (testing "should successfully partition when a normal fn is present in the body"
-    (let [run (simulate-event! (start! flow-with-anonymous-fn), :permit :list, :data '(1 2 3))]
+    (let [run (simulate-event! (start! flow-with-anonymous-fn), :permit "list", :data '(1 2 3))]
       (is (run-in-state? run :complete))
       (is (= (:result run) '(1 4 9))))))
 

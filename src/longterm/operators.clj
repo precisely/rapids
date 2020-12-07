@@ -20,7 +20,7 @@
   ([flow a1 a2 a3 & args]
    (flow/entry-point flow (cons a1 (cons a2 (cons a3 (concat (butlast args) (last args))))))))
 
-(s/def ::json (s/alt
+(s/def ::json (s/or
                 :string string?
                 :number number?
                 :boolean boolean?
