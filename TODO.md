@@ -33,5 +33,5 @@
     - may require generalized support for object persistence across runlets
 * consider constraint mechanism for acquire - (fn [listen, event] ) => boolean
   - or perhaps raise error to indicate reason for failure
-* finish loop tests in longterm_test.clj 
+* finish loop tests in Rapids_test.clj 
 * documentation

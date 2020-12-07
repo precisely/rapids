@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/longterm.iml" filepath="$PROJECT_DIR$/longterm.iml" />
+      <module fileurl="file://$PROJECT_DIR$/rapids.iml" filepath="$PROJECT_DIR$/rapids.iml" />
     </modules>
   </component>
 </project>

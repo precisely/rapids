@@ -1,13 +1,13 @@
-# longterm
+# Rapids
 
 A DSL for programming long running flows, involving interactions with the real world which may occur over minutes, days, or months. This library is intended to make it easy to write sophisticated user flows. 
 
-Longterm defines a new macro, `deflow`, akin to `defn`, but which  permits listening execution until an external event is received. This is done with the `(listen! :permit :permit context)` special form. The system uses a user-definable RunStore which stores the state of the computation when a `listen!` is encountered. A default in memory runstore is provided, but the system is intended to be used with persistent storage. 
+Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits listening execution until an external event is received. This is done with the `(listen! :permit :permit context)` special form. The system uses a user-definable RunStore which stores the state of the computation when a `listen!` is encountered. A default in memory runstore is provided, but the system is intended to be used with persistent storage. 
 
 Execution is restarted using `(continue! run-id context optional-result)`. The result provided to `continue!` becomes the value of the `listen!` expression in the ensuing computation, which continues until complete or another `listen!` is encountered.  
 
 ## Basic Usage
-Also see `tests/longterm_test.clj`.
+Also see `tests/Rapids_test.clj`.
 
 ### Define a flow
 ```clojure
@@ -82,11 +82,11 @@ Adds the passed run's response to the current response, and sets the run as the 
 
 ## Implementing a custom storage backend
 
-### Import Run and IRunStore from longterm.runstore 
+### Import Run and IRunStore from rapids.runstore 
 
 ```clojure
 (ns my.package
-  (:require [longterm.runstore :as rs]))
+  (:require [rapids.runstore :as rs]))
 
 ...
 

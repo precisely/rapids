@@ -29,11 +29,11 @@
                       v]))
     (into {})))
 
-(defproject precisely/longterm "0.3.0"
-  :description "A library for scripting long term real world processes"
-  :url "https://precise.ly/longterm"
+(defproject precisely/rapids "0.3.0"
+  :description "A Clojure DSL for scripting user flows"
+  :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
-            :url  "https://precise.ly/longterm"}
+            :url  "https://precise.ly/rapids"}
   :dependencies [[org.clojure/clojure "1.10.1"]
                  [clojure.java-time "0.3.2"]
                  [org.clojure/tools.macro "0.1.2"]
@@ -51,7 +51,7 @@
                              [lein-localrepo "0.5.4"]]
               }
              }
-  :repl-options {:init-ns longterm}
+  :repl-options {:init-ns rapids}
 
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
                                       :username      ~(env :maven-repo-aws-access-key-id)
