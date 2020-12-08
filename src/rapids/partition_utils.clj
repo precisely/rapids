@@ -31,7 +31,8 @@
   ([name expr msg & args]
    (let [loc        (ifit (:line (meta expr)) (format " (line %s)" it) "")
          extra-info (if msg (str ". " (apply format msg args)) "")]
-     (throw (Exception. (format "%s%s%s: %s" name loc extra-info expr))))))
+     (throw (ex-info (format "%s%s%s: %s" name loc extra-info expr)
+              {:type :compiler-error})))))
 
 (defn unqualified-symbols-in [form]
   "Returns a set of unqualified symbols appearing in form"

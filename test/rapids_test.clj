@@ -2,7 +2,12 @@
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
             [rapids.in-memory-runstore :refer [in-memory-runstore?]]
-            [rapids.runstore :as rs]))
+            [rapids.runstore :as rs]
+            [expectations.clojure.test
+             :refer [defexpect expect expecting more->
+                     approximately between between' functionally
+                     side-effects]])
+  (:import (clojure.lang ExceptionInfo)))
 
 (deftest ^:unit RunStore
   (testing "runstore is set to default InMemoryRunStore"
@@ -387,7 +392,7 @@
 (deflow flow-with-anonymous-fn [] (map #(* % %) (<* :permit "list")))
 
 (deflow flow-with-closure [captured uncaptured-list]
-  (let [closure  #(* % captured)]
+  (let [closure #(* % captured)]
     (map closure uncaptured-list)))
 
 (deftest ^:unit FunctionTest
@@ -407,8 +412,12 @@
       (is (= (:result run) '(1 4 9))))))
 
 (deftest ^:unit FlowsAsFunctions
-  (testing "At top level, invoking a flow works and returns a new run"
-    (is (thrown-with-msg? Exception #"Attempt to invoke flow rapids_test/suspending-flow outside of run context." (suspending-flow :foo)))))
+  (testing "Attempt to invoke flow dynamically is caught with an exception"
+    (expect (more->
+              ExceptionInfo type
+              #"Improperly invoked flow" ex-message
+              :runtime-error (-> ex-data :type))
+      (suspending-flow :foo))))
 
 (deflow simple-child-flow []
   (log! (current-run))
@@ -447,9 +456,11 @@
           (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
 
           (testing "attempting to continue without a valid permit throws"
-            (is (thrown-with-msg?
-                  Exception #"Cannot acquire Run .* invalid permit"
-                  (continue! (:id parent-after-block)))))
+            (expect (more->
+                      ExceptionInfo type
+                      #"Cannot acquire Run .* invalid permit" ex-message
+                      :input-error (-> ex-data :type))
+              (continue! (:id parent-after-block))))
 
           (testing "but the parent run is still suspended"
             (is (= (-> parent-after-block :id rs/get-run :state) :suspended)))

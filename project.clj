@@ -29,7 +29,7 @@
                       v]))
     (into {})))
 
-(defproject precisely/rapids "0.3.0"
+(defproject precisely/rapids "0.3.1-SNAPSHOT"
   :description "A Clojure DSL for scripting user flows"
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
@@ -46,7 +46,8 @@
   :profiles {:dev
              {
               :source-paths ["src"]
-              :dependencies [[org.clojure/core.match "1.0.0"]] ; used by tests
+              :dependencies [[expectations/clojure-test "1.2.1"]
+                             [org.clojure/core.match "1.0.0"]] ; used by tests
               :plugins      [[lein-cloverage "1.1.2"]
                              [lein-localrepo "0.5.4"]]
               }

@@ -99,7 +99,8 @@
   (let [record (rs-lock! @*runstore* run-id)]
     (if record
       (r/run-from-record record)
-      (throw (Exception. (str "Run not found " run-id))))))
+      (throw (ex-info (str "Run not found " run-id)
+               {:type :runtime-error})))))
 
 (defn tx-begin! [] (rs-tx-begin! @*runstore*))
 (defn tx-commit! [] (rs-tx-commit! @*runstore*))
