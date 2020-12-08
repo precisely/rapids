@@ -77,10 +77,10 @@
   (let [{{s-permit :permit} :suspend :as retrieved} (load! run-id)]
     (if-not (r/run-in-state? retrieved :suspended :created)
       (throw (ex-info (str "Cannot acquire Run " run-id " from cache in state " (:state retrieved))
-               {:type :run-error})))
+               {:type :runtime-error})))
     (when (not= s-permit permit)
       (throw (ex-info (str "Cannot acquire Run " run-id " invalid permit")
-               {:type :run-error})))
+               {:type :input-error})))
 
     (cache-run! (assoc retrieved :state :running, :run-response [], :suspend nil))))
 

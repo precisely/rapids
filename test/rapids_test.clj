@@ -456,9 +456,11 @@
           (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
 
           (testing "attempting to continue without a valid permit throws"
-            (is (thrown-with-msg?
-                  Exception #"Cannot acquire Run .* invalid permit"
-                  (continue! (:id parent-after-block)))))
+            (expect (more->
+                      ExceptionInfo type
+                      #"Cannot acquire Run .* invalid permit" ex-message
+                      :input-error (-> ex-data :type))
+              (continue! (:id parent-after-block))))
 
           (testing "but the parent run is still suspended"
             (is (= (-> parent-after-block :id rs/get-run :state) :suspended)))
