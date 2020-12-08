@@ -154,3 +154,12 @@ The solution is to use backtick and carefully unquote/quote the symbols which sh
   (testing "works in both REPL and lein test"
     (eval `(deflow ~'foo [] (<*)))))
 ```
+
+### Exception Types
+
+Besides the usual Clojure program errors, this package throws `ExceptionInfo` objects with data containing a :type key, indicating the following 
+
+* :runtime-error - an error caught at runtime, usually indicating a programmer error. E.g., passing the wrong type of argument to a function.
+* :system-error - a severe error usually indicating a bug in the system or inconsistency of the stack
+* :syntax-error - problem while compiling a flow
+* :input-error - invalid data was provided to the system

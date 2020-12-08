@@ -13,7 +13,9 @@
    continuations
    ;; For debugging purposes:
    partitions]
-  (fn [this & _] (throw (Exception. (str "Attempt to invoke flow " (:name this) " outside of run context."))))
+  (fn [this & _]
+    (throw (ex-info (str "Improperly invoked flow: " (:name this) ". Use start!, fcall or fapply when flow is bound dynamically.")
+             {:type :runtime-error})))
 
   Object
   (toString [_] (format "#<Flow %s (%d partitions)>" name (count continuations))))
@@ -26,11 +28,11 @@
   ([address bindings]
    {:pre [(a/address? address)
           (map? bindings)]}
-   (let [flow (address/resolved-flow address)
-         partition (get-in flow [:partitions address])
+   (let [flow         (address/resolved-flow address)
          continuation (get-in flow [:continuations address])]
      (if-not (fn? continuation)
-       (throw (Exception. (format "Attempt to continue flow at undefined partition %s" address))))
+       (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
+                {:type :system-error})))
      (continuation bindings))))
 
 (defn entry-point
@@ -39,7 +41,8 @@
     (flow? flow) (apply (get flow :entry-point) args)
     (symbol? flow) (recur (resolve flow) args)
     (var? flow) (recur (var-get flow) args)
-    :else (throw (Exception. (format "Invalid flow %s" flow)))))
+    :else (throw (ex-info (str "Attempt to get Flow entry-point for object of type " (type flow))
+                   {:type :runtime-error}))))
 
 (defmethod print-method Flow
   [o w]

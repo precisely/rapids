@@ -118,6 +118,7 @@
     :block #(continue!
               (rc/parent-run-id) {:permit (rc/id) :data value})
     nil nil
-    (throw (Exception.
+    (throw (ex-info
              (str "Unexpected return mode '" (rc/return-mode) "' for run " (rc/id)
-               " with parent " (rc/parent-run-id))))))
+               " with parent " (rc/parent-run-id))
+             {:type :system-error}))))

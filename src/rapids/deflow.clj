@@ -14,7 +14,7 @@
   Flows are started with runloop/start! and resumed "
   [name docstring? args & code]
   (if-not (string? docstring?)
-    `(deflow ~name "" ~docstring? ~args ~@code)
+    (with-meta `(deflow ~name "" ~docstring? ~args ~@code) (meta &form))
     (expand-flow name docstring? args code)))
 
 (defn expand-flow [name docstring? args code]
@@ -51,4 +51,5 @@
        (map? arg) (recur (rest args) (concat params (:keys arg)))
        (symbol? arg) (recur (rest args) (conj params arg))
        (nil? arg) (vec params)
-       :else (throw (Exception. (str "Unexpected argument " arg)))))))
+       :else (throw (ex-info (str "Unexpected argument " arg)
+                      {:type :compiler-error}))))))
