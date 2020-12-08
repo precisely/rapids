@@ -41,7 +41,7 @@
     (flow? flow) (apply (get flow :entry-point) args)
     (symbol? flow) (recur (resolve flow) args)
     (var? flow) (recur (var-get flow) args)
-    :else (throw (ex-info (str "Attempt to get Flow entry-point for object of type " (type flow))
+    :else (throw (ex-info (str "Attempt to invoke Flow entry-point for object of type " (type flow))
                    {:type :runtime-error}))))
 
 (defmethod print-method Flow
