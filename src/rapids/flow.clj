@@ -2,8 +2,7 @@
   (:require [rapids.address :as address]
             [rapids.util :refer [refers-to?]]
             [rapids.defrecordfn :refer [defrecordfn]]
-            [rapids.address :as a]
-            [taoensso.nippy :refer [extend-freeze extend-thaw]]))
+            [rapids.address :as a]))
 
 (defrecordfn Flow
   [;; Global symbol defined as this flow
@@ -47,15 +46,3 @@
   (print-simple
     (str "#<Flow " (:name o) ">")
     w))
-
-;;
-;; nippy
-;;
-(extend-freeze Flow ::flow ; A unique (namespaced) type identifier
-  [x data-output]
-  (.writeUTF data-output (prn-str (:name x))))
-
-(extend-thaw ::flow ; Same type id
-  [data-input]
-  (let [flow-name (.readUTF data-input)]
-    (var-get (resolve (read-string flow-name)))))

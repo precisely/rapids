@@ -12,10 +12,7 @@
             [rapids.stack-frame :as sf]
             [rapids.signals :refer [make-suspend-signal]]
             [rapids.signals :as s]
-            [rapids.run :as r]
-            [taoensso.nippy :refer [extend-freeze extend-thaw]])
-  (:import [rapids.run Run]
-           [java.util UUID]))
+            [rapids.run :as r]))
 
 (def ^{:dynamic true
        :doc     "The id of the run that initiated the current runlet (which may be a child or parent)"}
@@ -36,15 +33,14 @@
   Runs are persisted to disk at the last moment, when the outer-most with-run-cache
   body completes."
   `(letfn [(dobody# [] (assert (bound? #'*run-cache*)) ~@body)]
-     ;; TODO: (try
      (if (bound? #'*run-cache*)
        (dobody#)
        (binding [*run-cache* {}]
          (let [result# (dobody#)]
            (save-cache!)
            result#)))))
-;; TODO: figure out exception handling strategy
-;;(catch Exception e (rollback))))
+(defn run-cache-exists? []
+  (bound? #'*run-cache*))
 
 (defmacro with-run-context
   "Executes body returning the Run produced by run-form, "
@@ -316,22 +312,3 @@
          (assoc %
            :next-id next-id,
            :next (if (not= next-id run-id) next-run))))))
-
-;;
-;; nippy
-;;
-(extend-freeze Run ::run
-  [run data-output]
-  (let [run-id (prn-str (:id run))]
-    (.writeUTF data-output run-id)))
-
-(extend-thaw ::run
-  [data-input]
-  (let [thawed-str (.readUTF data-input)
-        run-id (read-string thawed-str)]
-    (if (bound? #'*run-cache*)
-      (load! run-id)
-
-      ;; special handling for when a run is retrieved outside of a run-cache context
-      ;; just get the run without locking it or storing it in the cache
-      (rs/get-run run-id))))
