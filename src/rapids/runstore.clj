@@ -76,10 +76,9 @@
              (-> run :suspend s/suspend-signal?)
              (-> run :suspend nil?))]
     :post [(r/run? %)]}
-   ;(println "save-run!" run)
-   (let [expires      (-> run :suspend :expires)
+   (let [expires (-> run :suspend :expires)
          saved-record (rs-update! @*runstore* (r/run-to-record run) expires)
-         new          (r/run-from-record saved-record)]
+         new (r/run-from-record saved-record)]
      new)))
 
 (defn get-run
