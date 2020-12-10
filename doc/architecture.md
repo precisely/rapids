@@ -299,7 +299,9 @@ After the architecture overview, we describe how clients might interact with the
 
 23. Partitioning loops.
 
-    It is possible to implement efficient long term looping semantics by checking whether a loop body includes a suspending operation or not. If it does not, the loop may be compiled normally using looping constructs of the underlying language. If it does, then the compiler introduces a new continuation at the start of the loop expression, and arranges for a stack-push at the end of points where the loop must recur, where the stack points to the address of the continuation containing the start of the loop expression.
+    It is possible to implement efficient long term looping semantics by checking whether a loop body includes a suspending operation or not. If it does not, the loop may be compiled normally using looping constructs of the underlying language. If it does, then the compiler introduces a new continuation at the start of the loop expression (the "loop continuation"), and replaces the recur expressions with a stack-pus, where the stack frame points to the address of the continuation containing the start of the loop expression. Alternatively, one could simply replace the `recur` expression with a call to the loop continuation. 
+    
+The former mechanism generates a temporary Stack Frame which is immediately processed by the runtime loop. The latter avoids this so is marginally more performant, however, it consumes system stack which is not released until the loop is complete. In some situations, this could lead to stack overflows if, for example, a loop contains a suspending expression in side a conditional branch which is never encountered. If such a loop continues for a long time, each `recur` will consume more system stack in the latter method. 
 
 24. Partitioning branching logic.
 
