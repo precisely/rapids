@@ -85,7 +85,8 @@
   [run-id]
   {:pre  [(not (nil? run-id))]
    :post [(r/run? %)]}
-  (r/run-from-record (rs-get @*runstore* run-id)))
+  (ifit [record (rs-get @*runstore* run-id)]
+    (r/run-from-record record)))
 
 (defn lock-run!
   [run-id]
