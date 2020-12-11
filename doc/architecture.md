@@ -424,7 +424,10 @@ The client calls this flow by issuing an HTTP POST to an endpoint like `/runs/gr
 ```json
 {
    "id": "f3162328-97b9-4f67-a15a-c77f1d9647d5",
-   "response": [{"type": "text", "text": "Hi. What is your name?"}, {"type": "text-input", "permit": "name" }],
+   "response": [
+     {"type": "text", "text": "Hi. What is your name?"},
+     {"type": "text-input", "permit": "name" }
+   ],
    "state": "suspended"
 }
 ```
@@ -434,7 +437,10 @@ The client would use this information to display objects on the user's screen, a
 ```json
 {
    "id": "f3162328-97b9-4f67-a15a-c77f1d9647d5",
-   "response": [{"type": "text", "text": "Hi, Bob"}, {"type": "text", "text": "It's super duper, duper, duper, duper, duper, duper, duper, duper, (breathes) duper, duper, duper, duper, duper, duper, duper nice to meet you!" }],
+   "response": [
+     {"type": "text", "text": "Hi, Bob"}, 
+     {"type": "text", 
+      "text": "It's super duper, duper, duper, duper, duper, duper, duper, duper, (breathes) duper, duper, duper, duper, duper, duper, duper nice to meet you!" }],
    "state": "complete"
 }
 ```

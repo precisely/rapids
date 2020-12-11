@@ -16,12 +16,12 @@
     "Commit a transaction")
   (rs-tx-rollback! [rs]
     "Commit a transaction")
-  (rs-create! [rs record])
-  (rs-update! [rs record expires]
+  (rs-run-create! [rs record])
+  (rs-run-update! [rs record expires]
     "Saves the record to storage created by acquire!")
-  (rs-get [rs run-id]
+  (rs-run-get [rs run-id]
     "Retrieves a run without locking.")
-  (rs-lock! [rs run-id]
+  (rs-run-lock! [rs run-id]
     "Retrieves a run record, locking it against updates by other processes.
 
     Implementations should return:
@@ -63,7 +63,7 @@
   [& {:keys [id, stack, state, response, run-response] :as fields}]
   {:pre  [(satisfies? IRunStore @*runstore*)]
    :post [(r/run? %)]}
-  (let [run (r/run-from-record (rs-create! @*runstore*
+  (let [run (r/run-from-record (rs-run-create! @*runstore*
                                  (r/run-to-record (r/make-run (or fields {})))))]
     run))
 
@@ -77,7 +77,7 @@
              (-> run :suspend nil?))]
     :post [(r/run? %)]}
    (let [expires (-> run :suspend :expires)
-         saved-record (rs-update! @*runstore* (r/run-to-record run) expires)
+         saved-record (rs-run-update! @*runstore* (r/run-to-record run) expires)
          new (r/run-from-record saved-record)]
      new)))
 
@@ -85,7 +85,7 @@
   [run-id]
   {:pre  [(not (nil? run-id))]
    :post [(r/run? %)]}
-  (ifit [record (rs-get @*runstore* run-id)]
+  (ifit [record (rs-run-get @*runstore* run-id)]
     (r/run-from-record record)))
 
 (defn lock-run!
@@ -96,7 +96,7 @@
   ;;       E.g., if code handles the exception thrown here, then the record which
   ;;       was locked by `rs-acquire!` ought to be unlocked. This is more about
   ;;       good hygiene to avoid potential deadlocks; not yet critical.
-  (let [record (rs-lock! @*runstore* run-id)]
+  (let [record (rs-run-lock! @*runstore* run-id)]
     (if record
       (r/run-from-record record)
       (throw (ex-info (str "Run not found " run-id)

@@ -9,13 +9,13 @@
   (rs-tx-begin! [_])
   (rs-tx-commit! [_])
   (rs-tx-rollback! [_])
-  (rs-create! [this record]
+  (rs-run-create! [this record]
     (let [run-id    (new-uuid)
           record    (assoc record :id run-id)
           processes (:processes this)]
       (swap! processes assoc run-id record)
       record))
-  (rs-update! [this record expires]
+  (rs-run-update! [this record expires]
     (let [run-id       (:id record)
           processes    (:processes this)
           expiry-index (:expiry-index this)]
@@ -27,10 +27,10 @@
         (fn [p]
           (assoc p run-id record)))
       (get @processes run-id)))
-  (rs-lock! [this run-id]
+  (rs-run-lock! [this run-id]
     ;; db version would actually lock the run against further updates
-    (rs-get this run-id))
-  (rs-get [this run-id]
+    (rs-run-get this run-id))
+  (rs-run-get [this run-id]
     (let [run (get @(:processes this) run-id)]
       (ifit [next-id (:next-id run)]
         (if (not= next-id (:id run))
