@@ -80,7 +80,49 @@ Adds the passed run's response to the current response, and sets the run as the 
 (continue! run-id permit data)
 ```
 
-## Implementing a custom storage backend
+
+## Testing
+
+The `rapids.test` namespace includes a couple of `clojure.test` compatible macros (`branch` and `keys-match`) which make it easier to test branching flows. These are useful because the `start!` and `continue!` methods cause side effects on the run. 
+
+Here's an example of how to use them:
+
+```clojure
+(deftest WelcomeTest
+  (branch "welcome" [run (start! welcome)]
+    (keys-match run
+      :state :suspended
+      :response ["welcome. Do You want to continue?" _])
+
+    (branch "wants to continue"
+      [run (continue! (:next-id run) {:data "yes"})]
+      (keys-match run
+        :state :suspended 
+        :response ["great!... let's continue"]))
+
+    (branch "doesn't want to continue"
+      [run (continue! (:next-id run) {:data "no"})]
+      (keys-match run
+        :state :complete))))
+```
+
+### branch
+
+Creates nested test conditions.
+
+```clojure
+(branch "description" [...bindings] & body)
+```
+
+### keys-match
+
+A wrapper around `is` and `match` to make it easy to match patterns in maps:
+
+```clojure
+(keys-match obj-to-match :key1 pattern1 :key2 pattern2 ...) 
+```
+
+## Integrating Rapids into server
 
 ### Import Run and IRunStore from rapids.runstore 
 
@@ -92,12 +134,62 @@ Adds the passed run's response to the current response, and sets the run as the 
 
 (extend MyDBAdapter
   rs/IRunStore ; 
-  (rs/rs-create! [rs state] ...) ; return an object implementing rs/IRun in the given state in the db 
-  (rs/rs-get [rs run-id] ...) ; find and return the run
-  (rs/rs-acquire! [rs run-id] ...) ; atomically changing existing run from :listening to :running state and return it
-  (rs/rs-update! [rs run] ...) ; save the given run to the db
+  (rs/rs-create! [rs record] ...) ; return an object implementing rs/IRun with the given properties
+  (rs/rs-get [rs run-id] ...) ; find and return the record identified by run-id
+  (rs/rs-lock! [rs run-id] ...) ; return a record as provided by rs-update, locking it against changes (e.g., use `SELECT FOR UPDATE`)
+  (rs/rs-update! [rs record expires] ...) ; save the given record to the db - a map with a set of keys with values of `string`, `byte array`, `uuid` or `timestamp`
+                                          ; if expires is set, server should arrange for expire-run! to be called for that `run_id` at the given time
 ```
-The methods of IRunStore should return Run instances. If additional fields are needed, simply `assoc` them onto this object. 
+
+Here is an example Postgres definition of a table for storing runs:
+```sql
+ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+DO $$ BEGIN
+  CREATE TYPE RUN_STATES AS ENUM ('created', 'suspended', 'complete', 'error');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE RETURN_MODES AS ENUM ('block', 'redirect');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
+
+CREATE TABLE IF NOT EXISTS runs (
+  id UUID DEFAULT uuid_generate_v4(),
+  PRIMARY KEY (id),
+
+  -- data columns
+  error BYTEA,
+  next_id UUID,
+  parent_run_id UUID,
+  response BYTEA,
+  result BYTEA,
+  return_mode RETURN_MODES,
+  run_response BYTEA,
+  stack BYTEA,
+  start_form TEXT,
+  state RUN_STATES,
+  suspend BYTEA,
+  suspend_expires TIMESTAMP,
+
+  -- timestamps
+  created_at TIMESTAMP  NOT NULL  DEFAULT current_timestamp,
+  updated_at TIMESTAMP  NOT NULL  DEFAULT current_timestamp
+);
+CREATE INDEX IF NOT EXISTS runs_suspend_expires ON runs (suspend_expires);
+```
+
+### Exception Types
+
+Besides the usual Clojure program errors, this package throws `ExceptionInfo` objects with data containing a :type key, indicating the following 
+
+* `:runtime-error` - an error caught at runtime, usually indicating a programmer error. E.g., passing the wrong type of argument to a function.
+* `:system-error` - a severe error usually indicating a bug in the system or inconsistency of the stack
+* `:syntax-error` - problem while compiling a flow
+* `:input-error` - invalid data was provided to the system
 
 ## Deployment
 
@@ -127,7 +219,7 @@ To push a release:
    ```shell script
     lein deploy precisely
     ```
-   
+
 ### Local Deployment
 
 During development, you may want to publish to a local repo instead of to S3.  This can be done by publishing to your local Maven repo. This is typically at `~/.m2`.  The dev profile has the [lein-localrepo plugin](https://github.com/kumarshantanu/lein-localrepo) installed.
@@ -153,54 +245,4 @@ The solution is to use backtick and carefully unquote/quote the symbols which sh
 
   (testing "works in both REPL and lein test"
     (eval `(deflow ~'foo [] (<*)))))
-```
-
-### Exception Types
-
-Besides the usual Clojure program errors, this package throws `ExceptionInfo` objects with data containing a :type key, indicating the following 
-
-* :runtime-error - an error caught at runtime, usually indicating a programmer error. E.g., passing the wrong type of argument to a function.
-* :system-error - a severe error usually indicating a bug in the system or inconsistency of the stack
-* :syntax-error - problem while compiling a flow
-* :input-error - invalid data was provided to the system
-
-### Testing
-
-The `rapids.test` namespace includes a couple of `clojure.test` compatible macros (`branch` and `keys-match`) which make it easier to test branching flows. These are useful because the `start!` and `continue!` methods cause side effects on the run. 
-
-Here's an example of how to use them:
-
-```clojure
-(deftest WelcomeTest
-  (branch "welcome" [run (start! welcome)]
-    (keys-match run
-      :state :suspended
-      :response ["welcome. Do You want to continue?" _])
-
-    (branch "wants to continue"
-      [run (continue! (:next-id run) {:data "yes"})]
-      (keys-match run
-        :state :suspended 
-        :response ["great!... let's continue"]))
-
-    (branch "doesn't want to continue"
-      [run (continue! (:next-id run) {:data "no"})]
-      (keys-match run
-        :state :complete))))
-```
-
-#### branch
-
-Creates nested test conditions.
-
-```clojure
-(branch "description" [...bindings] & body)
-```
-
-#### keys-match
-
-A wrapper around `is` and `match` to make it easy to match patterns in maps:
-
-```clojure
-(keys-match obj-to-match :key1 pattern1 :key2 pattern2 ...) 
 ```
