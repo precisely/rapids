@@ -166,7 +166,7 @@ Besides the usual Clojure program errors, this package throws `ExceptionInfo` ob
 
 ### Testing
 
-The `rapids.test` namespace includes a couple of `clojure.test` compatible macros (`branch` and `keys-match`) which make it easier to test branching flows. These are useful because the `start!` and `continue` methods cause side effects on the run. 
+The `rapids.test` namespace includes a couple of `clojure.test` compatible macros (`branch` and `keys-match`) which make it easier to test branching flows. These are useful because the `start!` and `continue!` methods cause side effects on the run. 
 
 Here's an example of how to use them:
 
