@@ -310,7 +310,8 @@
                 `foo "" []
                 '((<* :permit "foo")
                   (loop [a 1]
-                    (recur 2 :extra)))))))
+                    (recur 2 :extra)))
+                1))))
       (testing "loop has more bindings"
         (is (thrown-with-msg?
               Exception #"Mismatched argument count to recur"
@@ -319,7 +320,8 @@
                 '((<* :permit "foo")
                   (loop [a 1 b 2]
                     ;; recur has extra argument
-                    (recur 2))))))))
+                    (recur 2)))
+                1)))))
     (testing "throws if recur is in non-tail position"
       (testing "non suspending loop"
         (is (thrown-with-msg?
@@ -329,7 +331,8 @@
                 '((<* :permit "a")
                   (loop [a 1]
                     (recur 2)
-                    (println "I'm in the tail pos")))))))
+                    (println "I'm in the tail pos")))
+                1))))
       (testing "suspending loop"
         (is (thrown-with-msg?
               Exception #"Can only recur from tail position"
@@ -338,7 +341,8 @@
                 '((loop [a 1]
                     (<* :permit "a")
                     (recur 2)
-                    (println "I'm in the tail pos")))))))))
+                    (println "I'm in the tail pos")))
+                1))))))
 
   (testing "recur-in-body-after-suspend"
     (let [run (start! recur-in-body-after-suspend)]
@@ -399,7 +403,7 @@
   (testing "should throw an error attempting to partition a fn with suspending expressions"
     (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
           (rapids.deflow/expand-flow
-            `fn-with-suspend "" [] `((fn [] (listen! :permit "boo")))))))
+            `fn-with-suspend "" [] `((fn [] (listen! :permit "boo"))) 1))))
 
   (testing "flow-with-closure"
     (let [run (start! flow-with-closure 2 [3 4 5])]

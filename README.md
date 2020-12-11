@@ -163,3 +163,44 @@ Besides the usual Clojure program errors, this package throws `ExceptionInfo` ob
 * :system-error - a severe error usually indicating a bug in the system or inconsistency of the stack
 * :syntax-error - problem while compiling a flow
 * :input-error - invalid data was provided to the system
+
+### Testing
+
+The `rapids.test` namespace includes a couple of `clojure.test` compatible macros (`branch` and `keys-match`) which make it easier to test branching flows. These are useful because the `start!` and `continue` methods cause side effects on the run. 
+
+Here's an example of how to use them:
+
+```clojure
+(deftest WelcomeTest
+  (branch "welcome" [run (start! welcome)]
+    (keys-match run
+      :state :suspended
+      :response ["welcome. Do You want to continue?" _])
+
+    (branch "wants to continue"
+      [run (continue! (:id run) {:data "yes"})]
+      (keys-match run
+        :state :suspended 
+        :response ["great!... let's continue"]))
+
+    (branch "doesn't want to continue"
+      [run (continue! (:id run) {:data "no"})]
+      (keys-match run
+        :state :complete))))
+```
+
+#### branch
+
+Creates nested test conditions.
+
+```clojure
+(branch "description" [...bindings] & body)
+```
+
+#### keys-match
+
+A wrapper around `is` and `match` to make it easy to match patterns in maps:
+
+```clojure
+(keys-match obj-to-match :key1 pattern1 :key2 pattern2 ...) 
+```
