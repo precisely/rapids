@@ -15,10 +15,10 @@
   [name docstring? args & code]
   (if-not (string? docstring?)
     (with-meta `(deflow ~name "" ~docstring? ~args ~@code) (meta &form))
-    (expand-flow name docstring? args code)))
+    (expand-flow name docstring? args code (-> &form meta :line))))
 
-(defn expand-flow [name docstring? args code]
-  (let [params (params-from-args args)
+(defn expand-flow [name docstring? args code line]
+  (let [params (params-from-args args [] line)
         qualified (qualify-symbol name)
         address (address/create qualified)
         [start-body, pset, _] (p/partition-body (vec code) address address params)
@@ -43,13 +43,12 @@
 
 (defn- params-from-args
   "given an argument vector, returns a vector of symbols"
-  ([args] (params-from-args args []))
-  ([args params]
+  [args params line]
    (let [arg (first args)]
      (cond
-       (= arg '&) (recur (rest args) params)
-       (map? arg) (recur (rest args) (concat params (:keys arg)))
-       (symbol? arg) (recur (rest args) (conj params arg))
+       (= arg '&) (recur (rest args) params line)
+       (map? arg) (recur (rest args) (concat params (:keys arg)) line)
+       (symbol? arg) (recur (rest args) (conj params arg) line)
        (nil? arg) (vec params)
        :else (throw (ex-info (str "Unexpected argument " arg)
-                      {:type :compiler-error}))))))
+                      {:type :compiler-error})))))
