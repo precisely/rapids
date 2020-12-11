@@ -178,13 +178,13 @@ Here's an example of how to use them:
       :response ["welcome. Do You want to continue?" _])
 
     (branch "wants to continue"
-      [run (continue! (:id run) {:data "yes"})]
+      [run (continue! (:next-id run) {:data "yes"})]
       (keys-match run
         :state :suspended 
         :response ["great!... let's continue"]))
 
     (branch "doesn't want to continue"
-      [run (continue! (:id run) {:data "no"})]
+      [run (continue! (:next-id run) {:data "no"})]
       (keys-match run
         :state :complete))))
 ```
