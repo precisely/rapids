@@ -20,6 +20,7 @@ Also see `tests/Rapids_test.clj`.
   (* (listen!) x))       ; returns the value the user entered multiplied by x
 ```
 
+
 #### respond! (shorthand: *>)
 
 ```
