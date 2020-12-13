@@ -20,6 +20,7 @@ Also see `tests/Rapids_test.clj`.
   (* (listen!) x))       ; returns the value the user entered multiplied by x
 ```
 
+As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions like `defn`.
 
 #### respond! (shorthand: *>)
 
