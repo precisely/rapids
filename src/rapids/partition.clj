@@ -159,6 +159,7 @@
       :otherwise [expr, nil, nil])))
 
 (defn special-form-op? [x] (in? '[if do let* fn* loop* quote recur] x))
+
 (defn partition-list-expr
   [expr mexpr partition-addr address params]
   {:pre [(vector? params)]}
@@ -170,7 +171,7 @@
       (some special-form-op? ops) (partition-special-expr mop expr mexpr partition-addr address params)
       ;; note: the following are not special-symbols, though the docs list them as special forms:
       (some suspending-operator? ops) (partition-suspend-expr expr mexpr partition-addr address params)
-      (some #(refers-to? flow/flow? %) ops) (partition-flow-expr mop expr mexpr partition-addr address params)
+      (some flow/flow-symbol? ops) (partition-flow-expr mop expr mexpr partition-addr address params)
       :else (partition-fncall-expr mop expr mexpr partition-addr address params))))
 
 ;;

@@ -1,8 +1,10 @@
 (ns rapids.flow
   (:require [rapids.address :as address]
-            [rapids.util :refer [refers-to?]]
+            [rapids.util :refer [refers-to? qualify-symbol]]
             [rapids.defrecordfn :refer [defrecordfn]]
             [rapids.address :as a]))
+
+(def ^:dynamic *defining-flows* [])
 
 (defrecordfn Flow
   [;; Global symbol defined as this flow
@@ -22,6 +24,10 @@
 
 (defn flow? [o]
   (instance? Flow o))
+
+(defn flow-symbol? [o]
+  (or (refers-to? flow? o)
+    (some #(= % (qualify-symbol o)) *defining-flows*)))
 
 (defn exec
   "Executes the flow partition at the address with the given bindings"

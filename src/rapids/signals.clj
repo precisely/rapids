@@ -24,7 +24,7 @@
 (defn suspending-operator? [x]
   (cond
     (var? x) (or (:suspending (meta x)) false)
-    (qualified-symbol? x) (recur (find-var x))
+    (qualified-symbol? x) (recur (try (find-var x) (catch Exception e)))
     (symbol? x) (recur (resolve x))
     :else false))
 
