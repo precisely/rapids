@@ -8,7 +8,7 @@
 ;; beginning of a request.
 (ns rapids.run-context
   (:require [rapids.util :refer :all]
-            [rapids.storage :as rs]
+            [rapids.storage :as storage]
             [rapids.stack-frame :as sf]
             [rapids.signals :refer [make-suspend-signal]]
             [rapids.signals :as s]
@@ -64,7 +64,7 @@
     (when (:dirty run)
       (cache-run! (dissoc run :dirty))
       (assert (r/run-in-state? run :error :complete :suspended))
-      (rs/save-run! run))))
+      (storage/save-run! run))))
 
 (defn cache-run! [run]
   (assert (bound? #'*run-cache*))
@@ -89,7 +89,7 @@
   [run-id]
   (or
     (get *run-cache* run-id)
-    (ifit [run (rs/lock-run! run-id)]
+    (ifit [run (storage/lock-run! run-id)]
       (cache-run! run))))
 
 ;;;

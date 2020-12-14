@@ -7,7 +7,7 @@
             rapids.expire
             rapids.time
             rapids.persistence
-            [rapids.in-memory-runstore :as imrs]
+            [rapids.in-memory-storage :as imrs]
             [potemkin :refer [import-vars]]))
 
 (import-vars

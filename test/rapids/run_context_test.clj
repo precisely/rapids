@@ -5,7 +5,7 @@
             [rapids.signals :as s]
             [rapids.stack-frame :as sf]
             [rapids.address :as a]
-            [rapids.storage :as rs]
+            [rapids.storage :as storage]
             [rapids.flow :as flow]
             [rapids.signals :as signals]))
 
@@ -27,7 +27,7 @@
         (cache-run! (assoc child-run :suspend nil, :state :complete)))
 
       ;; retrieve parent run
-      (let [loaded-parent-run (rs/get-run (:id parent-run))
+      (let [loaded-parent-run (storage/get-run (:id parent-run))
             child-run (-> loaded-parent-run :stack first :bindings :child-run)]
         (is (= (:state child-run) :complete))))))
 
@@ -45,7 +45,7 @@
         (cache-run! parent-run))
 
       ;; retrieve parent run
-      (let [loaded-parent-run (rs/get-run (:id parent-run))
+      (let [loaded-parent-run (storage/get-run (:id parent-run))
             deserialized-foo (-> loaded-parent-run :stack first :bindings :foo-flow)]
         (is (flow/flow? deserialized-foo))
         (is (fn? (:entry-point deserialized-foo)))

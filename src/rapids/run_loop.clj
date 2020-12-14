@@ -1,6 +1,6 @@
 (ns rapids.run-loop
   (:require
-    [rapids.storage :as rs]
+    [rapids.storage :as storage]
     [rapids.flow :as flow]
     [rapids.util :refer :all]
     [rapids.run-context :as rc]
@@ -20,7 +20,7 @@
   {:pre  [(refers-to? flow/flow? flow)]
    :post [(r/run? %)]}
   (let [start-form (prn-str `(~(:name flow) ~@args))
-        new-run    (assoc (rs/create-run!) :state :running, :start-form start-form)]
+        new-run    (assoc (storage/create-run!) :state :running, :start-form start-form)]
     (rc/with-run-context [new-run]
       ;; create the initial stack-continuation to kick of the process
       (eval-loop! (fn [_] (flow/entry-point flow args))))))

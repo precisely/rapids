@@ -6,7 +6,7 @@
   (:require [taoensso.nippy :refer :all]
             [clojure.main :as main]
             [rapids.run-context :as rc]
-            [rapids.storage :as rs])
+            [rapids.storage :as storage])
   (:import (rapids.run Run)
            (rapids.flow Flow)
            (clojure.lang AFunction)))
@@ -28,7 +28,7 @@
 
       ;; special handling for when a run is retrieved outside of a run-cache context
       ;; just get the run without locking it or storing it in the cache
-      (rs/get-run run-id))))
+      (storage/get-run run-id))))
 
 ;;
 ;; Flow - flows contain functions which aren't defined at top level

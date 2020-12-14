@@ -1,10 +1,10 @@
-(ns rapids.in-memory-runstore
+(ns rapids.in-memory-storage
   (:require [rapids.storage :refer :all]
             [rapids.util :refer [new-uuid ifit]]
             [rapids.storage :refer :all]
             [java-time :as t]))
 
-(defrecord InMemoryRunStore [processes expiry-index]
+(defrecord InMemoryStorage [processes expiry-index]
   IStorage
   (s-tx-begin! [_])
   (s-tx-commit! [_])
@@ -38,16 +38,16 @@
           run)
         run))))
 
-(defn in-memory-runstore? [x] (instance? InMemoryRunStore x))
+(defn in-memory-runstore? [x] (instance? InMemoryStorage x))
 
 (defn get-expired
   "Gets runs which have expired (using the current time or a given local-date-time)"
-  ([rs] (get-expired rs (t/local-date-time)))
+  ([storage] (get-expired storage (t/local-date-time)))
 
-  ([rs date-time]
-   (let [processes @(:processes rs)]
-     (map #(get % processes) (subseq @(:expiry-index rs) < date-time)))))
+  ([storage date-time]
+   (let [processes @(:processes storage)]
+     (map #(get % processes) (subseq @(:expiry-index storage) < date-time)))))
 
 (defn create-in-memory-runstore
   []
-  (InMemoryRunStore. (atom {}) (atom (sorted-map))))
+  (InMemoryStorage. (atom {}) (atom (sorted-map))))

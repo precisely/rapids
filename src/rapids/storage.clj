@@ -10,24 +10,25 @@
 (def ^:dynamic *storage* (atom nil))
 
 (defprotocol IStorage
-  (s-tx-begin! [rs]
+  (s-tx-begin! [storage]
     "Begin a transaction")
-  (s-tx-commit! [rs]
+  (s-tx-commit! [storage]
     "Commit a transaction")
-  (s-tx-rollback! [rs]
+  (s-tx-rollback! [storage]
     "Commit a transaction")
-  (s-run-create! [rs record])
-  (s-run-update! [rs record expires]
+  (s-run-create! [storage record])
+  (s-run-update! [storage record expires]
     "Saves the record to storage created by acquire!")
-  (s-run-get [rs run-id]
+  (s-run-get [storage run-id]
     "Retrieves a run without locking.")
-  (s-run-lock! [rs run-id]
+  (s-run-lock! [storage run-id]
     "Retrieves a run record, locking it against updates by other processes.
 
     Implementations should return:
       Run instance - if successful
       nil - if run not found
-      RunState - if current run state is not :suspended"))
+      RunState - if current run state is not :suspended")
+  (s-pool-put-in! [storage pool data source-run-id]))
 
 ;;
 ;; Public API based on runstore and stack/*stack* globals
@@ -36,8 +37,8 @@
 (defn set-runstore!
   "Sets the runstore - useful for setting a top-level runstore.
   It is not recommended to use both set-runstore! and with-runstore."
-  [rs]
-  (reset! *storage* rs))
+  [storage]
+  (reset! *storage* storage))
 
 (defmacro with-runstore
   "Creates a binding for the runstore"
@@ -45,6 +46,7 @@
   `(binding [*storage* (atom ~runstore)]
      ~@body))
 
+(declare tx-begin! tx-commit! tx-rollback!)
 (defmacro with-transaction
   "Executes all operations in body in a transaction. The runstore should use a single
   connection (i.e., not a connection pool) for the duration of this call."

@@ -1,8 +1,8 @@
 (ns rapids_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [rapids.in-memory-runstore :refer [in-memory-runstore?]]
-            [rapids.storage :as rs]
+            [rapids.in-memory-storage :refer [in-memory-runstore?]]
+            [rapids.storage :as storage]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
@@ -10,7 +10,7 @@
   (:import (clojure.lang ExceptionInfo)))
 
 (deftest ^:unit RunStore
-  (testing "runstore is set to default InMemoryRunStore"
+  (testing "runstore is set to default InMemoryStorage"
     (is (in-memory-runstore? @rapids.storage/*storage*))))
 
 (def ^:dynamic *log* (atom []))
@@ -456,7 +456,7 @@
         (is (not (= (:id child-run) (:id parent-run)))))
 
       (testing "After blocking, the parent run is returned in suspended state and cannot be continued"
-        (let [parent-after-block (-> parent-run :id rs/get-run)]
+        (let [parent-after-block (-> parent-run :id storage/get-run)]
           (is (= (:state parent-after-block) :suspended))
           (is (-> parent-after-block :suspend rapids.signals/suspend-signal?))
           (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
@@ -469,12 +469,12 @@
               (continue! (:id parent-after-block))))
 
           (testing "but the parent run is still suspended"
-            (is (= (-> parent-after-block :id rs/get-run :state) :suspended)))
+            (is (= (-> parent-after-block :id storage/get-run :state) :suspended)))
 
           (testing "the parent response includes only the response from the parent run"
             (is (= '(:parent-before-blocking-call) (:run-response parent-after-block)))))
 
-        (let [child-run-after-block (rs/get-run (:id child-run))]
+        (let [child-run-after-block (storage/get-run (:id child-run))]
 
           (testing "the child run is in block mode and keeps a record of the parent id"
             (is (= :block (:return-mode child-run-after-block)))
@@ -492,7 +492,7 @@
             (testing "child response should contain only the child response"
               (is (= '(:child-flow-after-continuation) (:run-response completed-child))))
 
-            (let [parent-after-block-release (rs/get-run (:id parent-run))]
+            (let [parent-after-block-release (storage/get-run (:id parent-run))]
               (testing "parent response should contain only the parent response"
                 (is (= '(:parent-after-blocking-call) (:run-response parent-after-block-release))))
 
@@ -570,8 +570,8 @@
             (is (= '[:level2-after-suspend :level1-end] (:response continue-level2))))
 
           (testing "the redirect run (level2) is suspended, waiting for the blocking run's id as a permit"
-            (is (= (-> level2-run :id rs/get-run :state) :suspended))
-            (is (= (-> level2-run :id rs/get-run :suspend :permit) (:id level3-run))))
+            (is (= (-> level2-run :id storage/get-run :state) :suspended))
+            (is (= (-> level2-run :id storage/get-run :suspend :permit) (:id level3-run))))
 
           (testing "the parent run is the next result"
             (is (= (:next-id continue-level2) (:id level1-run)))
@@ -607,7 +607,7 @@
                 (is (= '[:level3-end] (:run-response level3-continue))))
 
               (testing "blocked run (level2) is unblocked because level3 completes"
-                (let [fresh-level2 (-> level2-run :id rs/get-run)]
+                (let [fresh-level2 (-> level2-run :id storage/get-run)]
                   (is (= :complete (:state fresh-level2)))
                   (testing "and the blocker's result and final respond! is captured"
                     (is (= '[:level3-result :level2-end] (:response fresh-level2)))))))))))))
