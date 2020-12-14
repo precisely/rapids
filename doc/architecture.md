@@ -528,19 +528,19 @@ Multiple runs may interact during a request. Runs may block and redirect to each
    (continue! parent-run-id :permit child-run-id :result child-run)
    ```
 
-### Ports: "Channels for Runs"
+### Pools: "Channels for Runs"
 
-  The existing infrastructure provides the basis for another powerful mechanism of interprocess communication: Channels, which we refer to as "Ports" to distinguish from the related runtime concept of a channel. Ports are implemented as tables.
+  The existing infrastructure provides the basis for another powerful mechanism of interprocess communication: Channels, which we refer to as "Pools" to distinguish from the related runtime concept of a channel. Ports are implemented as tables.
 
-  It is possible to `put` and `take` values from ports in a similar way as is done with [channels](https://clojure.org/news/2013/06/28/clojure-clore-async-channels ), and ports similarly may be buffered or unbuffered.
+  It is possible to `put-in` and `take-out` values from pools in a similar way as is done with [channels](https://clojure.org/news/2013/06/28/clojure-clore-async-channels ). Pools may similarly be buffered or unbuffered.
 
-  Ports are created using `(port {n})`, where n is an optional value indicating the size of the buffer. A port is an object stored in durable storage, and is associated with a unique id, the "port id". This is a guaranteed globally unique identifier. We use UUIDs.
+  Pools are created using `(pool {n})`, where n is an optional value indicating the size of the buffer. A pool is an object stored in durable storage, and is associated with a unique id, the "pool id". This is a guaranteed globally unique identifier. We use UUIDs.
 
-  In addition, buffered ports provide different modes: FILO, FIFO and prioritized, where a second ordering value is provided during the `put` to determine the order by which values are retrieved during `take`. Under the hood, all buffered ports are prioritized, where FILO and FIFO ports take time or its negation as an implicit ordering value.
+  In addition, buffered pools provide different modes: FILO, FIFO and prioritized, where a second ordering value is provided during the `put-in` to determine the order by which values are retrieved during `take`. Under the hood, all buffered pools are prioritized, where FILO and FIFO ports take time or its negation as an implicit ordering value.
 
-  Blocking takes from ports are done with the suspending operator `<_!!` which takes a port as an argument. If no values are in the port queue, the operator returns a suspend with a permit value equal to the port id. If a value is available, it returns immediately, return it. Since it is a suspending expression, the compiler has ensured it ends the continuation, so this value appears as a data in the main loop.
+  Blocking take-outs from pools are done with the suspending operator `<_!!` which takes a pool as an argument. If no values are in the pool buffer, the operator returns a suspend with a permit value equal to the pool id. If a value is available, the blocking take out operator returns immediately, returning the value. Since blocking take-outs are suspending expressions, the compiler has ensured it ends the continuation, so this value appears as a result-value in the main loop.
 
-  If the queue is empty, blocking take causes the current run id to be added to a many-to-many mapping in durable storage of run ids to port ids, the PortTakers table. This represents runs which are waiting on results from the port.
+  If the queue is empty, blocking take causes the current run id to be added to a many-to-many mapping in durable storage of run ids to pool ids, the PoolTakers table. This represents runs which are waiting on results from the pool.
 
   Similarly, a blocking put (e.g., `(_>!! port value {priority})` causes the calling Run to suspend if no runs are associated with the port in the port takers map and the port isn't associated with a queue or the queue is full. The run id and value are stored in a durable map, the PortPutters table, which maps a port to runs which are waiting to put values in the port.
 

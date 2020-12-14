@@ -2,7 +2,7 @@
   ; macros must be explicitly referred to be available to ClojureScript
   (:require rapids.deflow
             rapids.run-loop
-            rapids.runstore
+            rapids.storage
             rapids.operators
             rapids.expire
             rapids.time
@@ -11,7 +11,7 @@
             [potemkin :refer [import-vars]]))
 
 (import-vars
-  [rapids.runstore with-runstore set-runstore! create-run! save-run! get-run lock-run!]
+  [rapids.storage with-runstore set-runstore! create-run! save-run! get-run lock-run!]
   [rapids.run run? run-in-state? run-in-mode?]
   [rapids.deflow deflow]
   [rapids.flow flow?]
@@ -29,4 +29,4 @@
    ;; start operator:
    ! ])
 
-(rapids.runstore/set-runstore! (imrs/create-in-memory-runstore))
+(rapids.storage/set-runstore! (imrs/create-in-memory-runstore))

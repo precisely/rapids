@@ -5,7 +5,7 @@
             [rapids.signals :as s]
             [rapids.stack-frame :as sf]
             [rapids.address :as a]
-            [rapids.runstore :as rs]
+            [rapids.storage :as rs]
             [rapids.flow :as flow]
             [rapids.signals :as signals]))
 

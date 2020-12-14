@@ -7,3 +7,10 @@
 (defn pool [& {:keys [order] :or {order :filo}}]
   (Pool. (new-uuid) order))
 
+(defn take-out!
+  ([pool] (take-out pool nil))
+  ([pool default]
+   ()))
+
+(defn put-in! [pool data]
+  )

@@ -1,6 +1,6 @@
 (ns rapids.run-loop
   (:require
-    [rapids.runstore :as rs]
+    [rapids.storage :as rs]
     [rapids.flow :as flow]
     [rapids.util :refer :all]
     [rapids.run-context :as rc]

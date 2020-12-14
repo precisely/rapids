@@ -1,11 +1,11 @@
 (ns rapids.in-memory-runstore
-  (:require [rapids.runstore :refer :all]
+  (:require [rapids.storage :refer :all]
             [rapids.util :refer [new-uuid ifit]]
-            [rapids.runstore :refer :all]
+            [rapids.storage :refer :all]
             [java-time :as t]))
 
 (defrecord InMemoryRunStore [processes expiry-index]
-  IRunStore
+  IStorage
   (rs-tx-begin! [_])
   (rs-tx-commit! [_])
   (rs-tx-rollback! [_])

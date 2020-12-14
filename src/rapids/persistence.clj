@@ -6,7 +6,7 @@
   (:require [taoensso.nippy :refer :all]
             [clojure.main :as main]
             [rapids.run-context :as rc]
-            [rapids.runstore :as rs])
+            [rapids.storage :as rs])
   (:import (rapids.run Run)
            (rapids.flow Flow)
            (clojure.lang AFunction)))

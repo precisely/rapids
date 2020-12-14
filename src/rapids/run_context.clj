@@ -8,7 +8,7 @@
 ;; beginning of a request.
 (ns rapids.run-context
   (:require [rapids.util :refer :all]
-            [rapids.runstore :as rs]
+            [rapids.storage :as rs]
             [rapids.stack-frame :as sf]
             [rapids.signals :refer [make-suspend-signal]]
             [rapids.signals :as s]

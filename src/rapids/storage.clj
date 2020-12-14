@@ -1,4 +1,4 @@
-(ns rapids.runstore
+(ns rapids.storage
   (:require
     [rapids.util :refer [in? new-uuid]]
     [rapids.run :as r]
@@ -7,9 +7,9 @@
 
 (declare run-in-state? set-runstore! create-run! save-run! get-run)
 
-(def ^:dynamic *runstore* (atom nil))
+(def ^:dynamic *storage* (atom nil))
 
-(defprotocol IRunStore
+(defprotocol IStorage
   (rs-tx-begin! [rs]
     "Begin a transaction")
   (rs-tx-commit! [rs]
@@ -37,12 +37,12 @@
   "Sets the runstore - useful for setting a top-level runstore.
   It is not recommended to use both set-runstore! and with-runstore."
   [rs]
-  (reset! *runstore* rs))
+  (reset! *storage* rs))
 
 (defmacro with-runstore
   "Creates a binding for the runstore"
   [[runstore] & body]
-  `(binding [*runstore* (atom ~runstore)]
+  `(binding [*storage* (atom ~runstore)]
      ~@body))
 
 (defmacro with-transaction
@@ -61,15 +61,15 @@
 
 (defn create-run!
   [& {:keys [id, stack, state, response, run-response] :as fields}]
-  {:pre  [(satisfies? IRunStore @*runstore*)]
+  {:pre  [(satisfies? IStorage @*storage*)]
    :post [(r/run? %)]}
-  (let [run (r/run-from-record (rs-run-create! @*runstore*
+  (let [run (r/run-from-record (rs-run-create! @*storage*
                                  (r/run-to-record (r/make-run (or fields {})))))]
     run))
 
 (defn save-run!
   ([run]
-   {:pre  [(satisfies? IRunStore @*runstore*)
+   {:pre  [(satisfies? IStorage @*storage*)
            (r/run? run)
            (not (= (:state run) :running))
            (if (r/run-in-state? run :suspended)
@@ -77,7 +77,7 @@
              (-> run :suspend nil?))]
     :post [(r/run? %)]}
    (let [expires (-> run :suspend :expires)
-         saved-record (rs-run-update! @*runstore* (r/run-to-record run) expires)
+         saved-record (rs-run-update! @*storage* (r/run-to-record run) expires)
          new (r/run-from-record saved-record)]
      new)))
 
@@ -85,7 +85,7 @@
   [run-id]
   {:pre  [(not (nil? run-id))]
    :post [(r/run? %)]}
-  (ifit [record (rs-run-get @*runstore* run-id)]
+  (ifit [record (rs-run-get @*storage* run-id)]
     (r/run-from-record record)))
 
 (defn lock-run!
@@ -96,13 +96,13 @@
   ;;       E.g., if code handles the exception thrown here, then the record which
   ;;       was locked by `rs-acquire!` ought to be unlocked. This is more about
   ;;       good hygiene to avoid potential deadlocks; not yet critical.
-  (let [record (rs-run-lock! @*runstore* run-id)]
+  (let [record (rs-run-lock! @*storage* run-id)]
     (if record
       (r/run-from-record record)
       (throw (ex-info (str "Run not found " run-id)
                {:type :runtime-error})))))
 
-(defn tx-begin! [] (rs-tx-begin! @*runstore*))
-(defn tx-commit! [] (rs-tx-commit! @*runstore*))
-(defn tx-rollback! [] (rs-tx-rollback! @*runstore*))
+(defn tx-begin! [] (rs-tx-begin! @*storage*))
+(defn tx-commit! [] (rs-tx-commit! @*storage*))
+(defn tx-rollback! [] (rs-tx-rollback! @*storage*))
 

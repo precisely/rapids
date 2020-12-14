@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
             [rapids.in-memory-runstore :refer [in-memory-runstore?]]
-            [rapids.runstore :as rs]
+            [rapids.storage :as rs]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
@@ -11,7 +11,7 @@
 
 (deftest ^:unit RunStore
   (testing "runstore is set to default InMemoryRunStore"
-    (is (in-memory-runstore? @rapids.runstore/*runstore*))))
+    (is (in-memory-runstore? @rapids.storage/*storage*))))
 
 (def ^:dynamic *log* (atom []))
 (defn clear-log!
