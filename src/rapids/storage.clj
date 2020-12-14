@@ -10,18 +10,18 @@
 (def ^:dynamic *storage* (atom nil))
 
 (defprotocol IStorage
-  (rs-tx-begin! [rs]
+  (s-tx-begin! [rs]
     "Begin a transaction")
-  (rs-tx-commit! [rs]
+  (s-tx-commit! [rs]
     "Commit a transaction")
-  (rs-tx-rollback! [rs]
+  (s-tx-rollback! [rs]
     "Commit a transaction")
-  (rs-run-create! [rs record])
-  (rs-run-update! [rs record expires]
+  (s-run-create! [rs record])
+  (s-run-update! [rs record expires]
     "Saves the record to storage created by acquire!")
-  (rs-run-get [rs run-id]
+  (s-run-get [rs run-id]
     "Retrieves a run without locking.")
-  (rs-run-lock! [rs run-id]
+  (s-run-lock! [rs run-id]
     "Retrieves a run record, locking it against updates by other processes.
 
     Implementations should return:
@@ -63,7 +63,7 @@
   [& {:keys [id, stack, state, response, run-response] :as fields}]
   {:pre  [(satisfies? IStorage @*storage*)]
    :post [(r/run? %)]}
-  (let [run (r/run-from-record (rs-run-create! @*storage*
+  (let [run (r/run-from-record (s-run-create! @*storage*
                                  (r/run-to-record (r/make-run (or fields {})))))]
     run))
 
@@ -77,7 +77,7 @@
              (-> run :suspend nil?))]
     :post [(r/run? %)]}
    (let [expires (-> run :suspend :expires)
-         saved-record (rs-run-update! @*storage* (r/run-to-record run) expires)
+         saved-record (s-run-update! @*storage* (r/run-to-record run) expires)
          new (r/run-from-record saved-record)]
      new)))
 
@@ -85,7 +85,7 @@
   [run-id]
   {:pre  [(not (nil? run-id))]
    :post [(r/run? %)]}
-  (ifit [record (rs-run-get @*storage* run-id)]
+  (ifit [record (s-run-get @*storage* run-id)]
     (r/run-from-record record)))
 
 (defn lock-run!
@@ -94,15 +94,15 @@
    :post [(r/run? %)]}
   ;; TODO: We may need a way to explicitly release the db lock on the record
   ;;       E.g., if code handles the exception thrown here, then the record which
-  ;;       was locked by `rs-acquire!` ought to be unlocked. This is more about
+  ;;       was locked by `s-run-acquire!` ought to be unlocked. This is more about
   ;;       good hygiene to avoid potential deadlocks; not yet critical.
-  (let [record (rs-run-lock! @*storage* run-id)]
+  (let [record (s-run-lock! @*storage* run-id)]
     (if record
       (r/run-from-record record)
       (throw (ex-info (str "Run not found " run-id)
                {:type :runtime-error})))))
 
-(defn tx-begin! [] (rs-tx-begin! @*storage*))
-(defn tx-commit! [] (rs-tx-commit! @*storage*))
-(defn tx-rollback! [] (rs-tx-rollback! @*storage*))
+(defn tx-begin! [] (s-tx-begin! @*storage*))
+(defn tx-commit! [] (s-tx-commit! @*storage*))
+(defn tx-rollback! [] (s-tx-rollback! @*storage*))
 

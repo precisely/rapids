@@ -6,16 +6,16 @@
 
 (defrecord InMemoryRunStore [processes expiry-index]
   IStorage
-  (rs-tx-begin! [_])
-  (rs-tx-commit! [_])
-  (rs-tx-rollback! [_])
-  (rs-run-create! [this record]
+  (s-tx-begin! [_])
+  (s-tx-commit! [_])
+  (s-tx-rollback! [_])
+  (s-run-create! [this record]
     (let [run-id    (new-uuid)
           record    (assoc record :id run-id)
           processes (:processes this)]
       (swap! processes assoc run-id record)
       record))
-  (rs-run-update! [this record expires]
+  (s-run-update! [this record expires]
     (let [run-id       (:id record)
           processes    (:processes this)
           expiry-index (:expiry-index this)]
@@ -27,10 +27,10 @@
         (fn [p]
           (assoc p run-id record)))
       (get @processes run-id)))
-  (rs-run-lock! [this run-id]
+  (s-run-lock! [this run-id]
     ;; db version would actually lock the run against further updates
-    (rs-run-get this run-id))
-  (rs-run-get [this run-id]
+    (s-run-get this run-id))
+  (s-run-get [this run-id]
     (let [run (get @(:processes this) run-id)]
       (ifit [next-id (:next-id run)]
         (if (not= next-id (:id run))
