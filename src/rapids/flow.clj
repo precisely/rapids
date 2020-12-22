@@ -26,15 +26,17 @@
   (instance? Flow o))
 
 (defn flow-symbol? [o]
-  (or (refers-to? flow? o)
-    (some #(= % (qualify-symbol o)) *defining-flows*)))
+  (and (symbol? o)
+    (or (refers-to? flow? o)
+      (let [qsym (qualify-symbol o)]
+        (some #(= % qsym) *defining-flows*)))))
 
 (defn exec
   "Executes the flow partition at the address with the given bindings"
   ([address bindings]
    {:pre [(a/address? address)
           (map? bindings)]}
-   (let [flow         (address/resolved-flow address)
+   (let [flow (address/resolved-flow address)
          continuation (get-in flow [:continuations address])]
      (if-not (fn? continuation)
        (throw (ex-info (str "Attempt to continue flow at undefined partition " address)

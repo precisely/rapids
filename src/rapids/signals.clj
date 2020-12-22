@@ -26,7 +26,7 @@
     (nil? x) false
     (var? x) (or (:suspending (meta x)) false)
     (qualified-symbol? x) (recur (try (find-var x) (catch Exception _)))
-    (symbol? x) (recur (resolve x))
+    (symbol? x) (recur (try (resolve x) (catch Exception _)))
     :else false))
 
 (defn valid-suspend?
