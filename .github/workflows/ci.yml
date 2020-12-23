@@ -1,0 +1,30 @@
+name: Rapids CI
+
+on:
+  push:
+    branches: [ master, dev ]
+  pull_request:
+    branches: [ master, dev ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install dependencies
+      run: lein deps
+
+    - name: Run tests
+      run: lein test
+
+    - name: Run Coverage
+      run: lein cloverage --lcov
+
+    - name: Partial LCOV Code Coverage Report
+      uses: risetechnologies/lcov-reporter-action@1.0.4
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        lcov-file: ./target/coverage/lcov.info
