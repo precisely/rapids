@@ -173,7 +173,7 @@
   {:post [(not (contains-some? % remove-keys))]}
   (let [run (make-run                                       ; fill every field of the run
               (apply dissoc {:state         :suspended
-                             :start-form    `(foo :a 1)
+                             :start-form    (str `(foo :a 1))
                              :stack         (list (sf/make-stack-frame (a/create `foo 1 2) {:b 2} 'data-key))
                              :suspend       (signals/make-suspend-signal :foo (t/local-date-time) {:a 1})
                              :run-response  ["hello" "there"]
