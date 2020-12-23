@@ -23,8 +23,29 @@ jobs:
     - name: Run Coverage
       run: lein cloverage --lcov
 
+    - name: Checkout ${{ github.base_ref }} branch
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.base_ref }}
+        path: base_branch
+
+    - name: Install ${{ github.base_ref }} dependencies
+      run: |
+        cd base_branch
+        lein deps
+
+    - name: Run Coverage for ${{ github.base_ref }} branch
+      run: |
+        cd base_branch
+        lein cloverage --lcov
+
+    ## Useful for debugging problems - CI will pause and provide an ssh connection
+#    - name: Setup tmate session
+#      uses: mxschmitt/action-tmate@v3
+
     - name: Partial LCOV Code Coverage Report
       uses: risetechnologies/lcov-reporter-action@1.0.4
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         lcov-file: ./target/coverage/lcov.info
+        lcov-base: ./base_branch/target/coverage/lcov.info
