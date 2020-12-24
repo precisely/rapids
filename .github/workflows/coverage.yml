@@ -1,8 +1,6 @@
-name: Rapids CI
+name: rapids coverage
 
 on:
-  push:
-    branches: [ master, dev ]
   pull_request:
     branches: [ master, dev ]
 
@@ -17,8 +15,9 @@ jobs:
     - name: Install dependencies
       run: lein deps
 
-    - name: Run tests
-      run: lein test
+    ## Useful for debugging problems - CI will pause and provide an ssh connection
+#    - name: Setup tmate session
+#      uses: mxschmitt/action-tmate@v3
 
     - name: Run Coverage
       run: lein cloverage --lcov
@@ -38,10 +37,6 @@ jobs:
       run: |
         cd base_branch
         lein cloverage --lcov
-
-    ## Useful for debugging problems - CI will pause and provide an ssh connection
-#    - name: Setup tmate session
-#      uses: mxschmitt/action-tmate@v3
 
     - name: Partial LCOV Code Coverage Report
       uses: risetechnologies/lcov-reporter-action@1.0.4
