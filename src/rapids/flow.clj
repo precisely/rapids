@@ -1,8 +1,7 @@
 (ns rapids.flow
-  (:require [rapids.address :as address]
+  (:require [rapids.address :as a]
             [rapids.util :refer [refers-to? qualify-symbol]]
-            [rapids.defrecordfn :refer [defrecordfn]]
-            [rapids.address :as a]))
+            [rapids.defrecordfn :refer [defrecordfn]]))
 
 (def ^:dynamic *defining-flows* [])
 
@@ -36,7 +35,7 @@
   ([address bindings]
    {:pre [(a/address? address)
           (map? bindings)]}
-   (let [flow (address/resolved-flow address)
+   (let [flow (a/resolved-flow address)
          continuation (get-in flow [:continuations address])]
      (if-not (fn? continuation)
        (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
