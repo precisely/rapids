@@ -22,7 +22,7 @@ First, consider this extremely simple flow which asks the user for their name an
     name)) ;; return the name of the user
 ```
 
-The `listen!` function represents a point where execution pauses for input. The compiler recognizes `listen!` as a suspending expression - a point where execution pauses. Execution resumes when the system receives data from an external event (e.g., the user provides their name to a client, and the client generates an HTTP `POST` request on the rapids server). When execution resumes, the user's input (called the "result-value") is bound to the `name` variable. Note that bindings (in this case just one symbol, `excited?`) are preserved in the second half of the code body.
+The `listen!` function represents a point where execution pauses for input. The compiler recognizes `listen!` as a suspending expression - a point where execution pauses. Execution resumes when the system receives data from an external event (e.g., the user provides their name to a client, and the client generates an HTTP `POST` request on the rapids server). When execution resumes, the user's input (the "data") is bound to the `name` variable (the "data-key"). Note that bindings (in this case just one symbol, `excited?`) are preserved in the second half of the code body.
 
 First let's jump to the output of the compiler to get a flavor of what is going on.
 
@@ -44,7 +44,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
                                      name)}}
 ```
 
-The deflow macro produces a Flow record which contains a map with two functions (continuations). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second continuation (explained below), providing both the symbols of the lexical context up to that point (`[excited?]`) and the symbol for the result value (called the "result key") which will eventually be received by `listen!` (`name`). Also notice that the second continuation takes a parameter list comprised of the previous continuation's lexical symbols and the result key.
+The deflow macro produces a Flow record which contains a map with two functions (continuations). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second continuation (explained below), providing both the symbols of the lexical context up to that point (`[excited?]`) and the symbol for the data (called the "data key") which will eventually be received by `listen!` (in this case, `name`). Also notice that the second continuation takes a parameter list comprised of the previous continuation's lexical symbols and the data key.
 
 We'll discuss how the infrastructure produces this code and uses it to implement long running processes in the next section. For now, just imagine that the execution of these two functions can be separated by an arbitrarily long period of time and executed on different CPUs. This gives you a flavor for how rapids models complex user interactions as functions and allows them to be delivered using traditional scalable web architecture.
 
@@ -80,11 +80,11 @@ After the architecture overview, we describe how clients might interact with the
 
 7. Contents of Stack Frames.
 
-   A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a continuation where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `result-key`. That variable will be bound as an argument to the continuation referenced by the symbolic address (a).
+   A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a continuation where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `data-key`. That variable will be bound as an argument to the continuation referenced by the symbolic address (a).
 
    ```clojure
    ;; simplified way of creating a stackframe record in Clojure
-   (StackFrame. address bindings result-key)
+   (StackFrame. address bindings data-key)
    ```
 
 8. Rule for pushing stack frames.
@@ -123,19 +123,19 @@ After the architecture overview, we describe how clients might interact with the
 
     The `start!` function generates a StackFrame where the address is a special continuation which identifies the beginning of the flow, denoted by a well known address, such as `{flow-name}/0`. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `(StackFrame. #address<greeting/0>, {:excited? true}, nil)`.
 
-    Remember, these values are the address, the bindings and the result-key. The `start!`  function allocates an empty array for the stack, the initial frame is pushed onto the stack, and the main loop is invoked with a `nil` argument. The result of the main loop is processed as described below, saving the state of computation to durable storage, and an object which allows resuming the computation is returned.
+    Remember, these values are the address, the bindings and the data-key. The `start!`  function allocates an empty array for the stack, the initial frame is pushed onto the stack, and the main loop is invoked with a `nil` argument. The result of the main loop is processed as described below, saving the state of computation to durable storage, and an object which allows resuming the computation is returned.
 
 11. Operation of the main loop.
 
-    The main loop is a function taking a single argument, the `result-value`, which implements the following algorithm:
+    The main loop is a function taking a single argument, the `data`, which implements the following algorithm:
 
-    a. If the stack is not empty, pop the frame at the top of the stack (the top frame), otherwise exit, returning the `result-value`.
+    a. If the stack is not empty, pop the frame at the top of the stack (the top frame), otherwise exit, returning the `data`.
 
-    b. If the result-key of the top frame is non nil, add the `result-value` to the bindings, associating it with the `result-key`. E.g., `(assoc bindings result-key result-value)` in Clojure. The bindings thus prepared are called "the result bindings".
+    b. If the data-key of the top frame is non nil, add the `data` to the bindings, associating it with the `data-key`. E.g., `(assoc bindings data-key data)` in Clojure. The bindings thus prepared are called "the continue bindings".
 
-    c. Retrieve the continuation identified by the address of the top frame and call it with the result bindings.
+    c. Retrieve the continuation identified by the address of the top frame and call it with the continue bindings.
 
-    d. The continuation will return either a `Suspend` signal or some other value, if the return value is not a `Suspend` signal, recursively call the main loop (i.e., GOTO step a) passing the return value as the argument. (The return value becomes the `result-value` of the next iteration of the loop).
+    d. The continuation will return either a `Suspend` signal or some other value, if the return value is not a `Suspend` signal, recursively call the main loop (i.e., GOTO step a) passing the return value as the argument. (The return value becomes the `data` of the next iteration of the loop).
 
     e. If a `Suspend` signal is received, exit the main loop, returning the signal.
 
@@ -145,10 +145,10 @@ After the architecture overview, we describe how clients might interact with the
 
 13. Continuing.
 
-    After a flow is started, it will usually transition into a suspended state while it waits for input. The `continue!` function is provided for this purpose. It is a function of two arguments: an id which references a run and an optional `result-value`. It retrieves the Run from durable storage, regenerating the stack (discussed below in "Storing and regenerating state"). The main loop is then invoked with the `result-value` and processed as described above, and the result of the post-processing step is returned.
+    After a flow is started, it will usually transition into a suspended state while it waits for input. The `continue!` function is provided for this purpose. It is a function of two arguments: an id which references a run and an optional `data`. It retrieves the Run from durable storage, regenerating the stack (discussed below in "Storing and regenerating state"). The main loop is then invoked with the `data` and processed as described above, and the result of the post-processing step is returned.
 
     ```clojure
-    (continue! run-id result-value) ; returns a Run object
+    (continue! run-id data) ; returns a Run object
     ```
 
 14. Responding to the client during the run.
@@ -206,14 +206,14 @@ After the architecture overview, we describe how clients might interact with the
 
 17. Guarding against invalid continuation.
 
-    By adding a `permit` value to the `Suspend` signal, and storing this value in the Run, a requirement can be created for the caller of `continue!`. This is useful for preventing a client from responding to an earlier part of the flow. The `listen!` function is modified to take an optional argument `:permit` which must be matched with a value provided to the `continue!` function. The simplest version of this would just be to match the values exactly, but more sophisticated matching is possible by including a function. For example, the permit could be a private key. The client could be provided a public key and required to encode some value (e.g., the result-value) with that key and provide it as the permit.
+    By adding a `permit` value to the `Suspend` signal, and storing this value in the Run, a requirement can be created for the caller of `continue!`. This is useful for preventing a client from responding to an earlier part of the flow. The `listen!` function is modified to take an optional argument `:permit` which must be matched with a value provided to the `continue!` function. The simplest version of this would just be to match the values exactly, but more sophisticated matching is possible by including a function. For example, the permit could be a private key. The client could be provided a public key and required to encode some value (e.g., the data) with that key and provide it as the permit.
 
     ```clojure
     ;; inside the flow:
     ... (listen! :permit :foo)
 
     ;; client code somehow ends up calling this:
-    (continue! run-id result-value permit) ; where permit = :foo
+    (continue! run-id data permit) ; where permit = :foo
     ```
 
 18. Timers and timeouts.
@@ -305,7 +305,7 @@ The former mechanism generates a temporary Stack Frame which is immediately proc
 
 24. Partitioning branching logic.
 
-    A branching logic expression consists of `test`, `then` and `else` clauses. A branching logic expression which contains no suspending expressions is incorporated as is by the compiler. If the `test` clause is a suspending expression, then code is partitioned at the test expression. That is, the test expressions ends the current continuation, a stack frame is pushed with a new unique auto-generated variable for the `result-key`. The address will point to a new partition, the "branch partition" or "branch continuation" which contains a conditional expression which takes the result key variable as an argument and the start forms of the `then` and `else` clauses as arguments:
+    A branching logic expression consists of `test`, `then` and `else` clauses. A branching logic expression which contains no suspending expressions is incorporated as is by the compiler. If the `test` clause is a suspending expression, then code is partitioned at the test expression. That is, the test expressions ends the current continuation, a stack frame is pushed with a new unique auto-generated variable for the `data-key`. The address will point to a new partition, the "branch partition" or "branch continuation" which contains a conditional expression which takes the data key variable as an argument and the start forms of the `then` and `else` clauses as arguments:
 
     ```clojure
     ;;; input form
@@ -472,7 +472,7 @@ The architecture includes the following elements:
 
   D. Continuations which save new stack frames to the stack at runtime
 
-  E. A stack composed of stack frames, each of which contains the address of a continuation, a map of lexical bindings, and an optional result-key
+  E. A stack composed of stack frames, each of which contains the address of a continuation, a map of lexical bindings, and an optional data-key
 
   F. A main loop function which continuously pops stack frames and evaluates continuations until a `Suspend` signal is received.
 
@@ -532,7 +532,7 @@ Multiple runs may interact during a request. Runs may block and redirect to each
 
   In addition, buffered ports provide different modes: FILO, FIFO and prioritized, where a second ordering value is provided during the `put` to determine the order by which values are retrieved during `take`. Under the hood, all buffered ports are prioritized, where FILO and FIFO ports take time or its negation as an implicit ordering value.
 
-  Blocking takes from ports are done with the suspending operator `<_!!` which takes a port as an argument. If no values are in the port queue, the operator returns a suspend with a permit value equal to the port id. If a value is available, it returns immediately, return it. Since it is a suspending expression, the compiler has ensured it ends the continuation, so this value appears as a result-value in the main loop.
+  Blocking takes from ports are done with the suspending operator `<_!!` which takes a port as an argument. If no values are in the port queue, the operator returns a suspend with a permit value equal to the port id. If a value is available, it returns immediately, return it. Since it is a suspending expression, the compiler has ensured it ends the continuation, so this value appears as a data in the main loop.
 
   If the queue is empty, blocking take causes the current run id to be added to a many-to-many mapping in durable storage of run ids to port ids, the PortTakers table. This represents runs which are waiting on results from the port.
 
