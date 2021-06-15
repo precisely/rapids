@@ -145,7 +145,7 @@ After the architecture overview, we describe how clients might interact with the
 
 13. Continuing.
 
-    After a flow is started, it will usually transition into a suspended state while it waits for input. The `continue!` function is provided for this purpose. It is a function of two arguments: an id which references a run and an optional `data`. It retrieves the Run from durable storage, regenerating the stack (discussed below in "Storing and regenerating state"). The main loop is then invoked with the `data` and processed as described above, and the result of the post-processing step is returned.
+    After a flow is started, it will usually transition into a suspended state while it waits for input. The `continue!` function is provided for this purpose. It is a function of two arguments: an id which references a run and an optional `data`. It retrieves the Run from durable storage, regenerating the stack (discussed below in ["Storing and regenerating state"](#storing-and-regenerating-state)). The main loop is then invoked with the `data` and processed as described above, and the result of the post-processing step is returned.
 
     ```clojure
     (continue! run-id data) ; returns a Run object
@@ -184,6 +184,7 @@ After the architecture overview, we describe how clients might interact with the
 
     The response vector can be thought of as a set of instructions to a particular client. A chatbot client would treat these as commands to create text bubbles, buttons and so on. A robot client might expect objects that represent operations for moving and sensing. A more traditional user interface might include primitives for displaying pages and making updates to those pages. Another type of client might be a lab which reports status of processing a sample, but doesn't expect much in the way of a response from the server.
 
+<a name="storing-and-regenerating-state"></a>
 15. Storing and regenerating state.
 
     A Run contains three potentially complex data fields which represent objects generated during the computation: the response, the bindings and the result. While scalar values and composite objects like sets, maps, lists and arrays composed of scalars are easy to store. Other types of objects require special treatment. For example, functions cannot be easily persisted. A programmer may bind an object like the Flow data structure, but since the entire definition of this object resides in the program, committing it to durable storage would be wasteful. In addition, it contains functions, so the problem for persisting functions applies also to Flow objects. In addition, Runs representing other asynchronous processes may be referenced in the bindings, and their state may evolve from the time the bindings were persisted to durable storage. For this reason, a mechanism for "freezing" and "thawing" objects which respects the different requirements for different types of objects is required. We use an existing library, [nippy](https://github.com/ptaoussanis/nippy ), which can be extended with custom functions for different types of entities, which we briefly outline here:
@@ -192,10 +193,11 @@ After the architecture overview, we describe how clients might interact with the
 
     B. Global definitions: if the system can determine an object is globally defined, it will be stored in a structure which wraps the global symbol. Thawing the object is a simple matter of derefrencing the global symbol.
 
-    C. Functions: globally defined functions can be handled as per (B), but lexically scoped functions, especially closures, need special treatment by the compiler. This is described below in "Storing and regenerating closures".
+    C. Functions: globally defined functions can be handled as per (B), but lexically scoped functions, especially closures, need special treatment by the compiler. This is described below in ["Storing and regenerating closures"](#storing-and-regenerating-closures).
 
     Because of the simplicity of the design, many types of storage could be used to implement the service, including relational or document-oriented databases, or file systems. The nippy library referenced above is but one example of similar facilities available in many other languages.
 
+<a name="storing-and-regenerating-closures"></a>
 16. Storing and regenerating closures.
 
     Closures require special handling by the compiler. Persisting functions at runtime to a durable store is difficult - but also unnecessary. Closures, however, contain data that must be passed between continuations. The compiler includes a partitioner that recognizes local function definitions. In Clojure, this is implemented by recognizing forms that begin with `fn` or `fn*`. When such forms are encountered, the compiler arranges for the function to be included in a vector associated with the flow object itself. The index of the local function in this array is called the _local function index_.
@@ -309,7 +311,7 @@ The former mechanism generates a temporary Stack Frame which is immediately proc
 
     ```clojure
     ;;; input form
-    (if (my-flow)
+    (if (my-flow) ; my-flow is a suspending operation
        then-clause
        else-clause)
     ```
@@ -334,7 +336,7 @@ The former mechanism generates a temporary Stack Frame which is immediately proc
     Two functions, `fcall` and `fapply` perform call and apply sematics on flows. The compiler recognizes `(fcall ..)` and `(fapply ...)` expressions as suspending expressions. The functions themselves simply perpare their arguments according to standard `call` and `apply` semantics, respectively, and pass the bindings to the entry point continuation of the flow object.
 
 26. Advanced higher order flows.
-
+    
     Higher order functions such as map, reduce and filter may be defined using the facilities described thus far. Thus, it is possible to define rapids map, reduce and filter flows using deflow:
 
     E.g.,
@@ -528,22 +530,129 @@ Multiple runs may interact during a request. Runs may block and redirect to each
    (continue! parent-run-id :permit child-run-id :result child-run)
    ```
 
-### Pools: "Channels for Runs"
+### Pools: Inter-run communication and synchronization
 
-  The existing infrastructure provides the basis for another powerful mechanism of interprocess communication: Channels, which we refer to as "Pools" to distinguish from the related runtime concept of a channel. Ports are implemented as tables.
+  The existing infrastructure provides the basis for a powerful mechanism of communication and coordination related to [channels](https://en.wikipedia.org/wiki/Channel_(programming)). We refer to them as "Pools" to distinguish them from [Clojure channels](https://clojure.org/news/2013/06/28/clojure-clore-async-channels ). 
 
-  It is possible to `put-in` and `take-out` values from pools in a similar way as is done with [channels](https://clojure.org/news/2013/06/28/clojure-clore-async-channels ). Pools may similarly be buffered or unbuffered.
+  Pools provide a means for runs to communicate and synchronize with each other. Values are put into pools using the `put-in!` flow and taken out using the `take-out!` flow. Pools contain an internal buffer containing zero or more slots. When the buffer is full, the`put-in!` operator will suspend the current run until space becomes available. When no put-ins are pending on the pool and the buffer is empty, the `take-out!` operator suspends the current run until a value is available. This is similar behavior to `put` and `take` operators in other CSP-inspired features, such as in golang and in Clojure's async library.
 
-  Pools are created using `(pool {n})`, where n is an optional value indicating the size of the buffer. A pool is an object stored in durable storage, and is associated with a unique id, the "pool id". This is a guaranteed globally unique identifier. We use UUIDs.
+  This section shows how a channel-style capability can be implemented using the existing infrastructure. 
 
-  In addition, buffered pools provide different modes: FILO, FIFO and prioritized, where a second ordering value is provided during the `put-in` to determine the order by which values are retrieved during `take`. Under the hood, all buffered pools are prioritized, where FILO and FIFO ports take time or its negation as an implicit ordering value.
+  First an example.
+ 
+#### Simple example suspending take-out using an unbuffered pool
 
-  Blocking take-outs from pools are done with the suspending operator `<_!!` which takes a pool as an argument. If no values are in the pool buffer, the operator returns a suspend with a permit value equal to the pool id. If a value is available, the blocking take out operator returns immediately, returning the value. Since blocking take-outs are suspending expressions, the compiler has ensured it ends the continuation, so this value appears as a result-value in the main loop.
+```clojure
+(deflow source-flow [p] 
+  (let [user-input (<*)] ; get a value from the user
+    (put-in! p user-input))) 
+    
+(deflow sink-flow []
+  (let [p (pool)] ; creates an unbuffered pool
+    (let [source-run (start! source-flow p)]
+      (<* (decorate-input (take-out! p)))))) ; take a value out of a pool and use it as a response
 
-  If the queue is empty, blocking take causes the current run id to be added to a many-to-many mapping in durable storage of run ids to pool ids, the PoolTakers table. This represents runs which are waiting on results from the pool.
+(def sink-run (start! sink-flow))
+(continue! runA :foo)
 
-  Similarly, a blocking put (e.g., `(_>!! port value {priority})` causes the calling Run to suspend if no runs are associated with the port in the port takers map and the port isn't associated with a queue or the queue is full. The run id and value are stored in a durable map, the PortPutters table, which maps a port to runs which are waiting to put values in the port.
+```
+  This code causes `take-out!` to suspend while it waits for the source to produce a value. This is the sequence of events:
+  
+  1. `sink-run` is started using `sink-flow` (line 10)
+  2. `sink-flow` creates an unbuffered pool, `p` (line 6)
+  3. `sink-flow` creates `source-run` starting it with `source-flow` and passing `p` (line 7)
+  4. `source-flow` suspends, waiting for user input (line 2)
+  5. `sink-flow` attempts to take out from `p` and suspends, since no value is available in `p` (line 8) 
+  6. `sink-run` continues with value `:foo`  (line 11)
+  7. `sink-run` puts `:foo` in the pool (line 3)
+  8. the `take-out!` call (line 8) resumes, returning value `:foo`  
 
+  Alternatively, if we were to assign `:foo` to `user-input` directly (at line 2) - 
+
+```clojure
+  (let [user-input :foo] 
+```
+  - then, `source-flow` would suspend on the `put-in!` call because in this situation the unbuffered pool has pending take-outs. Values put in a pool which has no buffer space are referred to as "unbuffered values". Notice that unbuffered pools act like semaphores. This allows tight couple two runs at `put-in!` and `take-out!` calls. 
+
+#### Buffered pools
+
+  Buffered pools permit decoupled `put-in!` and `take-out!` calls. A buffered pool is created with a fixed number of slots by passing a positive integer to `pool`:
+
+```clojure
+(pool 3) ; creates a pool with 3 slots
+```
+#### Implementation of Pools
+
+  The `pool` function initializes and returns an instance of the `Pool` data structure: `(pool n)`. It takes a single optional argument, the buffer size, which defaults to 0. 
+  
+  In Clojure, the data structure would be represented as follows:     
+
+```clojure
+(defrecord Pool
+   id     ; a globally unique identifier  
+   size   ; integer, indicating size of the buffer
+   sources  ; FIFO queue holding put-in records
+   buffer   ; FIFO queue for buffered values
+   sinks)   ; FIFO queue of run-ids representing runs waiting to take-out a value
+```
+  The `sources` queue represents blocked `put-in!` calls. It stores "put-in records", two tuples which record a run-id and a value, and which can be represented by a Clojure record:
+
+```clojure
+(defrecord PutIn run-id value)
+```
+  The `buffer` queue stores values which are available for `take-out!`. A pool's buffer is *full* when the `buffer` queue contains `size` items, and it may not hold more than `size` items. A pool with a zero buffer size is referred to as an unbuffered pool, and is always considered "full".   
+
+  The `sinks` queue represents runs which are suspended by `take-out!`. In practice, it is a FIFO queue of run-ids.
+
+  Note that the `buffer` and `sources` queues are filled by `put-in!` and emptied by `take-out!`. Conversely, the `sinks` queue is filled by `take-out!` and emptied by `put-in!`. If the `sources` or `buffer` queues are not empty, the `sinks` queue must be empty, and conversely, if the `sinks` queue is not empty, then both the `sources` and `buffer` queues must be empty. The rules implemented by `put-in!` and `take-out!` are outlined in the following section.
+
+#### Mechanism of put-in!
+
+  The `put-in!` flow algorithm works as follows, given a call to `(put-in! pool value)`: 
+
+    IF the pool buffer is full
+    THEN 
+        IF the sinks queue is not empty
+        THEN 
+            - remove a value from the sinks queue (a run-id)
+            - continue the run, providing the value to continue!
+            - return
+        ELSE
+            - create a PutIn record containing the current run-id and the value 
+            - save the PutIn record in the sources queue
+            - suspend execution using (listen!) 
+    ELSE 
+        - add the value to the buffer
+        - return
+
+  This algorithm assumes the pool object is destructively modified. In Clojure this requires passing the pool inside an atom. 
+
+#### Mechanism of take-out!
+
+  The `take-out!` flow algorithm works as follows, given a call `(take-out! pool)`:
+  
+    IF sources queue is not empty
+    THEN
+        - remove a PutIn record from the sources queue
+        - continue the run associated with the run id in the PutIn record
+        - add the value in the PutIn record to the buffer queue
+
+    IF buffer queue is not empty
+    THEN
+        - remove a value from the buffer queue
+        - return the value
+    ELSE
+        - add the current run id to the sinks queue
+        - suspend execution using (listen!)
+    
+  This algorithm assumes the pool object is destructively modified. In Clojure this requires passing the pool inside an atom.
+
+#### Storing and regenerating pools
+
+  When a runlet ends, the system arranges for any pool objects bound to local variables to be persisted to durable storage as described above using custom `freeze` and `thaw` methods. Pools are persisted as storage-based objects, as described above under ["Storing and Regenerating State"](#storing-and-regenerating-state). This means only the id of the pool is stored in the stack. The pool object is retrieved from durable storage and the record is locked for the duration of the runlet. An alternative approach is to retrieve and lock pool data from durable storage only when data is accessed.
+
+  Note that that although several runs may be active during a runlet, the code in those runs does not executes sequentially. For example, a run may `start!` another run, passing it a pool, and the second run may suspend after attempting to `take-out!` from the pool, thereby return control to the first run. The mechanism described here avoids unnecessary reads and writes to durable storage, permitting efficient communication between multiple runs executing during a runlet. 
+ 
 ## REST API Implementation
 
 An obvious use case is to provide the rapids service over a web endpoint. The implementation is simply involves mapping web endpoints to the high level functions described above. It's a trivial exercise to imagine an implementation for websockets, and other transport protocols.
