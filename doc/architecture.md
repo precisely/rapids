@@ -610,20 +610,20 @@ Multiple runs may interact during a request. Runs may block and redirect to each
 
   The `put-in!` flow algorithm works as follows, given a call to `(put-in! pool value)`: 
 
-    IF the pool buffer is full
+    IF the sinks queue is not empty
     THEN 
-        IF the sinks queue is not empty
-        THEN 
-            - remove a value from the sinks queue (a run-id)
-            - continue the run, providing the value to continue!
-            - return
-        ELSE
+        - remove a value from the sinks queue (a run-id)
+        - continue the run, providing the value using (continue! run-id value)
+        - return
+    ELSE
+        IF the buffer is full
+        THEN
             - create a PutIn record containing the current run-id and the value 
             - save the PutIn record in the sources queue
             - suspend execution using (listen!) 
-    ELSE 
-        - add the value to the buffer
-        - return
+        ELSE 
+            - add the value to the buffer
+            - return
 
   This algorithm assumes the pool object is destructively modified. In Clojure this requires passing the pool inside an atom. 
 
