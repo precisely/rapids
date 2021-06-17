@@ -515,9 +515,11 @@ Multiple runs may interact during a request. Runs may block and redirect to each
 
   * `:running` - Code is being executed by a CPU. The run is started in this state. The runstore does not reflect the current state of the run.
   * `:suspended` - Code is not running; the current state of the computation is fully captured in the RunStore. The run moves out of `:suspended` state when:
-                     * an external event is received (which matches the Suspend params)
-                     * a child run started with the blocking operator `<!` completes
-                     * a child run started by redirection `>>` blocks
+    
+     * an external event is received (which matches the Suspend params)
+     * a child run started with the blocking operator `<!` completes
+     * a child run started by redirection `>>` blocks
+
   * `:complete` - evaluation complete, indicates result field was set
 
 ### Run Return Modes
@@ -550,7 +552,7 @@ Multiple runs may interact during a request. Runs may block and redirect to each
 (deflow sink-flow []
   (let [p (pool)] ; creates an unbuffered pool
     (let [source-run (start! source-flow p)]
-      (<* (decorate-input (take-out! p)))))) ; take a value out of a pool and use it as a response
+      (<*  (take-out! p))))) ; take a value out of a pool and use it as a response
 
 (def sink-run (start! sink-flow))
 (continue! runA :foo)
@@ -572,7 +574,7 @@ Multiple runs may interact during a request. Runs may block and redirect to each
 ```clojure
   (let [user-input :foo] 
 ```
-  - then, `source-flow` would suspend on the `put-in!` call because in this situation the unbuffered pool has pending take-outs. Values put in a pool which has no buffer space are referred to as "unbuffered values". Notice that unbuffered pools act like semaphores. This allows tight couple two runs at `put-in!` and `take-out!` calls. 
+  - then, `source-flow` would suspend on the `put-in!` call because in this situation the unbuffered pool would not yet have any pending take-outs. Notice that unbuffered pools provide a facility similar to semaphores. Unbuffered pools allow tight coupling of two runs at `put-in!` and `take-out!` calls. 
 
 #### Buffered pools
 
@@ -600,52 +602,56 @@ Multiple runs may interact during a request. Runs may block and redirect to each
 ```clojure
 (defrecord PutIn run-id value)
 ```
-  The `buffer` queue stores values which are available for `take-out!`. A pool's buffer is *full* when the `buffer` queue contains `size` items, and it may not hold more than `size` items. A pool with a zero buffer size is referred to as an unbuffered pool, and is always considered "full".   
+  We'll write `PutIn(R, V)` to represent PutIn records below, where R is a run id and V is a value.
 
-  The `sinks` queue represents runs which are suspended by `take-out!`. In practice, it is a FIFO queue of run-ids.
+  The `buffer` queue stores *values* which are available for `take-out!`. A pool's buffer is *full* when the `buffer` queue contains `size` items. It may not hold more than `size` items. A pool with a zero buffer size is referred to as an unbuffered pool, and is always considered full.   
+
+  The `sinks` queue represents runs which have been suspended by `take-out!`. In practice, it is a FIFO queue of run-ids.
 
   Note that the `buffer` and `sources` queues are filled by `put-in!` and emptied by `take-out!`. Conversely, the `sinks` queue is filled by `take-out!` and emptied by `put-in!`. If the `sources` or `buffer` queues are not empty, the `sinks` queue must be empty, and conversely, if the `sinks` queue is not empty, then both the `sources` and `buffer` queues must be empty. The rules implemented by `put-in!` and `take-out!` are outlined in the following section.
 
-#### Mechanism of put-in!
+  In the following, we refer to the run id of the current run as `*current-run-id*` for convenience:
 
-  The `put-in!` flow algorithm works as follows, given a call to `(put-in! pool value)`: 
+#### The put-in! Algorithm
 
-    IF the sinks queue is not empty
-    THEN 
-        - remove a value from the sinks queue (a run-id)
-        - continue the run, providing the value using (continue! run-id value)
-        - return
-    ELSE
-        IF the buffer is full
-        THEN
-            - create a PutIn record containing the current run-id and the value 
-            - save the PutIn record in the sources queue
-            - suspend execution using (listen!) 
-        ELSE 
-            - add the value to the buffer
-            - return
+  Given a call to `(put-in! pool value)`, we update queues in `pool` as follows: 
 
-  This algorithm assumes the pool object is destructively modified. In Clojure this requires passing the pool inside an atom. 
+    - IF the sinks queue is not empty // if so, buffer and sources queues are empty
+      THEN
+        - REMOVE a sink (a run id) from the sinks queue
+        - CONTINUE sink with value using (continue! sink value)
+      ELSE
+        - IF the buffer queue is not full
+          THEN
+            - ADD value to the buffer queue
+          ELSE
+            - ADD PutIn(*current-run-id*, value) to the sources queue
+            - SUSPEND the current run using (listen!)
 
-#### Mechanism of take-out!
+  This algorithm assumes the pool object is destructively modified. In Clojure this requires passing the pool inside an atom.  
 
-  The `take-out!` flow algorithm works as follows, given a call `(take-out! pool)`:
+#### The take-out! Algorithm
+
+  Given a call `(take-out! pool)`, we update queues in `pool` as follows: 
   
-    IF sources queue is not empty
-    THEN
-        - remove a PutIn record from the sources queue
-        - continue the run associated with the run id in the PutIn record
-        - add the value in the PutIn record to the buffer queue
-
-    IF buffer queue is not empty
-    THEN
-        - remove a value from the buffer queue
-        - return the value
-    ELSE
-        - add the current run id to the sinks queue
-        - suspend execution using (listen!)
+    - IF sources queue is not empty
+      THEN
+        - REMOVE a PutIn record, source, from the sources queue
+        - CONTINUE the source run using (continue! (:run-id source))
+        - ADD the source value to the buffer queue
+    - IF buffer queue is not empty
+      THEN
+        - REMOVE a value, v, from the buffer queue
+        - RETURN v
+      ELSE
+        - ADD *current-run-id* to the sinks queue
+        - SUSPEND execution using (listen!)
     
   This algorithm assumes the pool object is destructively modified. In Clojure this requires passing the pool inside an atom.
+
+#### Securing Pool flows with a permit
+
+  The `put-in!` and `take-out!` algorithms should guard against invalid continuation of runs. To do this, the above algorithms should be modified to include a `:permit` argument. A simple choice is to use the pool id. So instead of calling `(listen!)` and `(continue! run-id value)`, we would call `(listen! :permit (:id pool))` and `(continue! run-id value :permit (:id pool))`.    
 
 #### Storing and regenerating pools
 
