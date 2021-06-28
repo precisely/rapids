@@ -59,12 +59,14 @@ After the architecture overview, we describe how clients might interact with the
    It includes a compiler which partitions code bodies into separate functions, referred to here as continuations, which carry out pieces of the computation.
 
 2. Definition of suspending operations.
-
-   The compiler breaks code bodies at expressions termed "suspending expressions". Suspending expressions include expressions which suspend computation ("suspending operations", such as the `(listen!)` call above) and expressions which may suspend computation. The latter includes, for example, conditional expressions which contain a suspend operation in one branch and a non-suspending expression in the other branch, or invocations of flows, which themselves might return immediately or suspend before returning due to internal branching logic.
+   
+   Suspending expressions include expressions which suspend computation ("suspending operations", such as the `(listen!)` call above) and expressions which may suspend computation. The latter includes, for example, conditional expressions which contain a suspend operation in one branch and a non-suspending expression in the other branch, or invocations of flows, which themselves might return immediately or suspend before returning due to internal branching logic, or any expression which contains subexpressions which may suspend.
+   
+   Notice that suspending *expressions* are not guaranteed to suspend, while suspending *operations* always suspend. Suspending expressions are simply expressions which may result in a suspending operation. 
 
 3. Where code is partitioned.
 
-   The compiler arranges for suspending expressions to always appear at the end of continuations.
+   Sequences of expressions are split (partitioned) immediately following suspending expressions, and nested expressions containing suspending expressions are decomposed to evaluation order to allow invokation of suspending expressions in a separate partition. The partitioner guarantees that each suspending expression appears as a terminal expression within a partition.  Suspending expressions return a special value, called the Suspend Signal, indicating that a runlet has completed. Since suspending expressions are always the final expressions in continuations, it follows that continuations return Suspend Signals when suspending expressions are executed.
 
 4. Symbolic addresses.
 
@@ -89,7 +91,7 @@ After the architecture overview, we describe how clients might interact with the
 
 8. Rule for pushing stack frames.
 
-   The compiler always adds a stack push operation before non-terminal suspending expressions, arranging for the data described in (7) to be incorporated into a new stack frame. The stack frame provides the data necessary to resume computation at the next continuation. Note that a stack push is not required when a suspending expression appears in a terminal position. This is explained in more detail in discussion of the main loop.
+   The compiler always adds a stack push operation before non-terminal suspending expressions, arranging for the data described in (7) to be incorporated into a new stack frame. The stack frame provides the data necessary to resume execution at the next continuation. Note that a stack push is not required when a suspending expression appears in a terminal position. This is explained in more detail in discussion of the main loop.
 
    Example of terminal versus non-terminal positions:
    ```clojure
@@ -113,15 +115,15 @@ After the architecture overview, we describe how clients might interact with the
 
 9. The start! function.
 
-   Execution of a flow is begun by invoking a `start!` function, passing the `Flow` data structure and any arguments. E.g.,
+   Execution of a flow is begun by invoking the `start!` function, passing the `Flow` data structure and any arguments. E.g.,
 
    ```clojure
-   (start! greeting true) ;  returns a Run object
+   (start! greeting true) 
    ```
 
 10. Starting.
 
-    The `start!` function generates a StackFrame where the address is a special continuation which identifies the beginning of the flow, denoted by a well known address, such as `{flow-name}/0`. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `(StackFrame. #address<greeting/0>, {:excited? true}, nil)`.
+    The `start!` function generates a StackFrame where the address is the continuation which identifies the beginning of the flow. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `(StackFrame. #address<greeting/0>, {:excited? true}, nil)`.
 
     Remember, these values are the address, the bindings and the data-key. The `start!`  function allocates an empty array for the stack, the initial frame is pushed onto the stack, and the main loop is invoked with a `nil` argument. The result of the main loop is processed as described below, saving the state of computation to durable storage, and an object which allows resuming the computation is returned.
 
@@ -472,7 +474,7 @@ A slightly different approach would be used for web socket-based systems. Timeou
 
 The architecture includes the following elements:
 
-  A. A compiler which partitions code bodies and inserts Stack Push operations in existing code
+A. A compiler which partitions code bodies and inserts Stack Push operations in existing code. 
 
   B. Suspending operations which return Suspend signals at runtime
 
@@ -490,7 +492,7 @@ The architecture includes the following elements:
 
   I. A means for starting runs, redirecting clients to new runs, releasing control back to parent runs and blocking until other runs are complete
 
-  J. A server maintains flows and interacts with clients
+  J. A server which maintains flows and interacts with clients
 
 ## Definitions
    * partition - block of code from a (deflow ...) expression
@@ -498,14 +500,14 @@ The architecture includes the following elements:
    * continuation - Clojure function associated with an address that implements the partition. In practice, this also includes code which pushes and pops frames onto/off of the stack
    * listen - stop execution of a run due to encountering the listen! command with a flow. The state of the flow is saved to the stack and can be resumed when an event is received.
    * suspending expression - within a lexical body of code, an expression which represents a point at which execution may pause for an arbitrarily long period of time.
-   * stack frame - a Clojure record which contains information required for resuming a flow it contains an address which identifies the next continuation, plus any bindings
-   * stack - a FIFO stack of thunks; the most recent represents the next continuation
-   * run - a sequence of execution involving multiple runlets and the events that trigger them.        also the object stored in the database that tracks the run
+   * stack frame - a Clojure record which contains information required for resuming a flow. It contains an address which identifies the next continuation, plus any bindings, and an optional data-key, representing a variable name to which a value will be bound when the computation is resumed in the next continuation.
+   * stack - a FILO queue of stack frames
+   * run - a data structure persisted in durable storage which is identified by a unique ID and stores the stack, but can also be used to refer to a sequence of execution involving multiple runlets and the events that trigger them.
    * runlet - a sequence of continuations which are invoked while handling an event, representing partitions from potentially many flows. A runlet begins when a flow is started or continued and ends when a listen! operation is encountered.
    * child run - a run started by another run. Moral equivalent of a subprocess.
-   * event - a real world event which causes the run to resume executing after being listening
-   * redirect - relinquish control to a child run
-   * context - value provided to listen! which identifies the type of event which may continue the run. Sometimes referred to as the "listen context". Runs may redirect control to child runs until the child run leaves a particular context. For example, a run responding to a user may redirect to a child run to initiate an activity with them. At some point, the child run switches context from gathering input from the user to listening for some other real world event, like results from a lab. When the child flow's listen context
+   * event - a real world event which causes the run to resume executing after being suspended
+   * redirect - relinquish control to a child run. Clients will receive responses from the child run and will continue the child run until it blocks or ends.
+   * permit - value provided to listen! which serves as a unique identifier for an event which may continue the run. 
 
 #### Caching Runs in the run context
 
@@ -521,6 +523,7 @@ Multiple runs may interact during a request. Runs may block and redirect to each
      * a child run started by redirection `>>` blocks
 
   * `:complete` - evaluation complete, indicates result field was set
+  * `:error` - the run is in an error state
 
 ### Run Return Modes
 
