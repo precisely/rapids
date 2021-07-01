@@ -5,14 +5,16 @@
 (ns rapids.persistence
   (:require [taoensso.nippy :refer :all]
             [clojure.main :as main]
-            [rapids.run-context :as rc]
-            [rapids.storage :as storage])
+            [rapids.runlet-context :as rc]
+            [rapids.pool :as p]
+            [rapids.storage.core :as storage])
   (:import (rapids.run Run)
            (rapids.flow Flow)
-           (clojure.lang AFunction)))
+           (clojure.lang AFunction)
+           (rapids.pool Pool)))
 
 ;;
-;; Run - always acquired from the runstore, when the cache is available
+;; Run - always acquired from the rapidstore, when the cache is available
 ;;
 (extend-freeze Run ::run
   [run data-output]
@@ -23,8 +25,8 @@
   [data-input]
   (let [thawed-str (.readUTF data-input)
         run-id     (read-string thawed-str)]
-    (if (rc/run-cache-exists?)
-      (rc/load! run-id)
+    (if (rc/runlet-cache-exists?)
+      (rc/load-run! run-id)
 
       ;; special handling for when a run is retrieved outside of a run-cache context
       ;; just get the run without locking it or storing it in the cache
@@ -71,7 +73,22 @@
   [data-input]
   (-> data-input .readUTF symbol resolve var-get))
 
+
 ;;
-;; Pool
+;; Pool - always acquired from the rapidstore, when the cache is available
 ;;
-()
+(extend-freeze Pool ::pool
+  [pool data-output]
+  (let [pool-id (prn-str (:id pool))]
+    (.writeUTF data-output pool-id)))
+
+(extend-thaw ::pool
+  [data-input]
+  (let [thawed-str (.readUTF data-input)
+        pool-id     (read-string thawed-str)]
+    (if (rc/runlet-cache-exists?)
+      (rc/load-pool! pool-id)
+
+      ;; special handling for when a run is retrieved outside of a run-cache context
+      ;; just get the run without locking it or storing it in the cache
+      (storage/get-pool pool-id))))

@@ -1,18 +1,18 @@
 (ns rapids.pool
   (:require [rapids.deflow :refer [deflow]]
-            [rapids.run-context :refer [current-run]]
+            [rapids.runlet-context :refer [current-run]]
             [rapids.operators :refer [listen!]]
             [rapids.run-loop :refer [continue!]]
             [rapids.util :refer [new-uuid]])
-  (:import (clojure.lang Keyword PersistentHashSet PersistentVector$ChunkedSeq PersistentVector PersistentQueue)
+  (:import (clojure.lang PersistentQueue)
            (java.util UUID)))
 
 (defrecord Pool
   [^UUID id,
    ^Long size,
-   ^PersistentVector source,
-   ^PersistentVector buffer,
-   ^PersistentVector sinks])
+   ^PersistentQueue sources,
+   ^PersistentQueue buffer,
+   ^PersistentQueue sinks])
 
 (defn pool
   "Creates a pool. Takes an optional integer representing buffer size."
@@ -21,7 +21,7 @@
    (atom (Pool. (new-uuid) size
            (PersistentQueue/EMPTY)
            (PersistentQueue/EMPTY)
-           (PersistentQueue/EMPTY))))) Î
+           (PersistentQueue/EMPTY)))))
 
 (defn pool-pop! [p field]
   (let [queue (field @p)
@@ -32,6 +32,12 @@
 (defn pool-push! [p field val]
   (let [queue (field @p)]
     (swap! p assoc field (conj queue val))))
+
+(defn pool-set-dirty!
+  "Set the dirty bit of the pool"
+  ([p] (pool-set-dirty! p true))
+  ([p dirty]
+  (swap! p update :dirty dirty)))
 
 (defrecord PutIn [run-id value])
 
@@ -62,4 +68,6 @@
        (pool-pop! p :buffer)
        (do
          (pool-push! p :sinks (:id (current-run)))
-         (listen! :permit (:id p)))))))
+         (if (= default :rapids.pool/suspend)
+          (listen! :permit (:id p))
+          default))))))

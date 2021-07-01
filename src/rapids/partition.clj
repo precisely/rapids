@@ -2,7 +2,7 @@
   (:require [rapids.address :as a]
             [rapids.util :refer :all]
             [rapids.partition-utils :refer :all]
-            [rapids.run-context :as rc]
+            [rapids.runlet-context :as rc]
             [rapids.flow :as flow]
             [rapids.recur :refer [with-tail-position with-binding-point]]
             [rapids.partition-set :as pset]

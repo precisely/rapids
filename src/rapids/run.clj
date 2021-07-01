@@ -10,7 +10,7 @@
   (:import (java.util UUID)
            (java.time LocalDateTime)))
 
-(declare run-in-state? set-runstore! create-run! save-run! get-run acquire-run!)
+(declare run-in-state? set-rapidstore! create-run! save-run! get-run acquire-run!)
 
 (defrecord Run [id state stack result run-response response])
 

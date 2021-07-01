@@ -1,17 +1,17 @@
 (ns rapids_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [rapids.in-memory-storage :refer [in-memory-runstore?]]
-            [rapids.storage :as storage]
+            [rapids.storage.in-memory-storage :refer [in-memory-rapidstore?]]
+            [rapids.storage.core :as storage]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
                      side-effects]])
   (:import (clojure.lang ExceptionInfo)))
 
-(deftest ^:unit RunStore
-  (testing "runstore is set to default InMemoryStorage"
-    (is (in-memory-runstore? @rapids.storage/*storage*))))
+(deftest ^:unit Rapidstore
+  (testing "rapidstore is set to default InMemoryStorage"
+    (is (in-memory-rapidstore? @storage/*storage*))))
 
 (def ^:dynamic *log* (atom []))
 (defn clear-log!

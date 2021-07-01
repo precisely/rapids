@@ -1,9 +1,9 @@
 (ns rapids.run-loop
   (:require
-    [rapids.storage :as storage]
+    [rapids.storage.core :as storage]
     [rapids.flow :as flow]
     [rapids.util :refer :all]
-    [rapids.run-context :as rc]
+    [rapids.runlet-context :as rc]
     [rapids.signals :as s]
     [rapids.stack-frame :as sf]
     [rapids.run :as r]))
@@ -21,7 +21,7 @@
    :post [(r/run? %)]}
   (let [start-form (prn-str `(~(:name flow) ~@args))
         new-run    (assoc (storage/create-run!) :state :running, :start-form start-form)]
-    (rc/with-run-context [new-run]
+    (rc/with-runlet-context [new-run]
       ;; create the initial stack-continuation to kick of the process
       (eval-loop! (fn [_] (flow/entry-point flow args))))))
 
@@ -45,7 +45,7 @@
    {:pre  [(not (nil? run-id))
            (not (r/run? run-id))] ; guard against accidentally passing a run instead of a run-id
     :post [(not (r/run-in-state? % :running))]}
-   (rc/with-run-context [(rc/acquire! run-id permit)]
+   (rc/with-runlet-context [(rc/acquire! run-id permit)]
      (rc/initialize-runlet response)
      (eval-loop! (next-continuation!) data))))
 

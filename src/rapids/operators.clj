@@ -1,5 +1,5 @@
 (ns rapids.operators
-  (:require [rapids.run-context :as rc]
+  (:require [rapids.runlet-context :as rc]
             [rapids.run-loop :as rl]
             [rapids.flow :as flow]
             [taoensso.timbre :as log]

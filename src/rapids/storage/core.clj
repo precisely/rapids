@@ -1,11 +1,11 @@
-(ns rapids.storage
+(ns rapids.storage.core
   (:require
     [rapids.util :refer [in? new-uuid]]
     [rapids.run :as r]
     [rapids.util :refer :all]
     [rapids.signals :as s]))
 
-(declare run-in-state? set-runstore! create-run! save-run! get-run)
+(declare run-in-state? set-rapidstore! create-run! save-run! get-run)
 
 (def ^:dynamic *storage* (atom nil))
 
@@ -28,30 +28,33 @@
       Run instance - if successful
       nil - if run not found
       RunState - if current run state is not :suspended")
-  (s-pool-put-in! [storage pool data source-run-id]))
+
+  (s-pool-create! [storage pool])
+  (s-pool-update! [storage pool])
+  (s-pool-lock! [storage pool]))
 
 ;;
-;; Public API based on runstore and stack/*stack* globals
+;; Public API based on rapidstore and stack/*stack* globals
 ;;
 
-(defn set-runstore!
-  "Sets the runstore - useful for setting a top-level runstore.
-  It is not recommended to use both set-runstore! and with-runstore."
+(defn set-rapidstore!
+  "Sets the rapidstore - useful for setting a top-level rapidstore.
+  It is not recommended to use both set-rapidstore! and with-rapidstore."
   [storage]
   (reset! *storage* storage))
 
-(defmacro with-runstore
-  "Creates a binding for the runstore"
-  [[runstore] & body]
-  `(binding [*storage* (atom ~runstore)]
+(defmacro with-rapidstore
+  "Creates a binding for the rapidstore"
+  [[rapidstore] & body]
+  `(binding [*storage* (atom ~rapidstore)]
      ~@body))
 
 (declare tx-begin! tx-commit! tx-rollback!)
 (defmacro with-transaction
-  "Executes all operations in body in a transaction. The runstore should use a single
+  "Executes all operations in body in a transaction. The rapidstore should use a single
   connection (i.e., not a connection pool) for the duration of this call."
-  [[runstore] & body]
-  `(with-runstore [~runstore]
+  [[rapidstore] & body]
+  `(with-rapidstore [~rapidstore]
      (tx-begin!)
      (try
        (let [result# (do ~@body)]
@@ -108,3 +111,7 @@
 (defn tx-commit! [] (s-tx-commit! @*storage*))
 (defn tx-rollback! [] (s-tx-rollback! @*storage*))
 
+(defn save-pool! [p])
+(defn create-pool! [p])
+(defn lock-pool! [p])
+(defn get-pool [p])

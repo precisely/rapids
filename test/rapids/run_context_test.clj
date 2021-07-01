@@ -1,11 +1,11 @@
 (ns rapids.run-context-test
   (:require [clojure.test :refer :all]
             [rapids.run :as r]
-            [rapids.run-context :refer :all]
+            [rapids.runlet-context :refer :all]
             [rapids.signals :as s]
             [rapids.stack-frame :as sf]
             [rapids.address :as a]
-            [rapids.storage :as storage]
+            [rapids.storage.core :as storage]
             [rapids.flow :as flow]
             [rapids.signals :as signals]))
 
@@ -17,13 +17,13 @@
           parent-run  (r/make-run {:state :suspended,
                                    :suspend (signals/make-suspend-signal nil nil nil)
                                    :stack (list stack-frame)})]
-      ;; ensure run1 and run2 are saved to the runstore
-      (with-run-context [parent-run]
+      ;; ensure run1 and run2 are saved to the rapidstore
+      (with-runlet-context [parent-run]
         (cache-run! child-run)
         (cache-run! parent-run))
 
       ;; alter child-run (change state)
-      (with-run-context [child-run]
+      (with-runlet-context [child-run]
         (cache-run! (assoc child-run :suspend nil, :state :complete)))
 
       ;; retrieve parent run
@@ -40,8 +40,8 @@
           parent-run  (r/make-run {:state   :suspended,
                                    :suspend (signals/make-suspend-signal nil nil nil)
                                    :stack   (list stack-frame)})]
-      ;; ensure run1 and run2 are saved to the runstore
-      (with-run-context [parent-run]
+      ;; ensure run1 and run2 are saved to the rapidstore
+      (with-runlet-context [parent-run]
         (cache-run! parent-run))
 
       ;; retrieve parent run

@@ -6,9 +6,9 @@
 ;;
 ;; The run context maintains a cache of runs which are locked (i.e., set in :running state) at the
 ;; beginning of a request.
-(ns rapids.run-context
+(ns rapids.runlet-context
   (:require [rapids.util :refer :all]
-            [rapids.storage :as storage]
+            [rapids.storage.core :as storage]
             [rapids.stack-frame :as sf]
             [rapids.signals :refer [make-suspend-signal]]
             [rapids.signals :as s]
@@ -26,30 +26,39 @@
        :doc     "A map of run-ids to runs"}
   *run-cache*)
 
-(declare load! save-cache! cache-run! update-run! set-error! simulate-result root-run current-run set-next!)
+(def ^{:dynamic true
+       :doc     "A map of pool-ids to pools"}
+  *pool-cache*)
 
-(defmacro with-run-cache [& body]
+(declare load-pool! load-run! save-cache! cache-run! cache-pool! update-run! set-error! simulate-result root-run current-run set-next!)
+
+(defmacro with-runlet-cache [& body]
   "Sets up the dynamic environment for the runlet (which may include several runs);
   Runs are persisted to disk at the last moment, when the outer-most with-run-cache
   body completes."
-  `(letfn [(dobody# [] (assert (bound? #'*run-cache*)) ~@body)]
+  `(letfn [(dobody# []
+             (assert (bound? #'*run-cache*))
+             (assert (bound? #'*pool-cache*))
+             ~@body)]
      (if (bound? #'*run-cache*)
        (dobody#)
-       (binding [*run-cache* {}]
+       (binding [*run-cache* {}
+                 *pool-cache* {}]
          (let [result# (dobody#)]
            (save-cache!)
            result#)))))
-(defn run-cache-exists? []
+
+(defn runlet-cache-exists? []
   (bound? #'*run-cache*))
 
-(defmacro with-run-context
+(defmacro with-runlet-context
   "Executes body returning the Run produced by run-form, "
   [[run-form] & body]
-  `(with-run-cache
-     (let [run#    (cache-run! ~run-form)
+  `(with-runlet-cache
+     (let [run# (cache-run! ~run-form)
            run-id# (:id run#)]
        (binding [*current-run-id* run-id#,
-                 *root-run-id*    run-id#]
+                 *root-run-id* run-id#]
          ;(try
          ~@body
          ;(catch Exception e#
@@ -59,12 +68,23 @@
 ;;;
 ;;; Cache operations
 ;;;
+
+(defn cache-pool!
+  [pool]
+  (assert (bound? #'*pool-cache*))
+  (set! *pool-cache* (assoc *pool-cache* (:id pool) pool))
+  pool)
+
 (defn save-cache! []
   (doseq [[_ run] *run-cache*]
     (when (:dirty run)
-      (cache-run! (dissoc run :dirty))
+      (cache-pool! (dissoc run :dirty))
       (assert (r/run-in-state? run :error :complete :suspended))
-      (storage/save-run! run))))
+      (storage/save-run! run)))
+  (doseq [[_ pool] *pool-cache*]
+    (when (:dirty pool)
+      (cache-pool! (dissoc pool :dirty))
+      (storage/save-pool! pool))))
 
 (defn cache-run! [run]
   (assert (bound? #'*run-cache*))
@@ -74,7 +94,7 @@
 (defn acquire!
   "Acquires the run, setting it in :running state, and clearing the suspend object"
   [run-id permit]
-  (let [{{s-permit :permit} :suspend :as retrieved} (load! run-id)]
+  (let [{{s-permit :permit} :suspend :as retrieved} (load-run! run-id)]
     (if-not (r/run-in-state? retrieved :suspended :created)
       (throw (ex-info (str "Cannot acquire Run " run-id " from cache in state " (:state retrieved))
                {:type :runtime-error})))
@@ -84,7 +104,7 @@
 
     (cache-run! (assoc retrieved :state :running, :run-response [], :suspend nil))))
 
-(defn load!
+(defn load-run!
   "Gets the run from the cache or storage"
   [run-id]
   (or
@@ -92,18 +112,26 @@
     (ifit [run (storage/lock-run! run-id)]
       (cache-run! run))))
 
+(defn load-pool!
+  "Gets a pool from the cache or storage"
+  [pool-id]
+  (or
+    (get *pool-cache* pool-id)
+    (ifit [pool (storage/lock-pool! pool-id)]
+      (cache-run! pool))))
+
 ;;;
 ;;; Current Run
 ;;;
 (defn current-run
   "Returns the currently active run"
   []
-  (load! *current-run-id*))
+  (load-run! *current-run-id*))
 
 (defn root-run
   "Returns the root run"
   []
-  (load! *root-run-id*))
+  (load-run! *root-run-id*))
 
 ;;
 ;; accessors
@@ -125,6 +153,7 @@
 (defn acquire-parent! []
   "If current run has a parent, return the parent run, otherwise nil"
   (ifit (parent-run-id) (acquire! it (id))))
+
 ;;;
 ;;; Predicates
 ;;;
@@ -200,8 +229,8 @@
                        :parent-run-id (:id %)))
          (assoc % :state :suspended, :suspend suspend)))
     (if (redirected?)
-      (s/make-return-signal)  ; returns a Control signal
-      suspend)))              ; returns a Suspend signal
+      (s/make-return-signal)                                ; returns a Control signal
+      suspend)))                                            ; returns a Suspend signal
 
 (defn set-error! [e]
   (update-run! #(assoc %, :state :error, :error e)))
@@ -220,7 +249,7 @@
     :suspended (if (blocked? child-run)
                  child-run
                  (redirect-to-suspended-run! child-run expires default))
-    :complete child-run))     ;; do not actually redirect - just return the run
+    :complete child-run))                                   ;; do not actually redirect - just return the run
 
 (defn return-from-redirect!
   "Transfers control back to the parent run (which has already been run to suspension or completion) and
@@ -228,11 +257,11 @@
   [parent-run]
   {:pre [(= (:id parent-run) (parent-run-id))
          (return-mode? :redirect)]}
-  (let [child-id (id),        ; current run is the child - remember the id because transfer-control will change to parent
-        result   (transfer-control-post-facto! parent-run)]
+  (let [child-id (id),                                      ; current run is the child - remember the id because transfer-control will change to parent
+        result (transfer-control-post-facto! parent-run)]
     ;; we must get the child run from the cache again because transfer-control has altered it
     ;; return it to default mode - not parent
-    (update-run! (load! child-id) #(assoc % :parent-run-id nil, :return-mode nil))
+    (update-run! (load-run! child-id) #(assoc % :parent-run-id nil, :return-mode nil))
     result))
 
 
@@ -271,7 +300,7 @@
   (let [next-run-id (-> run :next-id)]
     (harvest-response-from! run)
     (set! *current-run-id* next-run-id)
-    (simulate-result (load! next-run-id))))
+    (simulate-result (load-run! next-run-id))))
 
 (defn- harvest-response-from!
   [run]
@@ -306,7 +335,7 @@
   "Sets the next-id and next-run; next-id is set to the id of the next-run, if it exists, or
   to the current run's id, if it is in :suspended state (indicating that it can still be called)."
   [run-id next-run-id]
-  (let [run      (get *run-cache* run-id)
+  (let [run (get *run-cache* run-id)
         next-run (remove-next! (get *run-cache* next-run-id))]
     (update-run! run
       #(let [next-id (or (:id next-run)
