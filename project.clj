@@ -29,7 +29,7 @@
                       v]))
     (into {})))
 
-(defproject precisely/rapids "0.3.4"
+(defproject precisely/rapids "0.4.0"
   :description "A Clojure DSL for scripting user flows"
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
@@ -40,7 +40,16 @@
                  [org.clojure/data.codec "0.1.1"]
                  [com.taoensso/nippy "3.1.0"]
                  [com.taoensso/timbre "5.1.0"]
-                 [potemkin "0.4.5"]]
+                 [potemkin "0.4.5"]
+
+                 ;; database
+                 [org.postgresql/postgresql "42.2.18"]
+                 [seancorfield/next.jdbc "1.1.613"]
+                 [honeysql "1.0.444"]
+                 [nilenso/honeysql-postgres "0.2.6"]
+                 [danlentz/clj-uuid "0.1.9"]
+                 [migratus "1.3.3"]
+                 [hikari-cp "2.13.0"]]
   :clean-targets ^{:protect false} ["target"]
   :plugins [[s3-wagon-private "1.3.4"]]
   :profiles {:dev
