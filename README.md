@@ -85,6 +85,21 @@ Adds the passed run's response to the current response, and sets the run as the 
 
 ## Testing
 
+### IntelliJ / Cursive
+
+The IntelliJ project has shortcuts for running tests under the Tools Menu. First, start the Clojure nREPL, then choose one of the following:
+
+Tools -> Run Tests in Current Namespace in REPL
+Tools -> Run Tests Under Caret in REPL
+Tools -> Commands -> Run All Tests!
+
+### Command line
+
+I've had some issues with running tests from the command line:
+```shell
+lein test
+```
+
 The `rapids.test` namespace includes a couple of `clojure.test` compatible macros (`branch` and `keys-match`) which make it easier to test branching flows. These are useful because the `start!` and `continue!` methods cause side effects on the run. 
 
 Here's an example of how to use them:
