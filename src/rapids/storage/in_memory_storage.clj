@@ -1,5 +1,6 @@
 (ns rapids.storage.in-memory-storage
-  (:require [rapids.storage.core :refer :all]
+  (:require [rapids.storage :refer :all]
+            [rapids.storage.protocol :refer :all]
             [rapids.util :refer [new-uuid ifit]]
             [java-time :as t]))
 

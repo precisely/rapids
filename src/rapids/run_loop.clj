@@ -1,6 +1,6 @@
 (ns rapids.run-loop
   (:require
-    [rapids.storage.core :as storage]
+    [rapids.storage :as storage]
     [rapids.flow :as flow]
     [rapids.util :refer :all]
     [rapids.runlet-context :as rc]

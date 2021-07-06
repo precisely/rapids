@@ -7,7 +7,7 @@
             [clojure.main :as main]
             [rapids.runlet-context :as rc]
             [rapids.pool :as p]
-            [rapids.storage.core :as storage])
+            [rapids.storage :as storage])
   (:import (rapids.run Run)
            (rapids.flow Flow)
            (clojure.lang AFunction)

@@ -4,7 +4,7 @@
             [taoensso.timbre :as log]
             [clojure.string :as str]
             [rapids :refer [set-storage!]]
-            [rapids.storage.core :refer :all]
+            [rapids.storage :refer :all]
             [rapids.run :as r]
             [rapids.signals :refer [suspend-signal?]]
             [rapids.util :refer [in?]]

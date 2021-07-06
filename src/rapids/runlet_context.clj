@@ -8,7 +8,7 @@
 ;; beginning of a request.
 (ns rapids.runlet-context
   (:require [rapids.util :refer :all]
-            [rapids.storage.core :as storage]
+            [rapids.storage :as storage]
             [rapids.stack-frame :as sf]
             [rapids.signals :refer [make-suspend-signal]]
             [rapids.signals :as s]

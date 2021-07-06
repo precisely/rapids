@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
             [rapids.storage.in-memory-storage :refer [in-memory-storage?]]
-            [rapids.storage.core :as storage]
+            [rapids.storage :as storage]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
