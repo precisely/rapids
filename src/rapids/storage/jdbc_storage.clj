@@ -5,6 +5,7 @@
             [clojure.string :as str]
             [rapids :refer [set-storage!]]
             [rapids.storage :refer :all]
+            [rapids.storage.protocol :refer :all]
             [rapids.run :as r]
             [rapids.signals :refer [suspend-signal?]]
             [rapids.util :refer [in?]]
@@ -101,10 +102,10 @@
 
 (defrecord JDBCRapidstore [connection]
   IStorage
-  (rs-get [jrs run-id]
+  (s-run-get [jrs run-id]
     (from-db-record (query-run-with-next jrs run-id)))
 
-  (rs-create! [jrs record]
+  (s-run-create! [jrs record]
     ; {:pre [(is-run-state? state)]}
     (log/debug "Creating run in state" record)
     (let [stmt (-> (insert-into :runs)
@@ -114,7 +115,7 @@
       (from-db-record
         (exec-one! jrs stmt))))
 
-  (rs-update! [jrs record expires]
+  (s-run-update! [jrs record expires]
     (log/debug "Updating run " record)
     (let [updated-at (lt/now)
           record (to-db-record (assoc record :updated_at updated-at :suspend_expires expires))]
@@ -127,7 +128,7 @@
             (returning :runs.*)
             sql/format)))))
 
-  (rs-lock! [jrs run-id]
+  (s-run-lock! [jrs run-id]
     (log/debug "Locking run " run-id)
     (let [stmt (->
                  (select :*)
@@ -138,15 +139,15 @@
       (from-db-record
         (exec-one! jrs stmt))))
 
-  (rs-tx-begin! [jrs]
+  (s-tx-begin! [jrs]
     (log/trace "Begin transaction")
     (exec-one! jrs ["BEGIN;"]))
 
-  (rs-tx-commit! [jrs]
+  (s-tx-commit! [jrs]
     (log/trace "Commit transaction")
     (exec-one! jrs ["COMMIT;"]))
 
-  (rs-tx-rollback! [jrs]
+  (s-tx-rollback! [jrs]
     (log/trace "Rollback transaction")
     (exec-one! jrs ["ROLLBACK;"])))
 
