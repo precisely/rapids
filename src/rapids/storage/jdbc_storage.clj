@@ -3,7 +3,7 @@
   (:require [clojure.core :as clj]
             [taoensso.timbre :as log]
             [clojure.string :as str]
-            [rapids :refer [set-rapidstore!]]
+            [rapids :refer [set-storage!]]
             [rapids.storage.core :refer :all]
             [rapids.run :as r]
             [rapids.signals :refer [suspend-signal?]]
@@ -36,7 +36,7 @@
            max-lifetime       1800000
            minimum-idle       10
            maximum-pool-size  10
-           pool-name          "db-rapidstore-pool"
+           pool-name          "db-storage-pool"
            classname          "org.postgresql.Driver"
            register-mbeans    false}}]
   {:pre [(string? jdbcUrl)
@@ -71,14 +71,14 @@
 
 (declare query-run-with-next to-db-record from-db-record)
 
-(declare from-db-record make-rapidstore)
+(declare from-db-record make-storage)
 
 (defmacro with-jdbc-transaction
   "jrs will be bound to a JDBCRapidstore object"
   [[jrs & {:keys [db-config pool] :or {pool *connection-pool*}}] & body]
   {:pre [(not (and db-config pool))]}
   `(with-open [connection# (jdbc/get-connection (or db-config pool))]
-     (let [~jrs (make-rapidstore connection#)]
+     (let [~jrs (make-storage connection#)]
        (with-transaction [~jrs]
          ~@body))))
 
@@ -150,7 +150,7 @@
     (log/trace "Rollback transaction")
     (exec-one! jrs ["ROLLBACK;"])))
 
-(defn make-pg-rapidstore [connection] (JDBCRapidstore. connection))
+(defn make-pg-storage [connection] (JDBCRapidstore. connection))
 (defn query-run-with-next [jrs run-id]
   (let [runs (map from-db-record
 

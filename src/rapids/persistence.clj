@@ -14,7 +14,7 @@
            (rapids.pool Pool)))
 
 ;;
-;; Run - always acquired from the rapidstore, when the cache is available
+;; Run - always acquired from the storage, when the cache is available
 ;;
 (extend-freeze Run ::run
   [run data-output]
@@ -75,7 +75,7 @@
 
 
 ;;
-;; Pool - always acquired from the rapidstore, when the cache is available
+;; Pool - always acquired from the storage, when the cache is available
 ;;
 (extend-freeze Pool ::pool
   [pool data-output]

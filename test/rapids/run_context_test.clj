@@ -17,7 +17,7 @@
           parent-run  (r/make-run {:state :suspended,
                                    :suspend (signals/make-suspend-signal nil nil nil)
                                    :stack (list stack-frame)})]
-      ;; ensure run1 and run2 are saved to the rapidstore
+      ;; ensure run1 and run2 are saved to the storage
       (with-runlet-context [parent-run]
         (cache-run! child-run)
         (cache-run! parent-run))
@@ -40,7 +40,7 @@
           parent-run  (r/make-run {:state   :suspended,
                                    :suspend (signals/make-suspend-signal nil nil nil)
                                    :stack   (list stack-frame)})]
-      ;; ensure run1 and run2 are saved to the rapidstore
+      ;; ensure run1 and run2 are saved to the storage
       (with-runlet-context [parent-run]
         (cache-run! parent-run))
 

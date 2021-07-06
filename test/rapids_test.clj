@@ -1,7 +1,7 @@
 (ns rapids_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [rapids.storage.in-memory-storage :refer [in-memory-rapidstore?]]
+            [rapids.storage.in-memory-storage :refer [in-memory-storage?]]
             [rapids.storage.core :as storage]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
@@ -10,8 +10,8 @@
   (:import (clojure.lang ExceptionInfo)))
 
 (deftest ^:unit Rapidstore
-  (testing "rapidstore is set to default InMemoryStorage"
-    (is (in-memory-rapidstore? @storage/*storage*))))
+  (testing "storage is set to default InMemoryStorage"
+    (is (in-memory-storage? @storage/*storage*))))
 
 (def ^:dynamic *log* (atom []))
 (defn clear-log!

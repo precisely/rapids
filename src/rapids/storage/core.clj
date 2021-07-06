@@ -5,7 +5,7 @@
     [rapids.util :refer :all]
     [rapids.signals :as s]))
 
-(declare run-in-state? set-rapidstore! create-run! save-run! get-run)
+(declare run-in-state? set-storage! create-run! save-run! get-run)
 
 (def ^:dynamic *storage* (atom nil))
 
@@ -34,27 +34,27 @@
   (s-pool-lock! [storage pool]))
 
 ;;
-;; Public API based on rapidstore and stack/*stack* globals
+;; Public API based on storage and stack/*stack* globals
 ;;
 
-(defn set-rapidstore!
-  "Sets the rapidstore - useful for setting a top-level rapidstore.
-  It is not recommended to use both set-rapidstore! and with-rapidstore."
+(defn set-storage!
+  "Sets the storage - useful for setting a top-level storage.
+  It is not recommended to use both set-storage! and with-storage."
   [storage]
   (reset! *storage* storage))
 
-(defmacro with-rapidstore
-  "Creates a binding for the rapidstore"
-  [[rapidstore] & body]
-  `(binding [*storage* (atom ~rapidstore)]
+(defmacro with-storage
+  "Creates a binding for the storage"
+  [[storage] & body]
+  `(binding [*storage* (atom ~storage)]
      ~@body))
 
 (declare tx-begin! tx-commit! tx-rollback!)
 (defmacro with-transaction
-  "Executes all operations in body in a transaction. The rapidstore should use a single
+  "Executes all operations in body in a transaction. The storage should use a single
   connection (i.e., not a connection pool) for the duration of this call."
-  [[rapidstore] & body]
-  `(with-rapidstore [~rapidstore]
+  [[storage] & body]
+  `(with-storage [~storage]
      (tx-begin!)
      (try
        (let [result# (do ~@body)]

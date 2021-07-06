@@ -11,7 +11,7 @@
             [potemkin :refer [import-vars]]))
 
 (import-vars
-  [rapids.storage.core with-rapidstore set-rapidstore! create-run! save-run! get-run lock-run!]
+  [rapids.storage.core with-storage set-storage! create-run! save-run! get-run lock-run!]
   [rapids.run run? run-in-state? run-in-mode?]
   [rapids.deflow deflow]
   [rapids.flow flow?]
@@ -29,4 +29,4 @@
    ;; start operator:
    ! ])
 
-(rapids.storage.core/set-rapidstore! (imrs/create-in-memory-rapidstore))
+(rapids.storage.core/set-storage! (imrs/create-in-memory-storage))

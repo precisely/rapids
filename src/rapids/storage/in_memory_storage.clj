@@ -37,7 +37,7 @@
           run)
         run))))
 
-(defn in-memory-rapidstore? [x] (instance? InMemoryStorage x))
+(defn in-memory-storage? [x] (instance? InMemoryStorage x))
 
 (defn get-expired
   "Gets runs which have expired (using the current time or a given local-date-time)"
@@ -47,6 +47,6 @@
    (let [processes @(:processes storage)]
      (map #(get % processes) (subseq @(:expiry-index storage) < date-time)))))
 
-(defn create-in-memory-rapidstore
+(defn create-in-memory-storage
   []
   (InMemoryStorage. (atom {}) (atom (sorted-map))))
