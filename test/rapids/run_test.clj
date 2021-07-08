@@ -14,7 +14,7 @@
     (is (run? (make-run))))
 
   (testing "run-to-record"
-    (testing "it returns a record when given a minimal run to"
+    (testing "it returns a record when given a minimal run"
       (let [rec (run-to-record (make-run))]
         (is (map? rec))
         (is (-> rec :stack frozen?))
@@ -23,6 +23,7 @@
 
    (testing "a simple run can be turned into a record and back"
       (let [run (make-run)]
+        (assert (:stack run))
         (is (= (-> run run-to-record run-from-record) run))))
 
     (testing "it correctly transforms a suspended run with all fields set"

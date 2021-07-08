@@ -88,3 +88,16 @@
 
 (defn unqualified-symbol? [o]
   (and (symbol? o) (not (qualified-symbol? o))))
+
+(defn key-to-str [key]
+  (if key (name key)))
+
+(defn sausage-to-snake
+  "Converts a :sausage-style-keyword to a :snake_style_keyword"
+  [k]
+  (keyword (clojure.string/replace (name k) "-" "_")))
+
+(defn snake-to-sausage
+  "Converts a :snake_style_keyword to a :sausage-style-keyword "
+  [k]
+  (keyword (clojure.string/replace (name k) "_" "-")))

@@ -1,12 +1,14 @@
 (ns rapids.run
-  (:require [rapids.util :refer [in? new-uuid ifit linked-list?]]
-            [rapids.signals :as signals]
-            [rapids.address :as a]
-            [taoensso.nippy :refer [freeze thaw]]
-            [clojure.spec.alpha :as s]
-            [rapids.stack-frame :as sf]
-            [java-time :as t]
-            [clojure.tools.macro :refer [macrolet]])
+  (:require
+    [rapids.util :refer [in? new-uuid ifit linked-list? key-to-str]]
+    [rapids.storage.protocol :refer [to-storage-record from-storage-record]]
+    [rapids.signals :as signals]
+    [rapids.address :as a]
+    [taoensso.nippy :refer [freeze thaw]]
+    [clojure.spec.alpha :as s]
+    [rapids.stack-frame :as sf]
+    [java-time :as t]
+    [clojure.tools.macro :refer [macrolet]])
   (:import (java.util UUID)
            (java.time LocalDateTime)))
 
@@ -99,70 +101,48 @@
                 :result       result,
                 :run-response run-response}))))
 
-(defn key-to-str [key]
-  (if key (name key)))
-
 (defn run-to-record
-  "Maps a run to a hash-map containing a constrained set of values suitable for storage in a database:
-  uuids, strings, date-times and binary objects (usually representing complex closure structures)."
+  "Maps a run to a storage record (a hash-map containing a constrained set of values suitable for storage in a database:
+  uuids, strings, date-times and binary objects (usually representing complex closure structures))."
   [run]
   {:pre  [(if (run-in-state? run :suspended)
             (-> run :suspend signals/suspend-signal?)
             (-> run :suspend nil?))]
    :post [(s/assert ::record %)]}
-  ;; TODO - simplify this code - no need for vector of vectors anymore
-  (let [key-mappings {:id            [[:id identity]]
-                      :error         [[:error freeze]]
-                      :result        [[:result freeze]]
-                      :next-id       [[:next_id identity]]
-                      :parent-run-id [[:parent_run_id identity]]
-                      :response      [[:response freeze]]
-                      :return-mode   [[:return_mode key-to-str]]
-                      :run-response  [[:run_response freeze]]
-                      :start-form    [[:start_form identity]]
-                      :state         [[:state key-to-str]]
-                      :stack         [[:stack freeze]]
-                      :suspend       [[:suspend freeze]]}
-        make-mapping (fn [[k value]]
-                       (ifit [km (get key-mappings k)]
-                         (apply concat
-                           (map
-                             #(let [[rec-key xform] %]
-                                (vector rec-key (xform value))) km))))
-        hashargs (apply concat (remove nil? (map make-mapping run)))]
-    (apply hash-map hashargs)))
+  (to-storage-record run
+    {:id            identity
+     :error         freeze
+     :result        freeze
+     :next-id       identity
+     :parent-run-id identity
+     :response      freeze
+     :return-mode   key-to-str
+     :run-response  freeze
+     :start-form    identity
+     :state         key-to-str
+     :stack         freeze
+     :suspend       freeze}
+    #{:suspend :stack :next :next-id :return-mode :parent-run-id}))
 
-(defn or-nil? [o p]
-  (or (nil? o) (p o)))
-
-(defn sausage-to-snake
-  "Converts a :sausage-style-keyword to a :snake_style_keyword"
-  [k]
-  (keyword (clojure.string/replace (name k) "-" "_")))
-
-(defn run-from-record [record]
+(defn run-from-record
+  "Given a storage record, returns a Run instance"
+  [srec]
   {:post [(s/assert ::run %)]}
-  (let [state (-> record :state keyword)]
-
-    (letfn [(assoc-if-fn [run field rec-field xform]
-              (ifit [val (rec-field record)
-                     val (if val (xform val))]
-                (assoc run field val)
-                run))]
-      (macrolet [(assoc-if [run field xform]
-                   `(~'assoc-if-fn ~run ~field ~(sausage-to-snake field) ~xform))]
-        (-> (make-run {:id (:id record) :state state})
-          (assoc-if :start-form identity)
-          (assoc-if :stack thaw)
-          (assoc-if :result thaw)
-          (assoc-if :response thaw)
-          (assoc-if :run-response thaw)
-          (assoc-if :parent-run-id identity)
-          (assoc-if :id identity)
-          (assoc-if :next-id identity)
-          (assoc-if :return-mode keyword)
-          (assoc-if :error thaw)
-          (assoc-if :suspend thaw))))))
+  (let [fields (from-storage-record srec
+                 {:id            identity
+                  :state         keyword
+                  :start-form    identity
+                  :stack         thaw
+                  :result        thaw
+                  :response      thaw
+                  :run-response  thaw
+                  :parent-run-id identity
+                  :next-id       identity
+                  :return-mode   keyword
+                  :error         thaw
+                  :suspend       thaw}
+                 #{:suspend :stack :next :next-id :return-mode :parent-run-id})]
+    (map->Run fields)))
 
 (defn contains-some? [m & ks]
   (some #(contains? m %) ks))

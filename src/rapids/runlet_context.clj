@@ -87,6 +87,8 @@
       (storage/save-pool! pool))))
 
 (defn cache-run! [run]
+  (if (-> run :stack nil?)
+    (print "problem!"))
   (assert (bound? #'*run-cache*))
   (set! *run-cache* (assoc *run-cache* (:id run) run))
   run)
@@ -107,10 +109,13 @@
 (defn load-run!
   "Gets the run from the cache or storage"
   [run-id]
-  (or
-    (get *run-cache* run-id)
-    (ifit [run (storage/lock-run! run-id)]
-      (cache-run! run))))
+  (let [result (or
+                 (get *run-cache* run-id)
+                 (ifit [run (storage/lock-run! run-id)]
+                   (cache-run! run)))]
+    (if (-> result :stack nil?)
+      (print "problem!"))
+    result))
 
 (defn load-pool!
   "Gets a pool from the cache or storage"
@@ -193,7 +198,7 @@
   (let [popped-frame (atom nil)]
     (update-run! #(let [[frame & rest-stack] (:stack %)]
                     (reset! popped-frame frame)
-                    (assoc % :stack rest-stack)))
+                    (assoc % :stack (or rest-stack ()))))
     @popped-frame))
 
 (defn add-responses! [& responses]

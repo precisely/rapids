@@ -45,9 +45,8 @@
   [& {:keys [id, stack, state, response, run-response] :as fields}]
   {:pre  [(satisfies? IStorage @*storage*)]
    :post [(r/run? %)]}
-  (let [run (r/run-from-record (s-run-create! @*storage*
-                                 (r/run-to-record (r/make-run (or fields {})))))]
-    run))
+  (r/run-from-record (s-run-create! @*storage*
+                       (r/run-to-record (r/make-run (or fields {}))))))
 
 (defn save-run!
   ([run]
