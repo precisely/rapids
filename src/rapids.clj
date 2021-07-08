@@ -7,10 +7,13 @@
             rapids.expire
             rapids.time
             rapids.persistence
+            rapids.pool-ops
             [rapids.storage.in-memory-storage :as imrs]
             [potemkin :refer [import-vars]]))
 
 (import-vars
+  [rapids.pool pool]
+  [rapids.pool-ops take-out! put-in!]
   [rapids.storage with-storage set-storage! create-run! save-run! get-run lock-run!]
   [rapids.run run? run-in-state? run-in-mode?]
   [rapids.deflow deflow]
