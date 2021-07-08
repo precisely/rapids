@@ -10,7 +10,7 @@
             [rapids.storage :as storage])
   (:import (rapids.run Run)
            (rapids.flow Flow)
-           (clojure.lang AFunction)
+           (clojure.lang AFunction Atom)
            (rapids.pool Pool)))
 
 ;;
@@ -92,3 +92,15 @@
       ;; special handling for when a run is retrieved outside of a run-cache context
       ;; just get the run without locking it or storing it in the cache
       (storage/get-pool pool-id))))
+
+;;
+;; Atom
+;;
+(extend-freeze Atom ::atom
+  [atom data-output]
+  (freeze-to-out! data-output @atom))
+
+(extend-thaw ::atom
+  [data-input]
+  (atom (thaw-from-in! data-input)))
+
