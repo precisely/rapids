@@ -18,7 +18,7 @@
   [rapids.run run? run-in-state? run-in-mode?]
   [rapids.deflow deflow]
   [rapids.flow flow?]
-  [rapids.runlet-context current-run]
+  [rapids.runlet current-run]
   [rapids.run-loop start!, continue!]
   [rapids.expire expire-run!]
   [rapids.time years months weeks days hours minutes seconds weeks now from-now]

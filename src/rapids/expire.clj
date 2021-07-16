@@ -1,9 +1,9 @@
 (ns rapids.expire
   (:require [rapids.run-loop :as rl]
-            [rapids.runlet-context :as rc]))
+            [rapids.runlet :refer [with-runlet current-run load-run!]]))
 
 (defn expire-run! [run-id]
-  (rc/with-runlet-context [(rc/load-run! run-id)]
-    (let [{{permit :permit, default :default} :suspend} (rc/current-run)]
+  (with-runlet [(load-run! run-id)]
+    (let [{{permit :permit, default :default} :suspend} (current-run)]
       (rl/continue! run-id {:permit permit :data default}))))
 

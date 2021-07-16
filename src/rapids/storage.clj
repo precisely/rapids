@@ -41,26 +41,16 @@
          (tx-rollback!)
          (throw e#)))))
 
-(defn create-run!
-  [& {:keys [id, stack, state, response, run-response] :as fields}]
-  {:pre  [(satisfies? IStorage @*storage*)]
-   :post [(r/run? %)]}
-  (r/run-from-record (s-run-create! @*storage*
-                       (r/run-to-record (r/make-run (or fields {}))))))
+(defn create!
+  [object]
+  {:pre  [(satisfies? IStorage @*storage*)]}
+  (create-record! @*storage* object))
 
-(defn save-run!
-  ([run]
-   {:pre  [(satisfies? IStorage @*storage*)
-           (r/run? run)
-           (not (= (:state run) :running))
-           (if (r/run-in-state? run :suspended)
-             (-> run :suspend s/suspend-signal?)
-             (-> run :suspend nil?))]
-    :post [(r/run? %)]}
-   (let [expires (-> run :suspend :expires)
-         saved-record (s-run-update! @*storage* (r/run-to-record run) expires)
-         new (r/run-from-record saved-record)]
-     new)))
+(defn save!
+  [obj]
+   {:pre  [(satisfies? IStorage @*storage*)}
+   (update-record! @*storage* obj))
+
 
 (defn get-run
   [run-id]
@@ -75,7 +65,7 @@
    :post [(r/run? %)]}
   ;; TODO: We may need a way to explicitly release the db lock on the record
   ;;       E.g., if code handles the exception thrown here, then the record which
-  ;;       was locked by `s-run-acquire!` ought to be unlocked. This is more about
+  ;;       was locked by `s-run-acquire-run!` ought to be unlocked. This is more about
   ;;       good hygiene to avoid potential deadlocks; not yet critical.
   (let [record (s-run-lock! @*storage* run-id)]
     (if record

@@ -5,7 +5,7 @@
 (ns rapids.persistence
   (:require [taoensso.nippy :refer :all]
             [clojure.main :as main]
-            [rapids.runlet-context :as rc]
+            [rapids.runlet :as rc]
             [rapids.pool :as p]
             [rapids.storage :as storage])
   (:import (rapids.run Run)

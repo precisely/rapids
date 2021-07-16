@@ -3,7 +3,7 @@
     [rapids.storage :as storage]
     [rapids.flow :as flow]
     [rapids.util :refer :all]
-    [rapids.runlet-context :as rc]
+    [rapids.runlet :as runlet]
     [rapids.signals :as s]
     [rapids.stack-frame :as sf]
     [rapids.run :as r]))
@@ -21,7 +21,7 @@
    :post [(r/run? %)]}
   (let [start-form (prn-str `(~(:name flow) ~@args))
         new-run    (assoc (storage/create-run!) :state :running, :start-form start-form)]
-    (rc/with-runlet-context [new-run]
+    (runlet/with-run [new-run]
       ;; create the initial stack-continuation to kick of the process
       (eval-loop! (fn [_] (flow/entry-point flow args))))))
 
@@ -45,8 +45,8 @@
    {:pre  [(not (nil? run-id))
            (not (r/run? run-id))] ; guard against accidentally passing a run instead of a run-id
     :post [(not (r/run-in-state? % :running))]}
-   (rc/with-runlet-context [(rc/acquire! run-id permit)]
-     (rc/initialize-runlet response)
+   (runlet/with-run [(runlet/acquire-run! run-id permit)]
+     (runlet/initialize-runlet response)
      (eval-loop! (next-continuation!) data))))
 
 ;;
@@ -59,7 +59,7 @@
    function (fn [value] ...) which causes execution of the next partition, where value
    will be bound to the data-key established by `resume-at`"
   []
-  (ifit (rc/pop-stack!)
+  (ifit (runlet/pop-stack!)
     (sf/stack-continuation it)))
 
 (declare process-run! reduce-stack! process-run-value!)
@@ -79,7 +79,7 @@
   ([continuation] (reduce-stack! continuation nil))
 
   ([continuation result]
-   {:pre [(r/run-in-state? (rc/current-run) :running)
+   {:pre [(r/run-in-state? (runlet/current-run) :running)
           (or (fn? continuation) (nil? continuation))]}
    (if continuation
      (let [next-result (continuation result)]
@@ -95,7 +95,7 @@
   [result]
   (cond
     ;; if suspending, do nothing more - the run is in suspended state and will be saved
-    (s/suspend-signal? result) (assert (rc/suspended?))
+    (s/suspend-signal? result) (assert (runlet/suspended?))
 
     ;; a return signal is generated when a redirected child run returns from suspension and
     ;; hits a block.
@@ -107,18 +107,18 @@
   "Continues the parent, providing the current run's id as permit, and providing the
   current run as the value"
   []
-  (rc/return-from-redirect!
-    (continue! (rc/parent-run-id) {:permit (rc/id) :data (rc/current-run)})))
+  (runlet/return-from-redirect!
+    (continue! (runlet/parent-run-id) {:permit (runlet/id) :data (runlet/current-run)})))
 
 (defn- process-run-value! [value]
   {:pre [(not (s/signal? value))]}
-  (rc/set-result! value)
-  (case (rc/return-mode)
+  (runlet/set-result! value)
+  (case (runlet/return-mode)
     :redirect #(process-run! (return-to-parent!))
     :block #(continue!
-              (rc/parent-run-id) {:permit (rc/id) :data value})
+              (runlet/parent-run-id) {:permit (runlet/id) :data value})
     nil nil
     (throw (ex-info
-             (str "Unexpected return mode '" (rc/return-mode) "' for run " (rc/id)
-               " with parent " (rc/parent-run-id))
+             (str "Unexpected return mode '" (runlet/return-mode) "' for run " (runlet/id)
+               " with parent " (runlet/parent-run-id))
              {:type :system-error}))))

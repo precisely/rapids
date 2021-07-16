@@ -1,7 +1,7 @@
 (ns rapids.run-context-test
   (:require [clojure.test :refer :all]
             [rapids.run :as r]
-            [rapids.runlet-context :refer :all]
+            [rapids.runlet :refer :all]
             [rapids.signals :as s]
             [rapids.stack-frame :as sf]
             [rapids.address :as a]

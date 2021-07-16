@@ -21,7 +21,9 @@
             [clojure.spec.alpha :as s]
             [migratus.core :as migratus])
   (:import (com.zaxxer.hikari HikariDataSource)
-           (java.util UUID)))
+           (java.util UUID)
+           (rapids.run Run)
+           (rapids.pool Pool)))
 
 (def ^:dynamic *connection-pool* nil)
 
@@ -65,12 +67,12 @@
           (migrate! connection-pool)"
   [db-config-or-pool type]
   {:pre [(= type :postgres)]}
-  (let [migration-conf {:store                :database
-                        :migration-dir        "migrations/postgres"}]
+  (let [migration-conf {:store         :database
+                        :migration-dir "migrations/postgres"}]
     (with-open [c (jdbc/get-connection db-config-or-pool)]
       (migratus/migrate (assoc migration-conf :db {:connection c})))))
 
-(declare query-run-with-next to-db-record from-db-record)
+(declare query-run to-db-record from-db-record)
 
 (declare from-db-record make-storage)
 
@@ -100,102 +102,103 @@
       (str/join ", " (map fmt/to-sql v))
       (fmt/to-sql v))))
 
+(declare run-to-record pool-to-record)
+(def tables
+  [{:class Run, :name "runs", :to-db-record run-to-record}
+   {:class Pool, :name "pools", :to-db-record pool-to-record}])
+
+;;
+;; Indexes into tables:
+(def class->table (group-by :class tables))
+(def name->table (group-by :name tables))
+
+(defn run-to-record [run]
+  {:object          (freeze run)
+   :start_form      (:start-form run)
+   :suspend_expires (-> run :suspend :expires)
+   :result          (str (:result run))
+   :id              (:id run)
+   :state           (-> run :state name)})
+
+(defn pool-to-record [pool]
+  {:object (freeze pool)
+   :id     (:id pool)})
+
+(defn from-db-record [db-record]
+  (-> db-record :object thaw))
+
 (defrecord JDBCRapidstore [connection]
   IStorage
-  (s-run-get [jrs run-id]
-    (from-db-record (query-run-with-next jrs run-id)))
 
-  (s-run-create! [jrs record]
-    ; {:pre [(is-run-state? state)]}
-    (log/debug "Creating run in state" record)
-    (let [stmt (-> (insert-into :runs)
-                 (values [(to-db-record record)])
-                 (returning :runs.*)
-                 sql/format)]
-      (from-db-record
-        (exec-one! jrs stmt))))
+  (get-record [jrs cls id]
+    (let [table (class->table cls)
+          table-name (:name table)]
+      (log/debug "Getting " table-name " " id)
+      (exec-one! jrs
+        (sql/format
+          {:select [:*],
+           :from   [[table-name :table]],
+           :where  [:= :table.id id]}))))
 
-  (s-run-update! [jrs record expires]
-    (log/debug "Updating run " record)
+  (create-record! [jrs object]
+    (log/debug "JDBC updating object " object " " (:id object))
+    (let [cls (class object)
+          table (class->table cls)
+          to-db-record (:to-db-record table)
+          table-name (:name table)]
+      (let [stmt (-> (insert-into table-name)
+                   (values [(to-db-record object)])
+                   (returning (str table-name ".*"))
+                   sql/format)]
+        (from-db-record
+          (exec-one! jrs stmt)))))
+
+  (update-record! [jrs object]
+    (log/debug "JDBC updating " object " " (:id object))
     (let [updated-at (lt/now)
-          record (to-db-record (assoc record :updated_at updated-at :suspend_expires expires))]
+          cls (class object)
+          table (class->table cls)
+          table-name (:name table)
+          to-db-record (:to-db-record table)
+          record (assoc (to-db-record object) :updated_at updated-at)]
+      (exec-one! jrs
+        (sql/format {:update table-name,
+                     :set    (dissoc record :id),
+                     :where  [:= :id (:id record)]}))
+      record))
+
+  (lock-record! [jrs cls id]
+    (let [table (class->table cls)
+          table-name (:name table)]
+      (log/debug "JDBC locking " table-name " object: " id)
       (from-db-record
         (exec-one! jrs
-          (-> {}
-            (update :runs)
-            (sset (dissoc record :id))
-            (where [:= :id (:id record)])
-            (returning :runs.*)
-            sql/format)))))
+          (sql/format {:select :*
+                       :from   table-name
+                       :lock   [:mode :update]
+                       :where  [[:= :id id]]})))))
 
-  (s-run-lock! [jrs run-id]
-    (log/debug "Locking run " run-id)
-    (let [stmt (->
-                 (select :*)
-                 (from :runs)
-                 (lock :mode :update)
-                 (where [:= :id run-id])
-                 sql/format)]
-      (from-db-record
-        (exec-one! jrs stmt))))
+  (lock-expired-runs! [jrs {:keys [limit after] :or {:after lt/now}}]
+    (let [stmt {:select [:*]
+                :from   [:runs :r]
+                :lock   [:mode :update]
+                :where  [:< :r.suspend_expires after]}
+          stmt (if limit (assoc stmt :limit limit) limit)]
+      (map from-db-record (exec! jrs stmt))))
 
-  (s-tx-begin! [jrs]
+  (transaction-begin! [jrs]
     (log/trace "Begin transaction")
     (exec-one! jrs ["BEGIN;"]))
 
-  (s-tx-commit! [jrs]
+  (transaction-commit! [jrs]
     (log/trace "Commit transaction")
     (exec-one! jrs ["COMMIT;"]))
 
-  (s-tx-rollback! [jrs]
+  (transaction-rollback! [jrs]
     (log/trace "Rollback transaction")
     (exec-one! jrs ["ROLLBACK;"])))
 
 (defn make-pg-storage [connection] (JDBCRapidstore. connection))
-(defn query-run-with-next [jrs run-id]
-  (let [runs (map from-db-record
-
-               (exec! jrs
-                 ;; need to use sql/call for ORDER-BY with expression for now:
-                 ;; https://github.com/seancorfield/honeysql/issues/285
-                 ;; also, ignore the linter errors in the following:
-                 (-> (select :*)
-                   (from [:runs :root])
-                   (left-join [:runs :next] [:= :next.id :root.next_id])
-                   (where [:= :root.id run-id])
-                   (order-by [(sql/call := :root.id run-id) :desc])
-                   sql/format)))]
-    (case (count runs)
-      0 nil
-      1 (first runs)
-      2 (let [run (first runs)]
-          (assert (-> run :id (= run-id)))
-          (assert (-> (second runs) :id (not= run-id)))
-          (assoc run :next (second run)))
-      (throw (Exception. "query-run-with-next sanity check failed")))))
-
-(defn or-nil? [o p]
-  (or (nil? o) (p o)))
-
-(defn from-db-record
-  "Removes the namespace from keys in the record returned by jdbc-next"
-  [record]
-  (into {} (map #(vector (keyword (name (first %))), (second %)) record)))
-
-(defn to-db-record [record]
-  "Properly encodes enum column values"
-  (reduce #(clj/update %1 %2 as-other) record [:state :return_mode]))
-
-(defn get-expired-run-ids
-  ([jrs] (get-expired-run-ids jrs (lt/now)))
-  ([jrs now]
-   {:post [(s/assert (s/coll-of uuid?) %)]}
-   (map :runs/id
-     (exec! jrs
-       (-> (select :id)
-         (from :runs)
-         (where [:< :suspend_expires now])
-         sql/format)))))
 
 ;; HELPERS for debugging
 (defn uuid [] (UUID/randomUUID))

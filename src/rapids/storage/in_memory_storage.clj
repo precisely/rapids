@@ -32,11 +32,7 @@
     (s-run-get this run-id))
   (s-run-get [this run-id]
     (let [run (get @(:processes this) run-id)]
-      (ifit [next-id (:next-id run)]
-        (if (not= next-id (:id run))
-          (assoc run :next (get @(:processes this) next-id))
-          run)
-        run))))
+        run)))
 
 (defn in-memory-storage? [x] (instance? InMemoryStorage x))
 

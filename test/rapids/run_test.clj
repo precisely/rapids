@@ -34,9 +34,7 @@
                   :suspend (signals/make-suspend-signal :foo now {:a 1})
                   :run-response ["hello" "there"]
                   :response [:hello :there]
-                  :return-mode :redirect
                   :parent-run-id (UUID/randomUUID)
-                  :next-id (UUID/randomUUID)
                   :error (Exception. "foo")})
             processed-run (-> run run-to-record run-from-record)]
         (letfn [(same? [k] (= (k run) (k processed-run)))]
@@ -45,7 +43,5 @@
           (is (= (same? :suspend)))
           (is (= (same? :response)))
           (is (= (same? :run-response)))
-          (is (= (same? :return-mode)))
           (is (= (same? :parent-run-id)))
-          (is (= (same? :next-id)))
           (is (= (same? :error))))))))

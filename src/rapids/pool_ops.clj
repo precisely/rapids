@@ -1,6 +1,6 @@
 (ns rapids.pool-ops
   (:require [rapids.deflow :refer [deflow]]
-            [rapids.runlet-context :refer [current-run]]
+            [rapids.runlet :refer [current-run]]
             [rapids.operators :refer [listen!]]
             [rapids.run-loop :refer [continue!]]
             [rapids.util :refer [new-uuid]]

@@ -7,6 +7,8 @@
 ;; HELPERS
 ;;
 (defn bindings-expr-from-params
+  "Returns an expression that builds the hashmap {:a b, :c d,...} given two args, [a, c,...] [b, d...]
+  or returns {:a a, :b b,..} given arg [a,b...]"
   ([params] (bindings-expr-from-params params params))
   ([key-params, arg-params]
    `(hash-map ~@(interleave (map keyword key-params) arg-params))))
