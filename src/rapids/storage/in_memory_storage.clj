@@ -1,11 +1,11 @@
 (ns rapids.storage.in-memory-storage
-  (:require [rapids.storage :refer :all]
+  (:require [rapids.connection :refer :all]
             [rapids.storage.protocol :refer :all]
             [rapids.util :refer [new-uuid ifit]]
             [java-time :as t]))
 
 (defrecord InMemoryStorage [processes expiry-index]
-  IStorage
+  Storage
   (s-tx-begin! [_])
   (s-tx-commit! [_])
   (s-tx-rollback! [_])

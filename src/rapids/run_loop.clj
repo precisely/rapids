@@ -19,9 +19,8 @@
   [flow & args]
   {:pre  [(refers-to? flow/flow? flow)]
    :post [(r/run? %)]}
-  (let [start-form (prn-str `(~(:name flow) ~@args))
-        new-run    (assoc (storage/create-run!) :state :running, :start-form start-form)]
-    (runlet/with-run [new-run]
+  (let [start-form (prn-str `(~(:name flow) ~@args))]
+    (runlet/with-run (storage/create-object! (r/make-run {:state :running, :start-form start-form}))
       ;; create the initial stack-continuation to kick of the process
       (eval-loop! (fn [_] (flow/entry-point flow args))))))
 
@@ -39,14 +38,13 @@
   Returns:
     run - in :suspended or :complete state
   "
-  ([run-id] (continue! run-id {} []))
-  ([run-id {:keys [data permit] :as keys}] (continue! run-id keys []))
-  ([run-id {:keys [data permit]} response]
+  ([run-id] (continue! run-id {}))
+  ([run-id {:keys [data permit] :as keys}]
    {:pre  [(not (nil? run-id))
            (not (r/run? run-id))] ; guard against accidentally passing a run instead of a run-id
     :post [(not (r/run-in-state? % :running))]}
-   (runlet/with-run [(runlet/acquire-run! run-id permit)]
-     (runlet/initialize-runlet response)
+   (runlet/with-run (storage/lock-object! Run run-id)
+     (runlet/initialize-run)
      (eval-loop! (next-continuation!) data))))
 
 ;;
@@ -64,12 +62,12 @@
 
 (declare process-run! reduce-stack! process-run-value!)
 (defn- eval-loop!
-  "Evaluates continuations on the stack, passing values from one continuation to the next,
+  "Evaluates parbound-continuations, which are closures, passing values from one continuation to the next,
   and negotiating redirection and blocking operations between "
   ([stack-continuation] (eval-loop! stack-continuation nil))
 
   ([stack-continuation result]
-   (trampoline reduce-stack!, stack-continuation, result)))
+   (trampoline reduce-stack! stack-continuation result)))
 
 (defn- reduce-stack!
   "Evaluates a stack continuation, popping the stack and passing the result to the next
@@ -103,22 +101,22 @@
 
     :else (process-run-value! result)))
 
-(defn- return-to-parent!
-  "Continues the parent, providing the current run's id as permit, and providing the
-  current run as the value"
-  []
-  (runlet/return-from-redirect!
-    (continue! (runlet/parent-run-id) {:permit (runlet/id) :data (runlet/current-run)})))
+; refactor: remove
+;(defn- return-to-parent!
+;  "Continues the parent, providing the current run's id as permit, and providing the
+;  current run as the value"
+;  []
+;  (runlet/return-from-redirect!
+;    (continue! (runlet/parent-run-id) {:permit (runlet/id) :data (runlet/current-run)})))
 
 (defn- process-run-value! [value]
   {:pre [(not (s/signal? value))]}
   (runlet/set-result! value)
   (case (runlet/return-mode)
-    :redirect #(process-run! (return-to-parent!))
     :block #(continue!
-              (runlet/parent-run-id) {:permit (runlet/id) :data value})
+              (runlet/current-run :parent-run-id) {:permit (runlet/current-run :id) :data value})
     nil nil
     (throw (ex-info
-             (str "Unexpected return mode '" (runlet/return-mode) "' for run " (runlet/id)
-               " with parent " (runlet/parent-run-id))
+             (str "Unexpected return mode '" (runlet/return-mode) "' for run " (runlet/current-run :id)
+               " with parent " (runlet/current-run :parent-run-id))
              {:type :system-error}))))

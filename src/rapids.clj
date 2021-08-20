@@ -2,7 +2,7 @@
   ; macros must be explicitly referred to be available to ClojureScript
   (:require rapids.deflow
             rapids.run-loop
-            rapids.storage
+            rapids.connection
             rapids.operators
             rapids.expire
             rapids.time
@@ -14,7 +14,7 @@
 (import-vars
   [rapids.pool pool]
   [rapids.pool-ops take-out! put-in!]
-  [rapids.storage with-storage set-storage! create-run! save-run! get-run lock-run!]
+  [rapids.connection with-storage set-storage! create-run! save-run! get-run lock-run!]
   [rapids.run run? run-in-state? run-in-mode?]
   [rapids.deflow deflow]
   [rapids.flow flow?]
@@ -32,4 +32,4 @@
    ;; start operator:
    ! ])
 
-(rapids.storage/set-storage! (imrs/create-in-memory-storage))
+(rapids.connection/set-storage! (imrs/create-in-memory-storage))

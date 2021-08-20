@@ -38,8 +38,8 @@
           address (address/create qualified)
           entry-point-name (str name "__entry-point")
 
-          ;; processes each
-          [psets, args, say "hi"] (reverse-interleave
+          ;; processes each arity
+          [psets, arity-defs] (reverse-interleave
                                 (apply concat
                                   (map-indexed
                                     (fn [idx sig]

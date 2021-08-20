@@ -1,67 +1,62 @@
 (ns rapids.storage.protocol
   (:require [rapids.util :refer [sausage-to-snake snake-to-sausage ifit]]))
 
-(defprotocol IStorage
-  (transaction-begin! [storage]
+(defprotocol Storage
+  (get-connection [storage]))
+
+(defprotocol StorageConnection
+  (transaction-begin! [sconn]
     "Begin a transaction")
 
-  (transaction-commit! [storage]
+  (transaction-commit! [sconn]
     "Commit a transaction")
 
-  (transaction-rollback! [storage]
+  (transaction-rollback! [sconn]
     "Rollback a transaction")
 
-  (lock-expired-runs! [storage {:keys [limit options]}]
+  (lock-expired-runs! [sconn {:keys [limit options]}]
     "Returns a list of run records which expired")
 
-  (create-record! [storage record]
+  (create-record! [sconn record]
     "Creates an object of a certain type in the storage
 
     Implementations should:
       return instance - if successful
       throw error - if not found")
 
-  (update-record! [storage record]
+  (update-record! [sconn record]
     "Saves the record obtained using lock-record! to storage
 
-    Implementations should:
-      return instance - if successful
-      throw error - if not found")
-
-  (get-record [storage type id]
-    "Retrieves an object without locking
+    sconn - an object which supports the StorageConnection protocol
 
     Implementations should:
       return instance - if successful
       throw error - if not found")
 
-  (lock-record! [storage type id]
+  (get-record [sconn type id]
+    "Retrieves an object without locking.
+
+    sconn - an object which supports the StorageConnection protocol
+    type - a record class (Run or Pool)
+    id - primary key of the record
+
+    Implementations should:
+      return instance - if successful
+      throw error - if not found")
+
+  (lock-record! [sconn type id]
     "Retrieves a record, locking it against updates by other processes.
+
+    sconn - an object which supports the StorageConnection protocol
+    type - a record class (Run or Pool)
+    id - primary key of the record
 
     Implementations should:
       return instance - if successful
       throw error - for any other cause"))
 
-(def ^:dynamic *transactions* #{})
-
-(defmacro with-transaction [[storage] & body]
-  `(let [storage# ~storage]
-     (if (get *transactions* storage)
-       (throw (ex-info "Attempt to start transaction while in transaction" {:storage storage})))
-     (binding [*transactions* (conj *transactions* storage#)]
-       (try
-         (transaction-begin! storage#)
-         ~@body
-         (transaction-commit! storage#)
-         (catch Exception e
-           (transaction-rollback! storage#)
-           (throw e))))))
-
-(defn freeze [o]
-  (taoensso.nippy/freeze o))
-
-(defn thaw [o]
-  (taoensso.nippy/thaw o))
+(defn storage? [o] (satisfies? Storage o))
+(defn storage-connection? [o] (satisfies? StorageConnection o))
 
 ;(defn to-storage-record
 ;  "Transforms a Clojure record instance to a storage record,

@@ -1,7 +1,7 @@
 (ns rapids.util
   (:require [clojure.java.io :as io])
   (:import (java.util UUID Properties)
-           (clojure.lang Namespace Cons)))
+           (clojure.lang Namespace Cons Atom)))
 
 (defn refers-to?
   "Dereferences a symbol or var and applies pred to the referenced value"
@@ -101,3 +101,8 @@
   "Converts a :snake_style_keyword to a :sausage-style-keyword "
   [k]
   (keyword (clojure.string/replace (name k) "_" "-")))
+
+(defn atom? [o] (instance? Atom o))
+
+(defn contains-some? [m & ks]
+  (some #(contains? m %) ks))

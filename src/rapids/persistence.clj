@@ -7,7 +7,7 @@
             [clojure.main :as main]
             [rapids.runlet :as rc]
             [rapids.pool :as p]
-            [rapids.storage :as storage])
+            [rapids.connection :as storage])
   (:import (rapids.run Run)
            (rapids.flow Flow)
            (clojure.lang AFunction Atom)
@@ -30,7 +30,7 @@
 
       ;; special handling for when a run is retrieved outside of a run-cache context
       ;; just get the run without locking it or storing it in the cache
-      (storage/get-run run-id))))
+      (storage/get-record run-id))))
 
 ;;
 ;; Flow - flows contain functions which aren't defined at top level

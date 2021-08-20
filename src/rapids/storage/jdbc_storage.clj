@@ -1,11 +1,9 @@
 (ns rapids.storage.jdbc-storage
   (:refer-clojure :exclude [select update])
-  (:require [clojure.core :as clj]
-            [taoensso.timbre :as log]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [rapids :refer [set-storage!]]
-            [rapids.storage :refer :all]
-            [rapids.storage.protocol :refer :all]
+            [rapids.storage.persistence :refer [freeze thaw]]
+            [rapids.storage.protocol :as :p]
             [rapids.run :as r]
             [rapids.signals :refer [suspend-signal?]]
             [rapids.util :refer [in?]]
@@ -19,9 +17,9 @@
             [pia-server.db.core :as db]
             [rapids :as lt]
             [clojure.spec.alpha :as s]
-            [migratus.core :as migratus])
-  (:import (com.zaxxer.hikari HikariDataSource)
-           (java.util UUID)
+            [migratus.core :as migratus]
+            [rapids.storage.protocol :as p])
+  (:import (java.util UUID)
            (rapids.run Run)
            (rapids.pool Pool)))
 
@@ -54,7 +52,7 @@
   (assoc options :auto-commit false :read-only false))
 
 (defn initialize!
-  "Initializes the JDBC Rapidstore by creating a global connection pool."
+  "Initializes the JDBCStorage by creating a global connection pool."
   [db-config]
   (alter-var-root #'*connection-pool*
     (fn [_] (connection/->pool HikariDataSource db-config))))
@@ -76,14 +74,14 @@
 
 (declare from-db-record make-storage)
 
-(defmacro with-jdbc-transaction
-  "jrs will be bound to a JDBCRapidstore object"
-  [[jrs & {:keys [db-config pool] :or {pool *connection-pool*}}] & body]
-  {:pre [(not (and db-config pool))]}
-  `(with-open [connection# (jdbc/get-connection (or db-config pool))]
-     (let [~jrs (make-storage connection#)]
-       (with-transaction [~jrs]
-         ~@body))))
+;(defmacro with-jdbc-transaction
+;  "jrs will be bound to a JDBCRapidstore record"
+;  [[jrs & {:keys [db-config pool] :or {pool *connection-pool*}}] & body]
+;  {:pre [(not (and db-config pool))]}
+;  `(with-open [connection# (jdbc/get-connection (or db-config pool))]
+;     (let [~jrs (make-storage connection#)]
+;       (with-transaction [~jrs]
+;         ~@body))))
 
 (defn is-run-state? [state] (some #(= % state) r/RunStates))
 
@@ -127,78 +125,81 @@
 (defn from-db-record [db-record]
   (-> db-record :object thaw))
 
-(defrecord JDBCRapidstore [connection]
-  IStorage
+(defrecord JDBCStorage [db-config-or-pool]
+  p/Storage
+  (p/get-connection [storage]
+    (jdbc/get-connection (:db-config-or-pool js))))
 
-  (get-record [jrs cls id]
-    (let [table (class->table cls)
+(defrecord JDBCStorageConnection [connection]
+  p/StorageConnection
+
+  (p/get-record [jsc type id]
+    (let [table (class->table type)
           table-name (:name table)]
       (log/debug "Getting " table-name " " id)
-      (exec-one! jrs
+      (exec-one! jsc
         (sql/format
           {:select [:*],
            :from   [[table-name :table]],
-           :where  [:= :table.id id]}))))
+           :where  [Ó:= :table.id id]}))))
 
-  (create-record! [jrs object]
-    (log/debug "JDBC updating object " object " " (:id object))
-    (let [cls (class object)
+  (p/create-record! [jsc record]
+    (let [cls (class record)
           table (class->table cls)
           to-db-record (:to-db-record table)
           table-name (:name table)]
       (let [stmt (-> (insert-into table-name)
-                   (values [(to-db-record object)])
+                   (values [(to-db-record record)])
                    (returning (str table-name ".*"))
                    sql/format)]
         (from-db-record
-          (exec-one! jrs stmt)))))
+          (exec-one! jsc stmt)))))
 
-  (update-record! [jrs object]
-    (log/debug "JDBC updating " object " " (:id object))
+  (p/update-record! [jsc record]
+    (log/debug "JDBC updating " record " " (:id record))
     (let [updated-at (lt/now)
-          cls (class object)
+          cls (class record)
           table (class->table cls)
           table-name (:name table)
           to-db-record (:to-db-record table)
-          record (assoc (to-db-record object) :updated_at updated-at)]
-      (exec-one! jrs
+          record (assoc (to-db-record record) :updated_at updated-at)]
+      (exec-one! jsc
         (sql/format {:update table-name,
                      :set    (dissoc record :id),
                      :where  [:= :id (:id record)]}))
       record))
 
-  (lock-record! [jrs cls id]
-    (let [table (class->table cls)
+  (p/lock-record! [jsc type id]
+    (let [table (class->table type)
           table-name (:name table)]
-      (log/debug "JDBC locking " table-name " object: " id)
+      (log/debug "JDBC locking " table-name " record: " id)
       (from-db-record
-        (exec-one! jrs
+        (exec-one! jsc
           (sql/format {:select :*
                        :from   table-name
                        :lock   [:mode :update]
                        :where  [[:= :id id]]})))))
 
-  (lock-expired-runs! [jrs {:keys [limit after] :or {:after lt/now}}]
+  (p/lock-expired-runs! [jsc {:keys [limit after] :or {:after lt/now}}]
     (let [stmt {:select [:*]
                 :from   [:runs :r]
                 :lock   [:mode :update]
                 :where  [:< :r.suspend_expires after]}
           stmt (if limit (assoc stmt :limit limit) limit)]
-      (map from-db-record (exec! jrs stmt))))
+      (map from-db-record (exec! jsc stmt))))
 
-  (transaction-begin! [jrs]
+  (p/transaction-begin! [jsc]
     (log/trace "Begin transaction")
-    (exec-one! jrs ["BEGIN;"]))
+    (exec-one! jsc ["BEGIN;"]))
 
-  (transaction-commit! [jrs]
+  (p/transaction-commit! [jsc]
     (log/trace "Commit transaction")
-    (exec-one! jrs ["COMMIT;"]))
+    (exec-one! jsc ["COMMIT;"]))
 
-  (transaction-rollback! [jrs]
+  (p/transaction-rollback! [jsc]
     (log/trace "Rollback transaction")
-    (exec-one! jrs ["ROLLBACK;"])))
+    (exec-one! jsc ["ROLLBACK;"])))
 
-(defn make-pg-storage [connection] (JDBCRapidstore. connection))
 
 ;; HELPERS for debugging
 (defn uuid [] (UUID/randomUUID))

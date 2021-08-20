@@ -1,10 +1,11 @@
+;;
+;; Describes the Run data structure
+;;
 (ns rapids.run
   (:require
-    [rapids.util :refer [in? new-uuid ifit linked-list? key-to-str]]
-    [rapids.storage.protocol :refer [freeze-record thaw-record to-storage-record from-storage-record]]
+    [rapids.util :refer :all]
     [rapids.signals :as signals]
     [rapids.address :as a]
-    [taoensso.nippy :refer [freeze thaw]]
     [clojure.spec.alpha :as s]
     [rapids.stack-frame :as sf]
     [java-time :as t]
@@ -12,7 +13,7 @@
   (:import (java.util UUID)
            (java.time LocalDateTime)))
 
-(declare run-in-state? set-storage! create-run! save-run! get-run acquire-run!)
+(declare run-in-state?)
 
 (defrecord
   Run [id state stack result run-response response])
@@ -23,7 +24,7 @@
 (defn run-in-state?
   [run & states]
   (let [state (:state run)
-        result (and (instance? Run run) (or (in? states state) (in? states :any)))]
+        result (and (run? run) (or (in? states state) (in? states :any)))]
     result))
 
 (defn make-run
@@ -36,16 +37,13 @@
             response []}
      :as   fields}]
    {:post [(s/assert ::run %)]}
-   (map->Run (into (or fields {})
-               {:id       id,
-                :state    state,
-                :stack    stack,
-                :response response,
-                :result   result
-                :cached-state :created}))))
-
-(defn contains-some? [m & ks]
-  (some #(contains? m %) ks))
+   (atom (map->Run (into (or fields {})
+                     {:id           id,
+                      :state        state,
+                      :stack        stack,
+                      :response     response,
+                      :result       result
+                      :cached-state :created})))))
 
 (defn make-test-run
   "Returns a run and a record"
@@ -60,6 +58,6 @@
                              :result        {:data "some-result"}
                              :parent-run-id (UUID/randomUUID)
                              :error         (Exception. "foo")}
-                remove-keys))
-        record (run-to-record run)]
-    [run record]))
+                remove-keys))]
+    ;record (run-to-record run)]
+    run))
