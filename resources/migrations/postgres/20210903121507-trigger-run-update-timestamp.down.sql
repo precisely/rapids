@@ -1,0 +1,1 @@
+DROP TRIGGER update_run_updated_at;

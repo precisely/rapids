@@ -57,10 +57,11 @@
   {:pre [(satisfies? p/Storage @*storage*)]}
   (p/update-record! @*storage* obj))
 
-(defn get-record
-  [type id]
-  {:post [(atom? %) (instance? type @%)]}
-  (p/get-record @*storage* type id))
+(defn get-record!
+  ([type id] (get-record! type id false))
+  ([type id lock]
+   {:post [(atom? %) (instance? type @%)]}
+   (p/get-record @*storage* type id lock)))
 
 (defn lock-record!
   [type id]
@@ -69,7 +70,7 @@
   ;;       good hygiene to avoid potential deadlocks; not yet critical.
   (p/lock-record! @*storage* type id))
 
-(defn lock-expired-runs!
+(defn lock-records!
   [& {:keys [limit options] :as options}]
   (p/lock-expired-runs! @*storage* options))
 

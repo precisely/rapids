@@ -34,56 +34,54 @@
   (current-run) => the current run
   (current-run :id) => id of the current run
   etc"
-  ([field]
-   (field (current-run)))
+  ([& fields]
+   (get-in (current-run) fields))
   ([]
    (storage/get-object Run *current-run-id*)))
 
-;;;
-;;; Predicates
-;;;
-
-; remove for prefector
-;(defn suspended? []
-;  (r/run-in-state? (current-run) :suspended))
 
 ;;
-;; run modifiers
+;; Operations
 ;;
-(defn update-run! [& kv]
-  (swap! @(current-run) ))
-(defn initialize-run []
-  (update-run! #(assoc % :suspend nil, :response [])))
+
+(defn update-run!
+  "Updates the current run, returning the new run"
+  [& kvs]
+  (apply storage/update-object! (current-run) kvs))
+
+(defn initialize-run-for-runlet []
+  (update-run! :suspend nil, :response []))
 
 (defn push-stack! [address bindings data-key]
   {:post [(r/run? %)
           (linked-list? (:stack %))]}
   (let [frame (sf/make-stack-frame address bindings data-key)]
-    (update-run! #(assoc % :stack (cons frame (:stack %))))))
+    (update-run! :stack (cons frame (:stack %)))))
 
 (defn pop-stack! []
-  (let [popped-frame (atom nil)]
-    (update-run! #(let [[frame & rest-stack] (:stack %)]
-                    (reset! popped-frame frame)
-                    (assoc % :stack (or rest-stack ()))))
-    @popped-frame))
+  (let [[frame & rest-stack] (current-run :stack)]
+    (update-run! :stack (or rest-stack ()))
+    frame))
 
 (defn add-responses! [& responses]
-  (letfn [(push-responses [field]
-            #(let [current-response (field %)]
-               (assert (vector? current-response))
-               (assoc % field (into [] (concat current-response responses)))))]
-    (update-run! (push-responses :response))
+  (let [current-response (current-run :response)]
+    (assert (vector? current-response))
+    (update-run! :response (concat current-response responses))
     responses))
 
-(defn set-result! [result]
-  (update-run! #(assoc % :state :complete, :result result)))
+(defn attach-child-run!
+  [child-run]
+  {:pre [(r/run-in-state? (current-run) :running)
+         (r/run-in-state? child-run :running)
+         (not= *current-run-id* (:id child-run))]}
+  (update-run! :parent-run-id *current-run-id*))
 
-(defn set-suspend! [suspend]
-  (update-run! #(assoc % :state :suspended, :suspend suspend))
-  suspend)
+(defn complete-run! [result]
+  {:pre [(r/run-in-state? (current-run) :running)
+         (not (s/suspend-signal? result))]}
+  (update-run! :state :complete, :result result))
 
-(defn set-listen! [permit expires default]
-  "Sets the current run in suspend! state with the given permit, expiry and default value"
-  (set-suspend! (s/make-suspend-signal permit expires default)))
-
+(defn suspend-run! [suspend]
+  {:pre [(r/run-in-state? (current-run) :running)
+         (s/suspend-signal? suspend)]}
+  (update-run! :suspend suspend))

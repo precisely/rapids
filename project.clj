@@ -45,8 +45,7 @@
                  ;; database
                  [org.postgresql/postgresql "42.2.18"]
                  [seancorfield/next.jdbc "1.1.613"]
-                 [honeysql "1.0.444"]
-                 [nilenso/honeysql-postgres "0.2.6"]
+                 [com.github.seancorfield/honeysql "2.0.783"]
                  [danlentz/clj-uuid "0.1.9"]
                  [migratus "1.3.3"]
                  [hikari-cp "2.13.0"]]
@@ -58,6 +57,7 @@
               :dependencies [[expectations/clojure-test "1.2.1"]
                              [org.clojure/core.match "1.0.0"]] ; used by tests
               :plugins      [[lein-cloverage "1.1.2"]
+                             [migratus-lein "0.7.3"]
                              [lein-localrepo "0.5.4"]]
               }
              }

@@ -45,33 +45,21 @@
   "Updates the object, setting the :op state appropriately: :created objects stay in :created state,
   changed objects are put in :update state."
   [inst]
-  {:pre [(cache-exists?)
-         (atom? inst)]}
-  (let [id (:id @inst)
-        cls (class @inst)
-        {existing :object existing-change :op} (get-cache-entry cls id)
-        cache-change (if existing (or existing-change :update))]
-    (set-cache-entry inst :op cache-change)))
-
-(defn update-object2!
-  "Updates the object, setting the :op state appropriately: :created objects stay in :created state,
-  changed objects are put in :update state."
-  [inst & kvs]
-  {:pre [(cache-exists?)
-         (atom? inst)]}
-  (let [id (:id @inst)
-        cls (class @inst)
-        {existing :object existing-change :op} (get-cache-entry cls id)
-        cache-change (if existing (or existing-change :update))]
-    ()
+  {:pre [(cache-exists?)]}
+  (let [id (:id inst)
+        cls (class inst)
+        {existing :object existing-change :op locked :locked} (get-cache-entry cls id)
+        cache-change (if existing
+                       (or existing-change :update))]
+    (assert (or (= :created existing-change) locked)
+      (str "Attempt to update unlocked object " (.getName cls) " " id))
     (set-cache-entry inst :op cache-change)))
 
 (defn create-object!
   [inst]
-  {:pre [(cache-exists?)
-         (atom? inst)]}
-  (let [id (:id @inst)
-        cls (class @inst)]
+  {:pre [(cache-exists?)]}
+  (let [id (:id inst)
+        cls (class inst)]
     (assert (not (get-cache-entry cls id)) (str "Attempt to create object in cache which already exists: " (.getName cls) id))
     (set-cache-entry inst :op :create)))
 
@@ -100,8 +88,8 @@
   (get *cache* [cls id]))
 
 (defn- set-cache-entry [inst & {:keys [op locked]}]
-  (let [cls (class @inst)
-        id (:id @inst)
+  (let [cls (class inst)
+        id (:id inst)
         locked (or locked (:locked (get-cache-entry cls id)))]
     (swap! *cache* update-in [cls id]
       {:object inst

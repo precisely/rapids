@@ -6,50 +6,64 @@
     [rapids.runlet :as runlet]
     [rapids.signals :as s]
     [rapids.stack-frame :as sf]
-    [rapids.run :as r]))
+    [rapids.run :as r])
+  (:import (rapids.run Run)))
 
 (declare start! continue!)
-(declare resume-at)
 (declare eval-loop! next-continuation!)
-(declare bindings-expr-from-params)
 
 (defn start!
   "Starts a run with the flow and given arguments.
-  Returns a Run in :suspended or :complete state, not necessarily the run which "
+  Returns the Run instance."
   [flow & args]
   {:pre  [(refers-to? flow/flow? flow)]
    :post [(r/run? %)]}
   (let [start-form (prn-str `(~(:name flow) ~@args))]
-    (runlet/with-run (storage/create-object! (r/make-run {:state :running, :start-form start-form}))
-      ;; create the initial stack-continuation to kick of the process
-      (eval-loop! (fn [_] (flow/entry-point flow args))))))
+    (storage/ensure-connection
+      (runlet/with-run (storage/create-object! (r/make-run {:state :running, :start-form start-form}))
+        ;; create the initial stack-continuation to kick of the process
+        (eval-loop! (fn [_] (flow/entry-point flow args)))
+        (runlet/current-run)))))
 
 (defn continue!
-  "Processes an external event, finds the associated run and calls the continuation at the
-  top of the stack, passing a result, which gets injected into the flow as the
-  value of s suspending call.
-~
+  "Continues the run identified by run-id.
+
   Args:
     run-id - id the run to continue
     permit - if a Suspend :permit value was provided, it must match
-    result - optional result that will be provided as the result of the suspend! expression
     responses - initial responses (used when resuming the run after redirection)
 
   Returns:
-    run - in :suspended or :complete state
-  "
+    run - Run instance indicated by run-id"
   ([run-id] (continue! run-id {}))
-  ([run-id {:keys [data permit] :as keys}]
+  ([run-id {:keys [data permit]}]
    {:pre  [(not (nil? run-id))
-           (not (r/run? run-id))] ; guard against accidentally passing a run instead of a run-id
-    :post [(not (r/run-in-state? % :running))]}
-   (runlet/with-run (storage/lock-object! Run run-id)
-     (runlet/initialize-run)
-     (eval-loop! (next-continuation!) data))))
+           (not (r/run? run-id))]
+    :post [(r/run? %)]}
+   (storage/with-connection
+     (runlet/with-run (storage/lock-object! Run run-id)
+       (if (not= (runlet/current-run :suspend :permit) permit)
+         (throw (ex-info "Invalid permit. Unable to continue run." {:run-id run-id})))
+       (runlet/initialize-run-for-runlet) ;; ensure response and suspend are empty
+       (eval-loop! (next-continuation!) data)
+       (runlet/current-run)))))
 
 ;;
 ;; Helpers
 ;;
+(declare complete-run! stack-processor! next-continuation!)
+(defn- eval-loop!
+  "Evaluates a stack-continuation (a closure taking a single argument representing the suspend variable value,
+  aka the result), passing values from one continuation to the next while reduce-stack! returns
+  a function.
+
+  Returns:  nil"
+  ([stack-continuation] (eval-loop! stack-continuation nil))
+
+  ([stack-continuation result]
+   (trampoline stack-processor! stack-continuation result)
+   nil))
+
 (defn- next-continuation!
   "Gets the next stack-continuation in the current run-context.
 
@@ -57,66 +71,52 @@
    function (fn [value] ...) which causes execution of the next partition, where value
    will be bound to the data-key established by `resume-at`"
   []
-  (ifit (runlet/pop-stack!)
+  (if-let [it (runlet/pop-stack!)]
     (sf/stack-continuation it)))
 
-(declare process-run! reduce-stack! process-run-value!)
-(defn- eval-loop!
-  "Evaluates parbound-continuations, which are closures, passing values from one continuation to the next,
-  and negotiating redirection and blocking operations between "
-  ([stack-continuation] (eval-loop! stack-continuation nil))
-
-  ([stack-continuation result]
-   (trampoline reduce-stack! stack-continuation result)))
-
-(defn- reduce-stack!
+(defn- stack-processor!
   "Evaluates a stack continuation, popping the stack and passing the result to the next
    continuation until either a continuation returns a Suspend instance or the stack is empty.
 
-   This function destructively modifies the run."
-  ([continuation] (reduce-stack! continuation nil))
+   This function updates the run in the cache.
+
+   Returns:
+   Either a stack-continuation (to continue processing)
+   or some undefined value."
+  ([continuation] (stack-processor! continuation nil))
 
   ([continuation result]
    {:pre [(r/run-in-state? (runlet/current-run) :running)
           (or (fn? continuation) (nil? continuation))]}
+
    (if continuation
      (let [next-result (continuation result)]
-       (if (s/signal? next-result)
-         #(process-run! next-result) ; return the suspend signal, which ends the runlet
+       (if (s/suspend-signal? next-result)
+         ;; suspend current run
+         (runlet/suspend-run! next-result)
+
+         ;; pass the value to the next continuation
          (recur (next-continuation!) next-result)))
-     #(process-run! result)))) ; return the final result
 
-(declare return-to-parent!)
-(defn- process-run!
-  "Handles the result of reduce-stack, storing the result in the run, and continuing execution to
-  a parent run, if appropriate."
+     ;; stack exhausted - completed the current run
+     (complete-run! result))))
+
+(defn- complete-run!
+  "Sets the run in completed state and stores the result,
+  passing control to parent run if necessary.
+
+  Returns:
+  Either a stack-continuation (if processing must continue)
+  or the result if processing was complete."
   [result]
-  (cond
-    ;; if suspending, do nothing more - the run is in suspended state and will be saved
-    (s/suspend-signal? result) (assert (runlet/suspended?))
+  {:pre [(not (s/suspend-signal? result))]}
+  ;; if suspending, do nothing more - the run is suspended and will be saved
+  (runlet/complete-run! result)
+  (if-let [parent-run-id (runlet/current-run :parent-run-id)]
 
-    ;; a return signal is generated when a redirected child run returns from suspension and
-    ;; hits a block.
-    (s/return-signal? result) #(process-run! (return-to-parent!))
+    ;; continue processing the parent run
+    #(continue! parent-run-id
+       {:permit (runlet/current-run :id) :data result})
 
-    :else (process-run-value! result)))
-
-; refactor: remove
-;(defn- return-to-parent!
-;  "Continues the parent, providing the current run's id as permit, and providing the
-;  current run as the value"
-;  []
-;  (runlet/return-from-redirect!
-;    (continue! (runlet/parent-run-id) {:permit (runlet/id) :data (runlet/current-run)})))
-
-(defn- process-run-value! [value]
-  {:pre [(not (s/signal? value))]}
-  (runlet/set-result! value)
-  (case (runlet/return-mode)
-    :block #(continue!
-              (runlet/current-run :parent-run-id) {:permit (runlet/current-run :id) :data value})
-    nil nil
-    (throw (ex-info
-             (str "Unexpected return mode '" (runlet/return-mode) "' for run " (runlet/current-run :id)
-               " with parent " (runlet/current-run :parent-run-id))
-             {:type :system-error}))))
+    ;; finished - return the current value
+    result))

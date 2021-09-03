@@ -7,17 +7,21 @@
 (defn get-object [cls id]
   (if (t/cache-exists?)
     (t/get-object cls id)
-    (c/get-record cls id)))
+    (c/get-record! cls id)))
 
 (defn lock-object! [cls id]
   (if (t/cache-exists?)
     (t/lock-object! cls id)
     (c/lock-record! cls id)))
 
-(defn update-object! [inst]
-  (if (t/cache-exists?)
-    (t/update-object! inst)
-    (c/update-record! inst)))
+(defn update-object!
+  "Updates an object, returning the updated object."
+  ([inst]
+    (if (t/cache-exists?)
+      (t/update-object! inst)
+      (c/update-record! inst)))
+  ([inst & kvs]
+   (update-object! (apply assoc inst kvs))))
 
 (defn create-object! [inst]
   (if (t/cache-exists?)

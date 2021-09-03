@@ -1,15 +1,6 @@
 (ns rapids.signals
   (:import (java.time LocalDateTime)))
 
-;;
-;; Return Signal - signifies control should return to the given run
-;;
-(defrecord Return []) ; signals that the run has changed
-(defn return-signal? [x] (instance? Return x))
-
-(defn make-return-signal
-  []
-  (Return.))
 
 ;;
 ;; Suspend Signal - indicates run should sleep
@@ -42,8 +33,3 @@
   {:post [(valid-suspend? %)]}
   (Suspend. permit expires default))
 
-;;
-;; signal? helper predicate - checks whether object is any of the above
-;;
-(defn signal? [x]
-  (or (suspend-signal? x) (return-signal? x)))

@@ -1,6 +1,7 @@
 (ns rapids.operators
   (:require [rapids.runlet :as rc]
             [rapids.run-loop :as rl]
+            [rapids.signals :as signals]
             [rapids.flow :as flow]
             [taoensso.timbre :as log]
             [clojure.spec.alpha :as s])
@@ -37,17 +38,13 @@
     (if (not= normalized-permit permit)
       (log/warn (str "Keyword permit" permit " normalized to string. Please change this in your code.")))
 
-    (rc/set-listen! normalized-permit, expires, default)))
+    (signals/make-suspend-signal permit expires default)))
 
 (defn ^:suspending block!
-  "Suspends the current run and starts a run in :block mode"
+  "Suspends the current run until the provided child-run completes."
   [child-run & {:keys [expires default]}]
-  (rc/set-blocker! child-run expires default))
-
-(defn ^:suspending redirect!
-  "transfers execution to child-run"
-  [child-run & {:keys [expires default]}]
-  (rc/set-redirect! child-run expires default))
+  (rc/attach-child-run! child-run)
+  (listen! :permit (:id child-run) :expires expires :default default))
 
 (defn respond!
   "Adds an element to the current run response: returns nil"
@@ -59,7 +56,7 @@
 ;;
 (defmacro !
   "Starts a run with the flow and given arguments.
-  Returns the Run in :suspended or :complete state."
+  Returns the Run in :running or :complete state."
   [flow & args]
   `(rl/start! ~flow ~@args))
 
