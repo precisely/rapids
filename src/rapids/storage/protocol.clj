@@ -27,7 +27,7 @@
       throw error - if not found")
 
   (update-records! [sconn records]
-    "Saves records obtained to storage
+    "Saves records to storage
 
     sconn - an object which supports the StorageConnection protocol
     records - sequece of records all of the same type which should be saved
@@ -48,8 +48,16 @@
       return instance - if successful
       throw error - if not found")
 
-  (find-records! [sconn type field {:keys [before after limit lock]}]
+  (find-records! [sconn type field {:keys [eq lt gt lte gte in exclude limit lock exclude]}]
     "Retrieves objects using indexed fields.
+    type - the class of object to find
+    field - the field to test
+      eq - equality test
+      lt, gt, lte, gte - <, >, <=, >=
+      in - argument should be a sequence
+    exclude - sequence of ids which should be ignored
+    lock - boolean, if true, record will be locked for duration of transaction
+    limit - if provided, limit number of returned records
 
     Only fields which have been added as indexes for the type may be used."))
 

@@ -12,7 +12,7 @@
 
 (def ^:dynamic *storage* (atom nil))
 (def ^:dynamic *connection* nil)
-
+(def ^:dynamic *cache* nil)
 ;;
 ;; Public API based on storage and stack/*stack* globals
 ;;
@@ -45,32 +45,26 @@
        (exec#)
        (with-connection (exec#)))))
 
-(defn create-record!
+(defn create-records!
   [object]
   {:pre [(atom? object)
          (satisfies? p/Storage @*storage*)
          ()]}
-  (p/create-record! @*storage* object))
+  (p/create-records! @*storage* object))
 
-(defn update-record!
+(defn update-records!
   [obj]
   {:pre [(satisfies? p/Storage @*storage*)]}
-  (p/update-record! @*storage* obj))
+  (p/update-records! @*storage* obj))
 
-(defn get-record!
-  ([type id] (get-record! type id false))
-  ([type id lock]
+(defn get-records!
+  ([type ids] (get-records! type ids false))
+  ([type ids lock]
    {:post [(atom? %) (instance? type @%)]}
-   (p/get-record @*storage* type id lock)))
+   (p/get-records! @*storage* type ids lock)))
 
-(defn lock-record!
-  [type id]
-  {:pre  [(not (nil? id))]
-   :post [(atom? %) (instance? type @%)]}
-  ;;       good hygiene to avoid potential deadlocks; not yet critical.
-  (p/lock-record! @*storage* type id))
-
-(defn lock-records!
-  [& {:keys [limit options] :as options}]
-  (p/lock-expired-runs! @*storage* options))
+(defn find-records!
+  [type field & {:keys [eq lt gt lte gte eq limit lock in exclude] :as keys}]
+  {:post [(every? #(and (atom? %) (instance? type @%)) %)]}
+  (p/find-records! @*storage* type field keys))
 

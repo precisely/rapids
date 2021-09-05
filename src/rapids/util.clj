@@ -80,17 +80,8 @@
    (let [bindings (if (vector? test) test ['it test])]
     `(let ~bindings (if ~(first bindings) ~then ~else)))))
 
-(defmacro bind-once [[k v] & body]
-  `(letfn [(do-body# [] ~@body)]
-     (if (bound? #'~k)
-       (do-body#)
-       (binding [~k ~v] (do-body#)))))
-
 (defn unqualified-symbol? [o]
   (and (symbol? o) (not (qualified-symbol? o))))
-
-(defn key-to-str [key]
-  (if key (name key)))
 
 (defn sausage-to-snake
   "Converts a :sausage-style-keyword to a :snake_style_keyword"
@@ -106,3 +97,10 @@
 
 (defn contains-some? [m & ks]
   (some #(contains? m %) ks))
+
+(defmacro setf!
+  "Set the binding of var to the result of applying f to var with optional args.
+
+  Similar behavior to swap!, but for bindings instead of atoms."
+  [var f & args]
+  `(set! ~var (~f ~var ~@args)))

@@ -37,8 +37,7 @@
   ([& fields]
    (get-in (current-run) fields))
   ([]
-   (storage/get-object Run *current-run-id*)))
-
+   (storage/cache-get! Run *current-run-id*)))
 
 ;;
 ;; Operations
@@ -47,7 +46,7 @@
 (defn update-run!
   "Updates the current run, returning the new run"
   [& kvs]
-  (apply storage/update-object! (current-run) kvs))
+  (storage/cache-update! (apply assoc (current-run) kvs)))
 
 (defn initialize-run-for-runlet []
   (update-run! :suspend nil, :response []))
@@ -56,7 +55,7 @@
   {:post [(r/run? %)
           (linked-list? (:stack %))]}
   (let [frame (sf/make-stack-frame address bindings data-key)]
-    (update-run! :stack (cons frame (:stack %)))))
+    (update-run! :stack (cons frame (current-run :stack)))))
 
 (defn pop-stack! []
   (let [[frame & rest-stack] (current-run :stack)]

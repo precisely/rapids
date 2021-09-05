@@ -1,10 +1,10 @@
 (ns rapids.run-loop
   (:require
-    [rapids.storage :as storage]
+    [rapids.storage :refer :all]
     [rapids.flow :as flow]
     [rapids.util :refer :all]
-    [rapids.runlet :as runlet]
-    [rapids.signals :as s]
+    [rapids.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run!]]
+    [rapids.signals :refer [suspend-signal?]]
     [rapids.stack-frame :as sf]
     [rapids.run :as r])
   (:import (rapids.run Run)))
@@ -19,11 +19,11 @@
   {:pre  [(refers-to? flow/flow? flow)]
    :post [(r/run? %)]}
   (let [start-form (prn-str `(~(:name flow) ~@args))]
-    (storage/ensure-connection
-      (runlet/with-run (storage/create-object! (r/make-run {:state :running, :start-form start-form}))
+    (with-cache
+      (with-run (cache-create! (r/make-run {:state :running, :start-form start-form}))
         ;; create the initial stack-continuation to kick of the process
         (eval-loop! (fn [_] (flow/entry-point flow args)))
-        (runlet/current-run)))))
+        (current-run)))))
 
 (defn continue!
   "Continues the run identified by run-id.
@@ -40,13 +40,13 @@
    {:pre  [(not (nil? run-id))
            (not (r/run? run-id))]
     :post [(r/run? %)]}
-   (storage/with-connection
-     (runlet/with-run (storage/lock-object! Run run-id)
-       (if (not= (runlet/current-run :suspend :permit) permit)
+   (with-cache
+     (with-run (cache-get! Run run-id)
+       (if (not= (current-run :suspend :permit) permit)
          (throw (ex-info "Invalid permit. Unable to continue run." {:run-id run-id})))
-       (runlet/initialize-run-for-runlet) ;; ensure response and suspend are empty
+       (initialize-run-for-runlet)                   ;; ensure response and suspend are empty
        (eval-loop! (next-continuation!) data)
-       (runlet/current-run)))))
+       (current-run)))))
 
 ;;
 ;; Helpers
@@ -71,7 +71,7 @@
    function (fn [value] ...) which causes execution of the next partition, where value
    will be bound to the data-key established by `resume-at`"
   []
-  (if-let [it (runlet/pop-stack!)]
+  (if-let [it (pop-stack!)]
     (sf/stack-continuation it)))
 
 (defn- stack-processor!
@@ -86,14 +86,14 @@
   ([continuation] (stack-processor! continuation nil))
 
   ([continuation result]
-   {:pre [(r/run-in-state? (runlet/current-run) :running)
+   {:pre [(r/run-in-state? (current-run) :running)
           (or (fn? continuation) (nil? continuation))]}
 
    (if continuation
      (let [next-result (continuation result)]
-       (if (s/suspend-signal? next-result)
+       (if (suspend-signal? next-result)
          ;; suspend current run
-         (runlet/suspend-run! next-result)
+         (suspend-run! next-result)
 
          ;; pass the value to the next continuation
          (recur (next-continuation!) next-result)))
@@ -109,14 +109,14 @@
   Either a stack-continuation (if processing must continue)
   or the result if processing was complete."
   [result]
-  {:pre [(not (s/suspend-signal? result))]}
+  {:pre [(not (suspend-signal? result))]}
   ;; if suspending, do nothing more - the run is suspended and will be saved
-  (runlet/complete-run! result)
-  (if-let [parent-run-id (runlet/current-run :parent-run-id)]
+  (complete-run! result)
+  (if-let [parent-run-id (current-run :parent-run-id)]
 
     ;; continue processing the parent run
     #(continue! parent-run-id
-       {:permit (runlet/current-run :id) :data result})
+       {:permit (current-run :id) :data result})
 
     ;; finished - return the current value
     result))

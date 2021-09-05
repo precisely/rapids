@@ -4,8 +4,7 @@
 (ns rapids.storage.in-memory-storage
   (:require [rapids.storage.connection :refer :all]
             [rapids.storage.protocol :refer :all]
-            [rapids.util :refer [new-uuid ifit]]
-            [java-time :as t]))
+            [rapids.util :refer [new-uuid ifit]]))
 
 (defn conn-records [c] (-> c :storage :records))
 
@@ -46,7 +45,7 @@
 
 (defn in-memory-storage? [x] (instance? InMemoryStorage x))
 
-(defn create-in-memory-storage
+(defn ->in-memory-storage
   []
   (InMemoryStorage. (atom {})))
 

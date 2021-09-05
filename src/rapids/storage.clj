@@ -1,42 +1,22 @@
+;;
+;; This file represents the interface of the storage system to the rest of the code
+;; Do not reference
+;;
 (ns rapids.storage
-  (:require [rapids.storage.transaction :as t]
-            [rapids.storage.connection :as c]
+  (:require rapids.storage.cache
+            [rapids.storage.connection :refer [*connection* *storage*]]
             rapids.storage.persistence
-            potemkin))
-
-(defn get-object [cls id]
-  (if (t/cache-exists?)
-    (t/get-object cls id)
-    (c/get-record! cls id)))
-
-(defn lock-object! [cls id]
-  (if (t/cache-exists?)
-    (t/lock-object! cls id)
-    (c/lock-record! cls id)))
-
-(defn update-object!
-  "Updates an object, returning the updated object."
-  ([inst]
-    (if (t/cache-exists?)
-      (t/update-object! inst)
-      (c/update-record! inst)))
-  ([inst & kvs]
-   (update-object! (apply assoc inst kvs))))
-
-(defn create-object! [inst]
-  (if (t/cache-exists?)
-    (t/create-object! inst)
-    (c/create-record! inst)))
+            [potemkin :refer [import-vars]]))
 
 (defn current-connection
   "Returns the current connection to the current-storage or nil; typically set by with-connection or ensure-connection."
-  [] c/*connection*)
+  [] *connection*)
 
 (defn current-storage
   "Returns the current storage, an object supporting the Storage interface"
-  [] c/*storage*)
+  [] *storage*)
 
 (potemkin/import-vars
   [rapids.storage.connection with-storage set-storage! with-connection ensure-connection]
   [rapids.storage.persistence freeze thaw]
-  [rapids.storage.transaction with-transaction])
+  [rapids.storage.cache with-cache cache-create! cache-update! cache-get! cache-find!])

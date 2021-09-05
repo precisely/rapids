@@ -76,7 +76,7 @@
         pset (pset/add pset address params start-body)
         entry-continuation-bindings (bindings-expr-from-params params)]
     [pset, {:args (vec args)
-            :bindings-expression entry-continuation-bindings])
+            :bindings-expression entry-continuation-bindings}])
 
 ;;
 ;; HELPERS
