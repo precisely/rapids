@@ -23,22 +23,13 @@
   (let [[_ _ & sigs] (macroexpand `(fn ~name ~@fdecl))]
     sigs))
 
-(defn expand-flow
-  "Returns an expression for constructing a Flow from arguments provided as: (deflow ^m name & fdecl)
-
-  m - meta data
-  name - symbol naming the flow
-  fdecl - the body of deflow, where fdecl is a list of one or more elements of the form:
-            [(arglist1 code-body1), (arglist2 code-body2)...].
-            Each (arglistn code-bodyn) is called an arity"
-  [m name fdecl]
+(defn expand-flow [m name fdecl]
   (binding [flow/*defining-flows* (conj flow/*defining-flows* (qualify-symbol name))]
     (let [sigs (extract-signatures name fdecl)
           qualified (qualify-symbol name)
           address (address/create qualified)
           entry-point-name (str name "__entry-point")
 
-          ;; processes each arity
           [psets, arity-defs] (reverse-interleave
                                 (apply concat
                                   (map-indexed
@@ -54,33 +45,19 @@
 
 
 (defn partition-signature
-  "Returns a partition set and entry-point info, suitable for constructing an entry-point fn
-  where inputs:
-  m - metadata
-  address - address of the signature, usually something like #<address foo.0>
-  sig - (args, ... code)
-
-  [partition-set, entry-point-info]
-
-  where
-  entry-point-info is a hash of:
-  :args - arguments extracted from the sig
-  :bindings-expression - an expression which constructs a hash containing the arguments
-
-  This can be used to construct an entry-point function:
-  (fn [~@args] (flow/exec ~address ~bindings-expression))"
+  "Returns a pset and an arity definition"
   [m address sig]
   (let [[args & code] sig
         params (params-from-args args [] (-> m :line))
         [start-body, pset, _] (p/partition-body (vec code) address address params)
         pset (pset/add pset address params start-body)
         entry-continuation-bindings (bindings-expr-from-params params)]
-    [pset, {:args (vec args)
-            :bindings-expression entry-continuation-bindings}])
+    [pset, `([~@args] (flow/exec ~address ~entry-continuation-bindings))]))
 
 ;;
 ;; HELPERS
 ;;
+
 (defn- params-from-args
   "given an argument vector, returns a vector of symbols"
   [args params line]

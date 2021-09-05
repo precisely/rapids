@@ -2,11 +2,12 @@
 ;; Quick and dirty in memory storage implementation meant mainly for testing.
 ;;
 (ns rapids.storage.in-memory-storage
-  (:require [rapids.storage.connection :refer :all]
-            [rapids.storage.protocol :refer :all]
+  (:require [rapids.storage.protocol :refer :all]
             [rapids.util :refer [new-uuid ifit]]))
 
-(defn conn-records [c] (-> c :storage :records))
+(defn conn-records
+  ([c] (-> c :storage :records))
+  ([c & ks] (get-in @(conn-records c) ks)))
 
 (defrecord InMemoryStorageConnection [storage]
   StorageConnection
@@ -20,12 +21,11 @@
       (swap! (conn-records this) update type
         #(apply conj % id-rec-map))
       records))
-  (get-records! [this run-id lock] ;; ignore lock
-    (let [run (get @(conn-records this) run-id)]
-      run))
+  (get-records! [this type id lock]                         ;; ignore lock
+    (conn-records this type id))
   (find-records! [this type field {:keys [eq gt lt gte lte limit lock]}]
     (letfn [(test [rec val op] (op (field rec) val))]
-      (let [records (vals (get-in type @(conn-records this)))
+      (let [records (vals (conn-records this type))
             filtered (vec (filter #(some-> %
                                      (test eq =)
                                      (test gt >)

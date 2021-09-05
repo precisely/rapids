@@ -40,6 +40,7 @@
                  [org.clojure/data.codec "0.1.1"]
                  [com.taoensso/nippy "3.1.0"]
                  [com.taoensso/timbre "5.1.0"]
+                 [com.fzakaria/slf4j-timbre "0.3.21"] ; needed by next.jdbc
                  [potemkin "0.4.5"]
 
                  ;; database

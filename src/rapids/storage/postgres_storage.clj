@@ -1,25 +1,27 @@
 (ns rapids.storage.postgres-storage
-  (:refer-clojure :exclude [select update])
-  (:require [clojure.string :as str]
-            [rapids.storage.persistence :refer [freeze thaw]]
+  (:require [rapids.storage.persistence :refer [freeze thaw]]
             [rapids.storage.protocol :as p]
-            [rapids.run :as r]
+            rapids.run
+            rapids.pool
             [rapids.util :refer [in?]]
             [next.jdbc :as jdbc]
             [next.jdbc.types :refer [as-other]]
             [next.jdbc.connection :as connection]
             [honey.sql :as sql]
-            [honey.sql.helpers :refer :all :as h]
+            [honey.sql.helpers :as h]
             [migratus.core :as migratus]
-            [taoensso.timbre :as log]
-            [clojure.set :as set])
+            [taoensso.timbre :as log])
   (:import (java.util UUID)
            (rapids.run Run)
            (rapids.pool Pool)
-           (java.time LocalDateTime)
            (com.zaxxer.hikari HikariDataSource)))
 
-(def ^:dynamic *connection-pool* nil)
+(declare from-db-record to-db-record exec-one! exec! class->table table->name check-class)
+
+(defrecord PostgresStorage [db]
+  p/Storage
+  (get-connection [this]
+    (jdbc/get-connection (:db this))))
 
 (defn ->postgres-storage
   "Creates a Rapids Postgres Storage.
@@ -59,13 +61,6 @@
              config)]
     (PostgresStorage. db)))
 
-(declare from-db-record to-db-record exec-one! exec! class->table table->name check-class)
-
-(defrecord PostgresStorage [db]
-  p/Storage
-  (get-connection [this]
-    (jdbc/get-connection (:db this))))
-
 (defrecord PostgresStorageConnection [connection]
   p/StorageConnection
 
@@ -87,7 +82,7 @@
       (log/debug "Getting " table-name " " ids)
       (exec! this
         (->
-          (cond-> (select :*
+          (cond-> (h/select :*
                     :from [[table-name :table]]
                     :where [:in :id ids])
             lock? (assoc :lock [:mode :update]))))))
@@ -99,9 +94,9 @@
           table-name (:name table)]
       (check-class cls records)
       (log/debug "Creating " table-name (map :id records))
-      (let [stmt (-> (insert-into table-name)
-                   (values (vec (map to-db-record records)))
-                   (returning (str table-name ".*"))
+      (let [stmt (-> (h/insert-into table-name)
+                   (h/values (vec (map to-db-record records)))
+                   (h/returning (str table-name ".*"))
                    sql/format)]
         (map from-db-record
           (exec! this stmt)))))
@@ -117,13 +112,13 @@
       (log/debug "Updating " table-name (map :id records))
       (map from-db-record
         (exec-one! this
-          (-> (insert-into table-name)
-            (values (map to-db-record records))
-            (upsert (apply do-update-set (on-conflict :id) set-keys))
-            (returning :*)
+          (-> (h/insert-into table-name)
+            (h/values (map to-db-record records))
+            (h/upsert (apply h/do-update-set (h/on-conflict :id) set-keys))
+            (h/returning :*)
             sql/format)))))
 
-  (find-records! [this type field {:keys [gt lt eq gte lte lock? limit? exclude]}]
+  (find-records! [this type field {:keys [gt lt eq gte lte lock? limit exclude]}]
     (let [table (class->table type)
           table-name (:name table)
           where-clause (cond-> [:and]
@@ -132,17 +127,17 @@
                          gte (conj [:>= field gte])
                          lte (conj [:<= field lte])
                          eq (conj [:= field eq])
-                         exclude (conj [:not-in id exclude]))]
+                         exclude (conj [:not-in :id exclude]))]
       (log/debug "Finding " table-name " where " where-clause)
       (map from-db-record
         (exec! this
           (sql/format
-            (cond-> (select :* :from table-name
+            (cond-> (h/select :* :from table-name
                       :where where-clause)
-              limit? (h/limit limit)
-              lock? (lock [:mode :update]))))))))
+              limit (h/limit limit)
+              lock? (h/lock [:mode :update]))))))))
 
-(defn migrate!
+(defn postgres-storage-migrate!
   "Creates or updates Rapids tables in a JDBC database (currently only Postgres supported).
 
   Usage:

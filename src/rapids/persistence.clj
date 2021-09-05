@@ -6,8 +6,8 @@
   (:require [taoensso.nippy :refer :all]
             [clojure.main :as main]
             [rapids.runlet :as rc]
-            [rapids.pool :as p]
-            [rapids.connection :as storage])
+            [rapids.storage :as s]
+            [rapids.pool :as p])
   (:import (rapids.run Run)
            (rapids.flow Flow)
            (clojure.lang AFunction Atom)
@@ -25,12 +25,12 @@
   [data-input]
   (let [thawed-str (.readUTF data-input)
         run-id     (read-string thawed-str)]
-    (if (rc/runlet-cache-exists?)
-      (rc/load-run! run-id)
+    (if (s/cache-exists?)
+      (s/cache-get! Run run-id)
 
       ;; special handling for when a run is retrieved outside of a run-cache context
       ;; just get the run without locking it or storing it in the cache
-      (storage/get-record run-id))))
+      (first (s/get-records! Run [run-id])))))
 
 ;;
 ;; Flow - flows contain functions which aren't defined at top level
@@ -86,12 +86,12 @@
   [data-input]
   (let [thawed-str (.readUTF data-input)
         pool-id     (read-string thawed-str)]
-    (if (rc/runlet-cache-exists?)
-      (rc/load-pool! pool-id)
+    (if (s/cache-exists?)
+      (s/cache-get! Pool pool-id)
 
       ;; special handling for when a run is retrieved outside of a run-cache context
       ;; just get the run without locking it or storing it in the cache
-      (storage/get-pool pool-id))))
+      (first (s/get-records! Pool [pool-id])))))
 
 ;;
 ;; Atom

@@ -6,6 +6,8 @@
   (:require rapids.storage.cache
             [rapids.storage.connection :refer [*connection* *storage*]]
             rapids.storage.persistence
+            rapids.storage.postgres-storage
+            rapids.storage.in-memory-storage
             [potemkin :refer [import-vars]]))
 
 (defn current-connection
@@ -17,6 +19,9 @@
   [] *storage*)
 
 (potemkin/import-vars
-  [rapids.storage.connection with-storage set-storage! with-connection ensure-connection]
+  [rapids.storage.connection with-storage set-storage! with-connection ensure-connection
+   get-records! find-records! update-records! create-records!]
   [rapids.storage.persistence freeze thaw]
-  [rapids.storage.cache with-cache cache-create! cache-update! cache-get! cache-find!])
+  [rapids.storage.postgres-storage ->postgres-storage postgres-storage-migrate!]
+  [rapids.storage.in-memory-storage ->in-memory-storage]
+  [rapids.storage.cache with-cache cache-create! cache-update! cache-get! cache-find! cache-exists?])
