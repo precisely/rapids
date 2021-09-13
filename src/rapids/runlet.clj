@@ -64,8 +64,10 @@
 
 (defn add-responses! [& responses]
   (let [current-response (current-run :response)]
+    (if (not (vector? current-response))
+      (println "Ooops - current-response = " current-response))
     (assert (vector? current-response))
-    (update-run! :response (concat current-response responses))
+    (update-run! :response (vec (concat current-response responses)))
     responses))
 
 (defn attach-child-run!
@@ -73,7 +75,7 @@
   {:pre [(r/run-in-state? (current-run) :running)
          (r/run-in-state? child-run :running)
          (not= *current-run-id* (:id child-run))]}
-  (update-run! :parent-run-id *current-run-id*))
+  (storage/cache-update! (assoc child-run :parent-run-id *current-run-id*)))
 
 (defn complete-run! [result]
   {:pre [(r/run-in-state? (current-run) :running)

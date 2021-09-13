@@ -28,7 +28,7 @@
 
   (testing "it should succeed when valid and pre-post conditions"
     (let [run (start! prepost-conditions 2)]
-      (is (= (:state run) :suspended))
+      (is (= (:state run) :running))
       (let [run (continue! (:id run) {:data 3})]
         (is (= (:state run) :complete))
         (is (= (:result run) 6)))))
@@ -39,6 +39,6 @@
 
   (testing "it should error on invalid post condition"
     (let [run (start! prepost-conditions 2)]
-      (is (= (:state run) :suspended))
+      (is (= (:state run) :running))
       (is (thrown-with-msg? AssertionError #"Assert failed\: \(< % 10\)"
             (continue! (:id run) {:data 100}))))))

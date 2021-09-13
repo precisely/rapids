@@ -12,25 +12,22 @@
 ;;       Typically, with-transaction
 ;;
 (ns rapids.storage.cache
-  (:require [rapids.storage.connection :as c :refer [*cache*]]
-            [rapids.storage.protocol :as p]
-            [rapids.util :refer :all :as util]))
+  (:require [rapids.storage.dynamics :refer [ensure-connection *cache*]]
+            [rapids.storage.connection-wrapper :as c]
+            [rapids.util :refer :all]))
 
 (defn cache-exists? [] (boolean *cache*))
 
 (defn save-cache! []
   (doseq [[cls entries] *cache*]
-    (let [processed (map (fn [[id {object :object cache-change :op locked? :locked}]]
-                           [[id {:object object :locked locked?}],
-                            (if (= cache-change :create) object)
-                            (if (= cache-change :update) object)])
-                      entries)
-          synced-entries (apply hash-map (map first processed))
-          creates (map second processed)
-          updates (map #(nth % 2) processed)]
-      (if-not (-> creates count zero?)
+    (let [synced-entries (reduce-kv #(assoc %1 %2 (dissoc %3 :op)) {} entries)
+          cache-entries (vals entries)
+          filter-on (fn [op] (map :object (filter #(-> % :op (= op)) cache-entries)))
+          creates (filter-on :create)
+          updates (filter-on :update)]
+      (if (-> creates count (> 0))
         (c/create-records! creates))
-      (if-not (-> updates count zero?)
+      (if (-> updates count (> 0))
         (c/update-records! updates))
       (setf! *cache* assoc cls synced-entries))))
 
@@ -38,11 +35,13 @@
 
 (defn cache-get! [cls id]
   "Gets an object from storage, locking it and saving it in cache, of a particular type or loads it from the storage"
-  {:pre [(cache-exists?)]}
-  (or (get-cache-entry cls id)
-    (if-let [obj (first (c/get-records! type id true))]
-      (do (set-cache-entry obj :locked true) obj)
-      (throw (ex-info (str "Object not found.") {:class cls :id id})))))
+  {:pre [(cache-exists?)
+         (instance? cls Class)
+         (not (nil? id))]}
+  (or (:object (get-cache-entry cls id))
+    (if-let [obj (c/get-record! cls id)]
+      (do (set-cache-entry obj) obj)
+      (throw (ex-info "Object not found." {:class cls :id id})))))
 
 (defn cache-update!
   "Updates inst in cache, setting the :op state appropriately: :created objects stay in :created state,
@@ -51,12 +50,13 @@
   {:pre [(cache-exists?)]}
   (let [id (:id inst)
         cls (class inst)
-        {existing :object existing-change :op locked :locked} (get-cache-entry cls id)
+        {existing :object existing-change :op} (get-cache-entry cls id)
         cache-change (if existing
-                       (or existing-change :update))]
-    (assert (or (= :created existing-change) locked)
-      (str "Attempt to update unlocked object " (.getName cls) " " id))
-    (set-cache-entry inst cache-change)))
+                       (or existing-change :update)
+                       (throw (ex-info "Attempt to update cache object doesn't exist"
+                                {:object inst})))]
+    (set-cache-entry inst cache-change)
+    inst))
 
 (defn cache-create!
   "Adds inst to cache"
@@ -65,34 +65,46 @@
   (let [id (:id inst)
         cls (class inst)]
     (assert (not (get-cache-entry cls id)) (str "Attempt to create object in cache which already exists: " (.getName cls) id))
-    (set-cache-entry inst :create)))
+    (set-cache-entry inst :create))
+  inst)
 
 (defn cache-find!
   "Finds objects matching criteria on a single field, loading them from storage as necessary."
-  [type field & {:keys [eq lt gt lte gte eq in] :as keys}]
+  [type field & {:keys [eq lt gt lte gte eq in limit order] :as keys}]
   (let [tests (dissoc keys :limit)
         existing (find-in-cache type field tests)
         excluded-ids (filter :id existing)
-        new-objects (apply c/find-records! type field :exclude excluded-ids keys)]
+        test-args (seq (apply concat (map vec tests)))
+        new-objects (apply c/find-records! type field :exclude excluded-ids test-args)
+        result (concat existing new-objects)
+        ordered-result (case order
+                         :ascending (sort-by field < result)
+                         :descending (sort-by field > result)
+                         nil result
+                         (throw (ex-info "cache-find! :order must be :ascending :descending or nil"
+                                  {:order order})))
+        limited-result (if limit (take limit ordered-result) ordered-result)]
     (map set-cache-entry new-objects)
-    (concat existing new-objects)))
+    limited-result))
 
-(defmacro with-cache
-  "Executes body within a transactional cache generating a new connection for that transaction within the storage.
-  Note: operations on the storage are performed as a final step."
+(defmacro ensure-cached-connection
+  "Ensures a transactional cache and connection exists then executes body in the context
+  of a transaction. Changes to the cache are committed as a final step or rolled back if
+  an exception is detected."
   [& body]
   `(letfn [(exec# [] ~@body)]
-     (c/ensure-connection
+     (ensure-connection
        (if (cache-exists?)
          (exec#)
          (binding [*cache* {}]
            (try
-             (p/transaction-begin! c/*connection*)
-             (exec#)
-             (save-cache!)
-             (p/transaction-commit! c/*connection*)
+             (c/transaction-begin!)
+             (let [result# (exec#)]
+               (save-cache!)
+               (c/transaction-commit!)
+               result#)
              (catch Exception e#
-               (p/transaction-rollback! c/*connection*)
+               (c/transaction-rollback!)
                (throw e#))))))))
 
 ;;
@@ -100,7 +112,7 @@
 ;;
 (defn- matches? [val {:keys [eq lt gt lte gte in] :as tests}]
   (let [ops {:eq =, :lt <, :gt >, :lte <=, :gte >=, :in #(in? %2 %1)}]
-    (loop [[[key constraint] & remaining-tests] tests]
+    (loop [[[key constraint] & remaining-tests] (select-keys tests [:eq :lt :gt :lte :gte :in])]
       (let [test (key ops)]
         (if (test val constraint)
           (if remaining-tests
@@ -108,18 +120,19 @@
             true)
           false)))))
 
-(defn- find-in-cache [type field & {:keys [eq lt gt lte gte in] :as tests}]
-  (filter #(matches? (field %1) tests)
-    (map :object (get *cache* type))))
+(defn- find-in-cache [cls field {:keys [eq lt gt lte gte in] :as tests}]
+  (filter #(matches? (field %1) tests) (map :object (vals (get *cache* cls)))))
 
-(defn- get-cache-entry [cls id]
-  (get *cache* [cls id]))
+(defn get-cache-entry [cls id]
+  (get-in *cache* [cls id]))
 
-(defn- set-cache-entry
+(defn set-cache-entry
   ([inst] (set-cache-entry inst nil))
   ([inst op]
+   {:pre  [(not (nil? inst))]
+    :post [(get-in *cache* [(class inst) (:id inst)])]}
    (let [cls (class inst)
          id (:id inst)]
      (setf! *cache* update-in [cls id]
-       {:object inst
-        :op     op}))))
+       (constantly {:object inst
+                    :op     op})))))

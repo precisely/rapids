@@ -28,7 +28,7 @@
                 :null nil?
                 :map (s/map-of string? ::json)
                 :array (s/and vector? (s/coll-of ::json))))
-(s/def ::permit (s/or :keyword keyword? :json ::json))
+(s/def ::permit (s/or :keyword keyword? :json ::json :uuid uuid?))
 (defn ^:suspending listen!
   [& {:keys [permit expires default]}]
   {:pre [(s/valid? (s/nilable ::permit) permit)

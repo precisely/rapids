@@ -49,13 +49,13 @@
   (deftest WelcomeTest
     (branch \"welcome\" [run (start! welcome)]
       (keys-match run
-        :state :suspended
+        :state :running
         :response [\"welcome. Do You want to continue?\" _])
 
       (branch \"wants to continue\"
         [run (continue! (:id run) {:data \"yes\"})]
         (keys-match run
-          :state :suspended
+          :state :running
           :response [\"great!... let's continue\"]))
 
       (branch \"doesn't want to continue\"
@@ -72,14 +72,14 @@
              key-matches - key-match pairs
   Example:
     (keys-match run
-      :state :suspended
+      :state :running
       :response [\"great!... let's continue\"]))
 
     is equivalent to:
 
     (let [r run]
       (is (match [(:state r)]
-            [:suspended] true
+            [:running] true
             [_] false))
       (is (match [(:response r)]
             [[\"great! ... let's continue\"]] true

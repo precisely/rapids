@@ -3,7 +3,7 @@
     [rapids.storage :refer :all]
     [rapids.flow :as flow]
     [rapids.util :refer :all]
-    [rapids.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run!]]
+    [rapids.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run! update-run!]]
     [rapids.signals :refer [suspend-signal?]]
     [rapids.stack-frame :as sf]
     [rapids.run :as r])
@@ -19,7 +19,7 @@
   {:pre  [(refers-to? flow/flow? flow)]
    :post [(r/run? %)]}
   (let [start-form (prn-str `(~(:name flow) ~@args))]
-    (with-cache
+    (ensure-cached-connection
       (with-run (cache-create! (r/make-run {:state :running, :start-form start-form}))
         ;; create the initial stack-continuation to kick of the process
         (eval-loop! (fn [_] (flow/entry-point flow args)))
@@ -40,10 +40,12 @@
    {:pre  [(not (nil? run-id))
            (not (r/run? run-id))]
     :post [(r/run? %)]}
-   (with-cache
+   (ensure-cached-connection
      (with-run (cache-get! Run run-id)
        (if (not= (current-run :suspend :permit) permit)
-         (throw (ex-info "Invalid permit. Unable to continue run." {:run-id run-id})))
+         (throw (ex-info "Invalid permit. Unable to continue run."
+                  {:type :input-error
+                   :run-id run-id})))
        (initialize-run-for-runlet)                   ;; ensure response and suspend are empty
        (eval-loop! (next-continuation!) data)
        (current-run)))))
@@ -110,8 +112,7 @@
   or the result if processing was complete."
   [result]
   {:pre [(not (suspend-signal? result))]}
-  ;; if suspending, do nothing more - the run is suspended and will be saved
-  (complete-run! result)
+  (update-run! :state :complete :result result)
   (if-let [parent-run-id (current-run :parent-run-id)]
 
     ;; continue processing the parent run

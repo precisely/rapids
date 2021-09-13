@@ -10,8 +10,7 @@
     [rapids.stack-frame :as sf]
     [java-time :as t]
     [clojure.tools.macro :refer [macrolet]])
-  (:import (java.util UUID)
-           (java.time LocalDateTime)))
+  (:import (java.util UUID)))
 
 (declare run-in-state?)
 
@@ -23,6 +22,7 @@
 (def ^:const RunStates #{:running :error :complete})
 (defn run-in-state?
   [run & states]
+  {:pre [(every? #(in? RunStates %) states)]}
   (let [state (:state run)
         result (and (run? run) (or (in? states state) (in? states :any)))]
     result))
@@ -37,13 +37,13 @@
             response []}
      :as   fields}]
    {:post [(s/assert ::run %)]}
-   (atom (map->Run (into (or fields {})
+   (map->Run (into (or fields {})
                      {:id           id,
                       :state        state,
                       :stack        stack,
                       :response     response,
                       :result       result
-                      :cached-state :created})))))
+                      :cached-state :created}))))
 
 (defn make-test-run
   "Returns a run and a record"

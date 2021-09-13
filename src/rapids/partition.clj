@@ -37,7 +37,7 @@
 ;;; ```
 ;;; (deflow main [arg]
 ;;;   (let [result (flow2 arg)]
-;;;     (print "(flow2 %s) = %s" arg result)))
+;;;     (println "(flow2 %s) = %s" arg result)))
 ;;; ```
 ;;;
 ;;; gets broken into 2 partitions, named by addresses (shown in angle brackets).
@@ -45,7 +45,7 @@
 ;;; continuations, the functions that actually implement a flow.
 ;;;
 ;;; <a1> => ```(fn [{:keys [arg]}] (resume-at [<a2> {:arg arg} 'result] (flow2 arg)))```
-;;; <a2> => ```(fn [{:keys [arg result]}] (print "(flow2 %s) = %s" arg result))```
+;;; <a2> => ```(fn [{:keys [arg result]}] (println "(flow2 %s) = %s" arg result))```
 ;;;
 ;;; The addresses represented by <p1> and <p2> are records that describe a unique point
 ;;; in the flow.

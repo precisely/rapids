@@ -1,6 +1,5 @@
 (ns rapids.storage.postgres-storage
-  (:require [rapids.storage.persistence :refer [freeze thaw]]
-            [rapids.storage.protocol :as p]
+  (:require [rapids.storage.protocol :as p]
             rapids.run
             rapids.pool
             [rapids.util :refer [in?]]
@@ -22,6 +21,8 @@
   p/Storage
   (get-connection [this]
     (jdbc/get-connection (:db this))))
+
+(defn postgres-storage? [o] (instance? o PostgresStorage))
 
 (defn ->postgres-storage
   "Creates a Rapids Postgres Storage.
@@ -64,6 +65,8 @@
 (defrecord PostgresStorageConnection [connection]
   p/StorageConnection
 
+  (close [this] (.close (:connection this)))
+
   (transaction-begin! [this]
     (log/trace "Begin transaction")
     (exec-one! this ["BEGIN;"]))
@@ -76,16 +79,14 @@
     (log/trace "Rollback transaction")
     (exec-one! this ["ROLLBACK;"]))
 
-  (get-records! [this type ids lock?]
+  (get-records! [this type ids]
     (let [table (class->table type)
           table-name (:name table)]
       (log/debug "Getting " table-name " " ids)
       (exec! this
-        (->
-          (cond-> (h/select :*
-                    :from [[table-name :table]]
-                    :where [:in :id ids])
-            lock? (assoc :lock [:mode :update]))))))
+        (h/select :*
+          :from [[table-name :table]]
+          :where [:in :id ids]))))
 
   (create-records! [this records]
     (let [cls (-> records first class)
@@ -118,7 +119,7 @@
             (h/returning :*)
             sql/format)))))
 
-  (find-records! [this type field {:keys [gt lt eq gte lte lock? limit exclude]}]
+  (find-records! [this type field {:keys [gt lt eq gte lte limit exclude]}]
     (let [table (class->table type)
           table-name (:name table)
           where-clause (cond-> [:and]
@@ -134,8 +135,7 @@
           (sql/format
             (cond-> (h/select :* :from table-name
                       :where where-clause)
-              limit (h/limit limit)
-              lock? (h/lock [:mode :update]))))))))
+              limit (h/limit limit))))))))
 
 (defn postgres-storage-migrate!
   "Creates or updates Rapids tables in a JDBC database (currently only Postgres supported).
@@ -170,7 +170,7 @@
 (def name->table (group-by :name tables))
 
 (defn- run-to-record [run]
-  {:object          (freeze run)
+  {:object          (p/freeze-record run)
    :start_form      (:start-form run)
    :suspend_expires (-> run :suspend :expires)
    :result          (str (:result run))
@@ -178,11 +178,11 @@
    :state           (-> run :state name)})
 
 (defn- pool-to-record [pool]
-  {:object (freeze pool)
+  {:object (p/freeze-record pool)
    :id     (:id pool)})
 
 (defn- from-db-record [db-record]
-  (-> db-record :object thaw))
+  (-> db-record :object p/thaw-record))
 
 ;; HELPERS for debugging
 (defn uuid [] (UUID/randomUUID))
