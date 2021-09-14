@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS pools (
   size smallint,
   sources BYTEA,
   buffer BYTEA,
-  sinks BYTEA
+  sinks BYTEA,
   -- timestamps
   created_at TIMESTAMP  NOT NULL  DEFAULT current_timestamp,
   updated_at TIMESTAMP  NOT NULL  DEFAULT current_timestamp

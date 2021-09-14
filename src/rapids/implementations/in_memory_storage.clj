@@ -1,7 +1,7 @@
 ;;
 ;; Quick and dirty in memory storage implementation meant mainly for testing.
 ;;
-(ns rapids.storage.in-memory-storage
+(ns rapids.implementations.in-memory-storage
   (:require [rapids.storage.protocol :refer :all]
             [rapids.util :refer [new-uuid ifit]]))
 

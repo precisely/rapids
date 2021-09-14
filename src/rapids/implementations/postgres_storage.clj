@@ -1,4 +1,4 @@
-(ns rapids.storage.postgres-storage
+(ns rapids.implementations.postgres-storage
   (:require [rapids.storage.protocol :as p]
             rapids.run
             rapids.pool

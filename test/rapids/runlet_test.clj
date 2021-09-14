@@ -1,12 +1,14 @@
 (ns rapids.runlet-test
   (:require [clojure.test :refer :all]
+            [helpers :refer :all]
+            [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]
+            [rapids.address :as a]
+            [rapids.flow :as flow]
             [rapids.run :as r]
             [rapids.runlet :refer :all]
             [rapids.stack-frame :as sf]
-            [rapids.address :as a]
             [rapids.storage :as s :refer [ensure-cached-connection cache-update! cache-get! cache-create!
-                                          with-storage ->in-memory-storage ensure-connection]]
-            [rapids.flow :as flow]
+                                          with-storage ensure-connection]]
             [rapids.signals :as signals])
   (:import (rapids.run Run)))
 
@@ -47,7 +49,7 @@
 
         ;; retrieve parent run
         (ensure-connection
-          (let [loaded-parent-run (s/get-run (:id parent-run))
+          (let [loaded-parent-run (get-run (:id parent-run))
                 deserialized-foo (-> loaded-parent-run :stack first :bindings :foo-flow)]
             (is (flow/flow? deserialized-foo))
             (is (fn? (:entry-point deserialized-foo)))

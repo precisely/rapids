@@ -1,5 +1,4 @@
 (ns rapids
-  ; macros must be explicitly referred to be available to ClojureScript
   (:require rapids.deflow
             rapids.run-loop
             rapids.storage
@@ -8,10 +7,11 @@
             rapids.time
             rapids.persistence
             rapids.pool-ops
+            [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]
             [potemkin :refer [import-vars]]))
 
 (import-vars
-  [rapids.storage set-storage! with-storage ->postgres-storage postgres-storage-migrate! ->in-memory-storage]
+  [rapids.storage set-storage! with-storage]
   [rapids.run run? run-in-state?]
   [rapids.deflow deflow]
   [rapids.flow flow?]
@@ -30,4 +30,5 @@
    ;; start operator:
    ! ])
 
+;; the in memory storage is used by default
 (set-storage! (->in-memory-storage))
