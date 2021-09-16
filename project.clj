@@ -48,7 +48,7 @@
                  [seancorfield/next.jdbc "1.1.613"]
                  [com.github.seancorfield/honeysql "2.0.783"]
                  [danlentz/clj-uuid "0.1.9"]
-                 [migratus "1.3.3"]
+                 [migratus "1.3.5"]
                  [hikari-cp "2.13.0"]]
   :clean-targets ^{:protect false} ["target"]
   :plugins [[s3-wagon-private "1.3.4"]]

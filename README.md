@@ -50,22 +50,12 @@ When the expiry time is passed, execution resumes, with the `listen!` operator e
 
 #### block! (shorthand: <<!)
 
-Suspends execution of the current run until the given run completes. Returns the value returned by the given run. If the current run was redirected, control passes back to its parent.
+Suspends execution of the current run until the given run completes. Returns the value returned by the given run. 
 
 ```
 (block! run) ; or (<<! run)
 (block! run :expires expiry-time, :default value) 
 ```
-
-#### redirect! (shorthand: >>)
-
-Suspends the current run and passes control to the given run.
-
-```
-(redirect! run) ; or (>> run)
-```
-
-Adds the passed run's response to the current response, and sets the run as the next run. The current run is suspended until the passed run completes or blocks. The value returned will be the passed run in a suspended  or completed state.
 
 ### Starting a flow
 ```clojure
@@ -92,6 +82,18 @@ The IntelliJ project has shortcuts for running tests under the Tools Menu. First
 Tools -> Run Tests in Current Namespace in REPL
 Tools -> Run Tests Under Caret in REPL
 Tools -> Commands -> Run All Tests!
+
+### Postgres tests
+
+The test suite includes some tests for the Postgres backend which only run conditionally. To run them:
+
+1. install postgres
+   with homebrew: `brew install postgresql`
+2. start postgres
+   with homebrew: `brew services start postgresql`
+3. create a test database: `createdb rapids-test`
+4. include the following line in your .env file:
+   `TEST_POSTGRES_URL=postgresql://localhost:5432/rapids-test`
 
 ### Command line
 
@@ -139,65 +141,6 @@ A wrapper around `is` and `match` to make it easy to match patterns in maps:
 (keys-match obj-to-match :key1 pattern1 :key2 pattern2 ...) 
 ```
 
-## Integrating Rapids into server
-
-### Import Run and IRunStore from rapids.runstore 
-
-```clojure
-(ns my.package
-  (:require [rapids.runstore :as rs]))
-
-...
-
-(extend MyDBAdapter
-  rs/IRunStore ; 
-  (rs/rs-create! [rs record] ...) ; return an object implementing rs/IRun with the given properties
-  (rs/rs-get [rs run-id] ...) ; find and return the record identified by run-id
-  (rs/rs-lock! [rs run-id] ...) ; return a record as provided by rs-update, locking it against changes (e.g., use `SELECT FOR UPDATE`)
-  (rs/rs-update! [rs record expires] ...) ; save the given record to the db - a map with a set of keys with values of `string`, `byte array`, `uuid` or `timestamp`
-                                          ; if expires is set, server should arrange for expire-run! to be called for that `run_id` at the given time
-```
-
-Here is an example Postgres definition of a table for storing runs:
-```sql
- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-DO $$ BEGIN
-  CREATE TYPE RUN_STATES AS ENUM ('created', 'suspended', 'complete', 'error');
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE RETURN_MODES AS ENUM ('block', 'redirect');
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
-
-CREATE TABLE IF NOT EXISTS runs (
-  id UUID DEFAULT uuid_generate_v4(),
-  PRIMARY KEY (id),
-
-  -- data columns
-  error BYTEA,
-  next_id UUID,
-  parent_run_id UUID,
-  response BYTEA,
-  result BYTEA,
-  return_mode RETURN_MODES,
-  run_response BYTEA,
-  stack BYTEA,
-  start_form TEXT,
-  state RUN_STATES,
-  suspend BYTEA,
-  suspend_expires TIMESTAMP,
-
-  -- timestamps
-  created_at TIMESTAMP  NOT NULL  DEFAULT current_timestamp,
-  updated_at TIMESTAMP  NOT NULL  DEFAULT current_timestamp
-);
-CREATE INDEX IF NOT EXISTS runs_suspend_expires ON runs (suspend_expires);
-```
 
 ### Exception Types
 

@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS runs (
   -- data columns
   object BYTEA,
   parent_run_id UUID,
-  result BYTEA,
+  result TEXT,
   start_form TEXT,
   state RUN_STATES,
   suspend_expires TIMESTAMP,

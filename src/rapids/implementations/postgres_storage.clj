@@ -17,10 +17,18 @@
 
 (declare from-db-record to-db-record exec-one! exec! class->table table->name check-class)
 
+(declare ->PostgresStorageConnection)
+
 (defrecord PostgresStorage [db]
   p/Storage
   (get-connection [this]
-    (jdbc/get-connection (:db this))))
+    (->PostgresStorageConnection (jdbc/get-connection (:db this))))
+  (require-index! [_ type field]
+    (if-not (get-in {Run  #{[:suspend :expires] :id}
+                     Pool #{:id}}
+              [type field])
+      (throw (ex-info "Implementation of PostgresStorage is out of date. Index not supported."
+               {:type type :field field})))))
 
 (defn postgres-storage? [o] (instance? o PostgresStorage))
 
@@ -83,10 +91,11 @@
     (let [table (class->table type)
           table-name (:name table)]
       (log/debug "Getting " table-name " " ids)
-      (exec! this
-        (h/select :*
-          :from [[table-name :table]]
-          :where [:in :id ids]))))
+      (map (from-db-record table-name)
+        (exec! this
+          (-> (h/select :*)
+            (h/from table-name)
+            (h/where [:in :id ids]))))))
 
   (create-records! [this records]
     (let [cls (-> records first class)
@@ -94,13 +103,11 @@
           to-db-record (:to-db-record table)
           table-name (:name table)]
       (check-class cls records)
-      (log/debug "Creating " table-name (map :id records))
+      (log/debug "Creating" table-name (map :id records))
       (let [stmt (-> (h/insert-into table-name)
                    (h/values (vec (map to-db-record records)))
-                   (h/returning (str table-name ".*"))
-                   sql/format)]
-        (map from-db-record
-          (exec! this stmt)))))
+                   (h/returning :*))]
+        (map (from-db-record table-name) (exec! this stmt)))))
 
   (update-records! [this records]
     (let [record (first records)
@@ -108,34 +115,36 @@
           table (class->table cls)
           table-name (:name table)
           to-db-record (:to-db-record table)
-          set-keys (dissoc (set (apply concat (map keys records))) :id :created_at)]
+          db-records (map to-db-record records)
+          set-keys (disj (set (apply concat (map keys db-records))) :id :created_at)]
       (check-class cls records)
       (log/debug "Updating " table-name (map :id records))
-      (map from-db-record
-        (exec-one! this
+      (map (from-db-record table-name)
+        (exec! this
           (-> (h/insert-into table-name)
-            (h/values (map to-db-record records))
+            (h/values db-records)
             (h/upsert (apply h/do-update-set (h/on-conflict :id) set-keys))
-            (h/returning :*)
-            sql/format)))))
+            (h/returning :*))))))
 
   (find-records! [this type field {:keys [gt lt eq gte lte limit exclude]}]
     (let [table (class->table type)
           table-name (:name table)
+          to-db-record (:to-db-record table)
+          cast #(field (to-db-record {field %})) ; not very efficient, but convert the field using the to-db-record fn
           where-clause (cond-> [:and]
-                         gt (conj [:> field gt])
-                         lt (conj [:< field lt])
-                         gte (conj [:>= field gte])
-                         lte (conj [:<= field lte])
-                         eq (conj [:= field eq])
+                         gt (conj [:> field (cast gt)])
+                         lt (conj [:< field (cast lt)])
+                         gte (conj [:>= field (cast gte)])
+                         lte (conj [:<= field (cast lte)])
+                         eq (conj [:= field (cast eq)])
                          exclude (conj [:not-in :id exclude]))]
       (log/debug "Finding " table-name " where " where-clause)
-      (map from-db-record
+      (map (from-db-record table-name)
         (exec! this
-          (sql/format
-            (cond-> (h/select :* :from table-name
-                      :where where-clause)
-              limit (h/limit limit))))))))
+          (cond-> (-> (h/select :*)
+                    (h/from table-name)
+                    (h/where where-clause))
+            limit (h/limit limit)))))))
 
 (defn postgres-storage-migrate!
   "Creates or updates Rapids tables in a JDBC database (currently only Postgres supported).
@@ -154,20 +163,13 @@
   (assert (every? #(instance? cls %) records) (str "Expecting records of type " cls)))
 
 (defn- exec! [pconn stmt]
-  (jdbc/execute! (:connection pconn) stmt))
+  (jdbc/execute! (:connection pconn) (sql/format stmt)))
 
 (defn- exec-one! [pconn stmt]
-  (jdbc/execute-one! (:connection pconn) stmt))
+  (let [formatted-sql (sql/format stmt)]
+    (jdbc/execute-one! (:connection pconn) formatted-sql)))
 
 (declare run-to-record pool-to-record)
-(def tables
-  [{:class Run, :name "runs", :to-db-record run-to-record}
-   {:class Pool, :name "pools", :to-db-record pool-to-record}])
-
-;;
-;; Indexes into tables:
-(def class->table (group-by :class tables))
-(def name->table (group-by :name tables))
 
 (defn- run-to-record [run]
   {:object          (p/freeze-record run)
@@ -175,14 +177,30 @@
    :suspend_expires (-> run :suspend :expires)
    :result          (str (:result run))
    :id              (:id run)
-   :state           (-> run :state name)})
+   :state           (-> run :state name as-other)})
 
 (defn- pool-to-record [pool]
   {:object (p/freeze-record pool)
    :id     (:id pool)})
 
-(defn- from-db-record [db-record]
-  (-> db-record :object p/thaw-record))
+(def tables
+  [{:class Run, :name :runs, :to-db-record run-to-record}
+   {:class Pool, :name :pools, :to-db-record pool-to-record}])
+
+;;
+;; Indexes into tables:
+(defn index-on [f coll]
+  (zipmap (map f coll) coll))
+
+(def class->table (index-on :class tables))
+(def name->table (index-on :name tables))
+
+(defn- from-db-record
+  [table-name]
+  {:pre [(keyword? table-name)]}
+  (let [field (keyword (str (name table-name) "/object"))]
+    (fn [db-record]
+      (-> db-record field p/thaw-record))))
 
 ;; HELPERS for debugging
 (defn uuid [] (UUID/randomUUID))
@@ -190,16 +208,3 @@
   `(try ~@body
         (catch Exception e#
           (log/error "While " '~body ":" e#))))
-
-;; ???
-;(defn simple-test []
-;  (let [run (r/make-test-run)
-;        run-rec (dissoc (r/run-to-record run) :result :error :state :stack :suspend :response :return_mode)
-;        stmt (-> (insert-into :runs)
-;               (values run-rec)
-;               (returning [:runs.*])
-;               sql/format)]
-;    (prn stmt)
-;    (with-open [conn (jdbc/get-connection *connection-pool*)]
-;      (from-db-record
-;        (jdbc/execute-one! conn stmt)))))

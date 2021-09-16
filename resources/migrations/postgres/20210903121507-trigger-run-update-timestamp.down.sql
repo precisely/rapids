@@ -1,1 +1,1 @@
-DROP TRIGGER update_run_updated_at;
+DROP TRIGGER update_run_updated_at ON runs;
