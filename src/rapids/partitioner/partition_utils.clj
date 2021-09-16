@@ -1,5 +1,5 @@
-(ns rapids.partition-utils
-  (:require [rapids.util :refer [ifit in? unqualified-symbol?]]
+(ns rapids.partitioner.partition-utils
+  (:require [rapids.support.util :refer [ifit in? unqualified-symbol?]]
             [clojure.walk :refer [postwalk]]
             [clojure.set :refer [intersection difference]]))
 

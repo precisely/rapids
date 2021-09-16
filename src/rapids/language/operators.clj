@@ -1,8 +1,7 @@
-(ns rapids.operators
-  (:require [rapids.runlet :as rc]
-            [rapids.run-loop :as rl]
-            [rapids.signals :as signals]
-            [rapids.flow :as flow]
+(ns rapids.language.operators
+  (:require [rapids.runtime.core :as rt]
+            [rapids.objects.signals :as signals]
+            [rapids.objects.flow :as flow]
             [taoensso.timbre :as log]
             [clojure.spec.alpha :as s])
   (:import (java.time LocalDateTime)))
@@ -43,13 +42,13 @@
 (defn ^:suspending block!
   "Suspends the current run until the provided child-run completes."
   [child-run & {:keys [expires default]}]
-  (rc/attach-child-run! child-run)
+  (rt/attach-child-run! child-run)
   (listen! :permit (:id child-run) :expires expires :default default))
 
 (defn respond!
   "Adds an element to the current run response: returns nil"
   [& responses]
-  (apply rc/add-responses! responses))
+  (apply rt/add-responses! responses))
 
 ;;
 ;; Shortcut operators
@@ -58,7 +57,7 @@
   "Starts a run with the flow and given arguments.
   Returns the Run in :running or :complete state."
   [flow & args]
-  `(rl/start! ~flow ~@args))
+  `(rt/start! ~flow ~@args))
 
 (defmacro <*
   [& {:keys [permit expires default]}]
@@ -68,11 +67,6 @@
   "The blocking operator - shortcut for block!"
   [child-run & {:keys [expires default]}]
   `(block! ~@(rest &form)))
-
-(defmacro >>
-  "Redirect operator - shortcut for [[redirect]]"
-  [child-run & {:keys [expires default]}]
-  `(redirect! ~@(rest &form)))
 
 (defmacro *>
   "Respond operator - shortcut for [[respond!]]"

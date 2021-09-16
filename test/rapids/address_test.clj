@@ -1,6 +1,6 @@
 (ns rapids.address_test
   (:require [clojure.test :refer :all]
-            [rapids.address :refer :all]))
+            [rapids.objects.address :refer :all]))
 
 (declare foo) ; get rid of symbol resolution warnings
 

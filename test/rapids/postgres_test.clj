@@ -2,13 +2,13 @@
   (:require [clojure.test :refer :all]
             [helpers :refer [env]]
             [rapids.implementations.postgres-storage :refer :all]
-            [rapids.storage :refer :all]
+            [rapids.storage.core :refer :all]
             [next.jdbc :as jdbc]
             [migratus.core :as migratus]
-            [rapids.run :as r]
+            [rapids.objects.run :as r]
             [honey.sql.helpers :as h]
             [honey.sql :as sql])
-  (:import [rapids.run Run]))
+  (:import [rapids.objects.run Run]))
 (def test-jdbc-url (env :test-postgres-jdbc-url))
 (def test-storage (->postgres-storage {:jdbcUrl test-jdbc-url}))
 

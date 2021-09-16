@@ -3,7 +3,7 @@
 ;;
 (ns rapids.implementations.in-memory-storage
   (:require [rapids.storage.protocol :refer :all]
-            [rapids.util :refer [new-uuid ifit]]))
+            [rapids.support.util :refer [new-uuid ifit]]))
 
 (defn conn-records
   ([c] (-> c :storage :records))

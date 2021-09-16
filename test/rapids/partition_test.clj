@@ -1,12 +1,13 @@
 (ns rapids.partition_test
   (:require [clojure.test :refer :all]
-            [rapids.util :refer :all]
+            [rapids.support.util :refer :all]
             [clojure.core.match :refer [match]]
-            [rapids.partition :refer :all]
-            [rapids.partition-set :refer [addresses]]
-            [rapids.address :as address]
-            [rapids.operators :as operators])
-  (:import (rapids.flow Flow)))
+            [rapids.partitioner.core :refer :all]
+            [rapids.partitioner.partition :refer [partition-vector-expr]]
+            [rapids.partitioner.partition-set :refer [addresses]]
+            [rapids.objects.address :as address]
+            [rapids.language.operators :as operators])
+  (:import (rapids.objects.flow Flow)))
 
 (declare PARTITION-ADDRESS MAIN) ; get rid of symbol resolution warnings
 
@@ -39,7 +40,7 @@
   (testing "suspending expressions"
     (testing "flow with non-suspending args"
       (is (= (partition-expr `(fl1 3 4) partition-address address [])
-            [`(rapids.operators/fcall fl1 3 4), nil, true])))
+            [`(rapids.language.operators/fcall fl1 3 4), nil, true])))
     (testing "flow with suspending args"
       (let [[start, pset, suspend?]
             (partition-expr `(fl1 (fl2 (a))) partition-address address '[z])
@@ -47,7 +48,7 @@
         (is (true? suspend?))
         (testing "the start body should contain a resume-at expression pointing at the next-address, starting with the innermost term"
           (is (match [start]
-                [([`rapids.partition/resume-at [next-address ['z] _]
+                [([`rapids.partitioner.partition/resume-at [next-address ['z] _]
                    ([`operators/fcall `fl2 ([`a] :seq)] :seq)] :seq)] true
                 [_] false)))
         (testing "the partition set should contain a partition which evals the outer flow"
@@ -92,7 +93,7 @@
       (testing "initial form first two forms, resuming at the second partition address"
         (is (match [start]
               [[([`a] :seq)
-                ([`rapids.partition/resume-at [part2-address [] _]
+                ([`rapids.partitioner.partition/resume-at [part2-address [] _]
                   ([`operators/fcall `fl1] :seq)] :seq)]] true
               [_] false))
         (is (true? suspend?)))
@@ -129,6 +130,6 @@
       (is (= 2 (-> pset addresses count)))
       (is (true? suspend?))
       (is (match [start]
-            [([`rapids.partition/resume-at [_ [] _] ([`operators/fcall `fl1] :seq)] :seq)] true
+            [([`rapids.partitioner.partition/resume-at [_ [] _] ([`operators/fcall `fl1] :seq)] :seq)] true
             [_] false)))))
 

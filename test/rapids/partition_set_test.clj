@@ -1,7 +1,7 @@
 (ns rapids.partition_set_test
   (:require [clojure.test :refer :all]
-            [rapids.partition-set :refer :all]
-            [rapids.address :as address]))
+            [rapids.partitioner.partition-set :refer :all]
+            [rapids.objects.address :as address]))
 
 (declare main)                ; get rid of symbol resolution warnings
 

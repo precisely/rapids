@@ -1,14 +1,12 @@
-(ns rapids.partition
-  (:require [rapids.address :as a]
-            [rapids.util :refer :all]
-            [rapids.partition-utils :refer :all]
-            [rapids.runlet :as rc]
-            [rapids.flow :as flow]
-            [rapids.recur :refer [with-tail-position with-binding-point]]
-            [rapids.partition-set :as pset]
-            [rapids.signals :refer [suspending-operator?]]
-            [rapids.recur :refer :all]
-            [rapids.closure :as closure]))
+(ns rapids.partitioner.partition
+  (:require [rapids.objects.address :as a]
+            [rapids.objects.flow :as flow]
+            [rapids.objects.signals :refer [suspending-operator?]]
+            [rapids.partitioner.closure :as closure]
+            [rapids.partitioner.partition-set :as pset]
+            [rapids.partitioner.partition-utils :refer :all]
+            [rapids.partitioner.recur :refer [with-tail-position with-binding-point *recur-binding-point* *tail-position*]]
+            [rapids.support.util :refer :all]))
 
 ;;;; Partitioner
 
@@ -50,7 +48,7 @@
 ;;; The addresses represented by <p1> and <p2> are records that describe a unique point
 ;;; in the flow.
 ;;;
-;;; E.g., <a1> is #rapids.address.Address[main []], representing the beginning of
+;;; E.g., <a1> is #rapids.objects.address.Address[main []], representing the beginning of
 ;;; the main flow.
 ;;;
 
@@ -420,7 +418,7 @@
   [op, expr, mexpr, partition-addr, address, params]
   (let [[start, pset, _] (partition-functional-expr op expr mexpr partition-addr address params
                            (fn [args]
-                             `(rapids.operators/fcall ~op ~@args)))]
+                             `(rapids.language.operators/fcall ~op ~@args)))]
     [start, pset, true]))
 
 (defn partition-fncall-expr
@@ -508,5 +506,5 @@
           (vector? params)
           (or (nil? data-key) (symbol? data-key))])
    `(let [bindings# ~(bindings-expr-from-params params)]
-      (rc/push-stack! ~address bindings# '~data-key)
+      (rapids.runtime.runlet/push-stack! ~address bindings# '~data-key)
       ~@body)))

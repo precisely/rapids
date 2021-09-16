@@ -1,12 +1,12 @@
-(ns rapids.deflow
-  (:require [rapids.address :as address]
-            rapids.run-loop
-            [rapids.util :refer [qualify-symbol reverse-interleave]]
-            [rapids.partition :as p]
-            [rapids.flow :as flow]
-            [rapids.partition-utils :refer [bindings-expr-from-params]]
-            [rapids.partition-set :as pset])
-  (:import (rapids.flow Flow)))
+(ns rapids.language.deflow
+  (:require rapids.runtime.core
+            [rapids.support.util :refer [qualify-symbol reverse-interleave]]
+            [rapids.partitioner.core :as p]
+            [rapids.partitioner.partition-set :as pset]
+            [rapids.objects.flow :as flow]
+            [rapids.objects.address :as address]
+            [rapids.partitioner.core])
+  (:import (rapids.objects.flow Flow)))
 
 (declare params-from-args params-to-continuation-args expand-flow partition-signature)
 
@@ -51,7 +51,7 @@
         params (params-from-args args [] (-> m :line))
         [start-body, pset, _] (p/partition-body (vec code) address address params)
         pset (pset/add pset address params start-body)
-        entry-continuation-bindings (bindings-expr-from-params params)]
+        entry-continuation-bindings (p/bindings-expr-from-params params)]
     [pset, `([~@args] (flow/exec ~address ~entry-continuation-bindings))]))
 
 ;;

@@ -1,9 +1,10 @@
 (ns rapids.closure-test
   (:require [clojure.test :refer :all]
             [clojure.core.match :refer [match]]
-            [rapids.closure :refer :all]
-            [rapids.address :as a]
-            [rapids.partition-set :as pset]))
+            [rapids.objects.closure :refer :all]
+            [rapids.objects.address :as a]
+            [rapids.partitioner.closure :refer [closure-constructor]]
+            [rapids.partitioner.partition-set :as pset]))
 
 (deftest closure-constructor-test
   (let [address (a/create `main 0)

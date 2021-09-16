@@ -2,15 +2,16 @@
 ;; Nippy provides serialization/deserialization for most data structures,
 ;; But some objects require special handling.
 ;;
-(ns rapids.persistence
-  (:require [clojure.main :as main]
-            [rapids.runlet :as rc]
-            [rapids.storage :as s]
-            [rapids.pool :as p])
-  (:import (rapids.run Run)
-           (rapids.flow Flow)
+(ns rapids.runtime.persistence
+  (:require rapids.objects.run
+            rapids.objects.flow
+            rapids.objects.pool
+            [clojure.main :as main]
+            [rapids.storage.core :as s])
+  (:import (rapids.objects.run Run)
+           (rapids.objects.flow Flow)
            (clojure.lang AFunction Atom)
-           (rapids.pool Pool)))
+           (rapids.objects.pool Pool)))
 
 ;;
 ;; Run - always acquired from the storage, when the cache is available

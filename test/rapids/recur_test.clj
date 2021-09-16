@@ -1,6 +1,6 @@
 (ns rapids.recur_test
   (:require [clojure.test :refer :all]
-            [rapids.recur :refer :all]))
+            [rapids.partitioner.recur :refer :all]))
 
 (deftest WithTailPosition
   (testing "at top level"

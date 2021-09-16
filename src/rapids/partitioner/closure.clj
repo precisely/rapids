@@ -1,28 +1,13 @@
-;;;
-;;; Enables persisting a closure across partitions. The strategy is to store the
-;;; function as a continuation in the Flow :continuations,
-;;;
-(ns rapids.closure
+(ns rapids.partitioner.closure
   (:require [clojure.spec.alpha :as s]
-            [rapids.defrecordfn :refer [defrecordfn]]
-            [rapids.flow :as flow]
-            [rapids.util :refer [in? unqualified-symbol?]]
-            [rapids.partition-utils :refer :all]
-            [rapids.partition-set :as pset]))
-
-(declare closure-bindings)
-
-(defrecordfn Closure [address bindings]
-  (fn [this & args]
-    (let [closure-fn (flow/exec (:address this) (:bindings this))]
-      (apply closure-fn args))))
-
-;(s/def ::fn-form (s/and seq? (s/cat :op (s/or :unqual-fn 'fn :unqual-fn* 'fn* :fn `fn :fn* `fn*))))
-(s/def ::params (s/* unqualified-symbol?))
-
-(defn closure? [o] (instance? Closure o))
+            [rapids.objects.closure :refer :all]
+            [rapids.partitioner.partition-utils :refer :all]
+            [rapids.partitioner.partition-set :as pset]
+            [rapids.support.util :refer :all]))
 
 (declare extract-fn-defs)
+(s/def ::params (s/* unqualified-symbol?))
+
 (defn closure-constructor
   "Given an expr (fn-form) which constructs a function and lexical parameters available for binding,
   returns:
@@ -31,15 +16,15 @@
   continuation-def is a definition of a continuation function which returns a closure
   of the fn defined by expr based on the current lexical bindings."
   [fn-form address env-params]
-  {:pre  [;(s/assert ::fn-form fn-form)
-          (s/assert ::params env-params)]}
+  {:pre [;(s/assert ::fn-form fn-form)
+         (s/assert ::params env-params)]}
   (let [[_, fndefs] (extract-fn-defs fn-form)
-        params          (map first fndefs)
-        bodies          (map rest fndefs)
+        params (map first fndefs)
+        bodies (map rest fndefs)
         captured-params (closure-captured-bindings params, bodies, env-params)
-        closure-ctor    `(->Closure ~address ~(bindings-expr-from-params captured-params))
+        closure-ctor `(->Closure ~address ~(bindings-expr-from-params captured-params))
 
-        pset            (pset/add (pset/create) address captured-params [fn-form] true)]
+        pset (pset/add (pset/create) address captured-params [fn-form] true)]
     [closure-ctor, pset]))
 
 (defn extract-fn-defs [form]

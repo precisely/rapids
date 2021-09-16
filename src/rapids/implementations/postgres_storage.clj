@@ -1,8 +1,8 @@
 (ns rapids.implementations.postgres-storage
   (:require [rapids.storage.protocol :as p]
-            rapids.run
-            rapids.pool
-            [rapids.util :refer [in?]]
+            rapids.objects.run
+            rapids.objects.pool
+            [rapids.support.util :refer [in?]]
             [next.jdbc :as jdbc]
             [next.jdbc.types :refer [as-other]]
             [next.jdbc.connection :as connection]
@@ -11,8 +11,8 @@
             [migratus.core :as migratus]
             [taoensso.timbre :as log])
   (:import (java.util UUID)
-           (rapids.run Run)
-           (rapids.pool Pool)
+           (rapids.objects.run Run)
+           (rapids.objects.pool Pool)
            (com.zaxxer.hikari HikariDataSource)))
 
 (declare from-db-record to-db-record exec-one! exec! class->table table->name check-class)

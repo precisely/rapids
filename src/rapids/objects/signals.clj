@@ -1,4 +1,4 @@
-(ns rapids.signals
+(ns rapids.objects.signals
   (:import (java.time LocalDateTime)))
 
 

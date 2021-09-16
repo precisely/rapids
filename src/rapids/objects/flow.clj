@@ -1,7 +1,7 @@
-(ns rapids.flow
-  (:require [rapids.address :as a]
-            [rapids.util :refer [refers-to? qualify-symbol]]
-            [rapids.defrecordfn :refer [defrecordfn]]))
+(ns rapids.objects.flow
+  (:require [rapids.objects.address :as a]
+            [rapids.support.util :refer [refers-to? qualify-symbol]]
+            [rapids.support.defrecordfn :refer [defrecordfn]]))
 
 (def ^:dynamic *defining-flows* [])
 

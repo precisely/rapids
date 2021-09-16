@@ -1,6 +1,6 @@
-(ns rapids.util_test
+(ns rapids.support.util_test
   (:require [clojure.test :refer :all]
-            [rapids.util :refer :all]))
+            [rapids.support.util :refer :all]))
 
 (defrecord Foo [a])
 (def a (Foo. 1))

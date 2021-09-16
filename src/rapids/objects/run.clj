@@ -1,15 +1,15 @@
 ;;
 ;; Describes the Run data structure
 ;;
-(ns rapids.run
+(ns rapids.objects.run
   (:require
-    [rapids.util :refer :all]
-    [rapids.signals :as signals]
-    [rapids.address :as a]
     [clojure.spec.alpha :as s]
-    [rapids.stack-frame :as sf]
+    [clojure.tools.macro :refer [macrolet]]
     [java-time :as t]
-    [clojure.tools.macro :refer [macrolet]])
+    [rapids.objects.signals :as signals]
+    [rapids.objects.address :as a]
+    [rapids.objects.stack-frame :as sf]
+    [rapids.support.util :refer :all])
   (:import (java.util UUID)))
 
 (declare run-in-state?)

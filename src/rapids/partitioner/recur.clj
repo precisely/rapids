@@ -1,4 +1,4 @@
-(ns rapids.recur)
+(ns rapids.partitioner.recur)
 
 ;;
 ;; Macros used for loop/recur partitioning

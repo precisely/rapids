@@ -14,7 +14,7 @@
 (ns rapids.storage.cache
   (:require [rapids.storage.dynamics :refer [ensure-connection *cache*]]
             [rapids.storage.connection-wrapper :as c]
-            [rapids.util :refer :all]))
+            [rapids.support.util :refer :all]))
 
 (defn cache-exists? [] (boolean *cache*))
 

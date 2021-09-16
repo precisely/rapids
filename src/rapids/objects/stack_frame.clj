@@ -1,12 +1,13 @@
-(ns rapids.stack-frame
-  (:require [rapids.flow :as flow]))
+(ns rapids.objects.stack-frame
+  (:require [rapids.objects.address :refer [address?]]
+            [rapids.objects.flow :as flow]))
 
 (defrecord StackFrame [address bindings data-key])
 (defn stack-frame? [o] (instance? StackFrame o))
 
 (defn make-stack-frame
   [address bindings data-key]
-  {:pre [(rapids.address/address? address)
+  {:pre [(address? address)
          (map? bindings)
          (or (nil? data-key)
            (and (symbol? data-key)

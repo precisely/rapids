@@ -4,14 +4,13 @@
 ;; 2. other runs which may have been created or modified during the request
 ;; 3. pools created or used during the runlet
 ;;
-(ns rapids.runlet
-  (:require [rapids.util :refer :all]
-            [rapids.storage :as storage]
-            [rapids.stack-frame :as sf]
-            [rapids.signals :refer [make-suspend-signal]]
-            [rapids.signals :as s]
-            [rapids.run :as r])
-  (:import (rapids.run Run)))
+(ns rapids.runtime.runlet
+  (:require [rapids.objects.stack-frame :as sf]
+            [rapids.objects.signals :as s :refer [make-suspend-signal]]
+            [rapids.objects.run :as r]
+            [rapids.storage.core :as storage]
+            [rapids.support.util :refer :all])
+  (:import (rapids.objects.run Run)))
 
 ;;;
 ;;; Current Run

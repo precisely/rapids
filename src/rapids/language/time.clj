@@ -2,7 +2,7 @@
 ;; Simple time wrappers to allow joda-like usage:
 ;; (-> 3 days from-now)
 ;;
-(ns rapids.time
+(ns rapids.language.time
   (:require [java-time :as t]
             [potemkin :refer [import-vars]]))
 

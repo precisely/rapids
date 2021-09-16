@@ -1,7 +1,5 @@
-(ns rapids.partition-set
-  (:require [rapids.address :refer [address?]]
-            [rapids.address :as a]
-            [clojure.set :as set]))
+(ns rapids.partitioner.partition-set
+  (:require [rapids.objects.address :as a :refer [address?]]))
 
 ;;;; ContinuationSet
 

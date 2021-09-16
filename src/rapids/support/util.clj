@@ -1,4 +1,4 @@
-(ns rapids.util
+(ns rapids.support.util
   (:require [clojure.java.io :as io])
   (:import (java.util UUID Properties)
            (clojure.lang Namespace Cons Atom)))

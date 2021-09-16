@@ -3,7 +3,7 @@
             [rapids.storage.dynamics :refer [*cache*]]
             [rapids.storage.protocol :refer [thaw-record]]
             [rapids.storage.cache :refer [set-cache-entry get-cache-entry]]
-            [rapids.storage :refer :all]
+            [rapids.storage.core :refer :all]
             [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]))
 
 (defrecord Foo [id val])

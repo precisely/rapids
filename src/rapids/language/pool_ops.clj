@@ -1,10 +1,9 @@
-(ns rapids.pool-ops
-  (:require [rapids.deflow :refer [deflow]]
-            [rapids.runlet :refer [current-run]]
-            [rapids.operators :refer [listen!]]
-            [rapids.run-loop :refer [continue!]]
-            [rapids.util :refer [new-uuid]]
-            [rapids.pool :refer [pool-push! pool-pop! pool-set-dirty!]]))
+(ns rapids.language.pool-ops
+  (:require [rapids.language.deflow :refer [deflow]]
+            [rapids.runtime.core :refer [current-run continue!]]
+            [rapids.language.operators :refer [listen!]]
+            [rapids.support.util :refer [new-uuid]]
+            [rapids.objects.pool :refer [pool-push! pool-pop! pool-set-dirty!]]))
 
 (defrecord PutIn [run-id value])
 
@@ -25,7 +24,7 @@
 (defn take-out!
   "Takes a value from a pool. If no values are available in the pool the default value is returned.
   If no default value is provided, the current run suspends until a value is available."
-  ([p] (take-out! p :rapids.pool/suspend))
+  ([p] (take-out! p :rapids.objects.pool/suspend))
   ([p default]
    (pool-set-dirty! p)
    (let [{buffer :buffer, sources :sources} @p]
@@ -37,6 +36,6 @@
        (pool-pop! p :buffer)
        (do
          (pool-push! p :sinks (:id (current-run)))
-         (if (= default :rapids.pool/suspend)
+         (if (= default :rapids.objects.pool/suspend)
           (listen! :permit (:id p))
           default))))))

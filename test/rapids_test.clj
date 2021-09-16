@@ -1,7 +1,7 @@
 (ns rapids_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [rapids.storage :as storage]
+            [rapids.storage.core :as storage]
             [helpers :refer :all]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [expectations.clojure.test
@@ -307,7 +307,7 @@
       (testing "recur has more bindings"
         (is (thrown-with-msg?
               Exception #"Mismatched argument count to recur"
-              (rapids.deflow/expand-flow
+              (rapids.language.deflow/expand-flow
                 {}
                 'foo
                 '([]
@@ -317,7 +317,7 @@
       (testing "loop has more bindings"
         (is (thrown-with-msg?
               Exception #"Mismatched argument count to recur"
-              (rapids.deflow/expand-flow
+              (rapids.language.deflow/expand-flow
                 {} 'foo
                 '([]
                   (<* :permit "foo")
@@ -328,7 +328,7 @@
       (testing "non suspending loop"
         (is (thrown-with-msg?
               Exception #"Can only recur from tail position"
-              (rapids.deflow/expand-flow
+              (rapids.language.deflow/expand-flow
                 {} 'foo
                 '([]
                   (<* :permit "a")
@@ -338,7 +338,7 @@
       (testing "suspending loop"
         (is (thrown-with-msg?
               Exception #"Can only recur from tail position"
-              (rapids.deflow/expand-flow
+              (rapids.language.deflow/expand-flow
                 {} 'foo
                 '([] (loop [a 1]
                        (<* :permit "a")
@@ -403,7 +403,7 @@
 (deftest ^:unit FunctionTest
   (testing "should throw an error attempting to partition a fn with suspending expressions"
     (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
-          (rapids.deflow/expand-flow
+          (rapids.language.deflow/expand-flow
             {} 'fn-with-suspend `([] (fn [] (listen! :permit "boo")))))))
 
   (testing "flow-with-closure"
@@ -456,7 +456,7 @@
       (testing "After blocking, the parent run is returned, suspended with a child-run id as permit"
         (let [parent-after-block (-> parent-run :id get-run)]
           (is (= (:state parent-after-block) :running))
-          (is (-> parent-after-block :suspend rapids.signals/suspend-signal?))
+          (is (-> parent-after-block :suspend rapids.objects.signals/suspend-signal?))
           (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
 
           (testing "attempting to continue without a valid permit throws"

@@ -1,4 +1,4 @@
-(ns rapids.address
+(ns rapids.objects.address
   (:require [clojure.string :as string]
             [clojure.test :refer [is]]))
 

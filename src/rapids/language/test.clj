@@ -20,7 +20,7 @@
 ;;;;       (keys-match run
 ;;;;         :state :complete)))
 
-(ns rapids.test
+(ns rapids.language.test
   (:require [rapids :refer :all]
             [clojure.test :refer :all]
             [clojure.tools.macro :refer [macrolet]]
@@ -30,7 +30,7 @@
 (defn make-branch-code [name bindings body]
   {:pre [(string? name) (vector? bindings)]}
   (letfn [(process-form [form]
-            (if (rapids.util/in? '[rapids.test/branch branch] (first form))
+            (if (rapids.support.util/in? '[rapids.test/branch branch] (first form))
               (let [[_ name form-bindings & form-body] form
                     name (if (string? name) (str "-> " name) name)
                     branch-bindings (vec (concat bindings form-bindings))]

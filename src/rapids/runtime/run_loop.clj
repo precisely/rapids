@@ -1,13 +1,13 @@
-(ns rapids.run-loop
+(ns rapids.runtime.run-loop
   (:require
-    [rapids.storage :refer :all]
-    [rapids.flow :as flow]
-    [rapids.util :refer :all]
-    [rapids.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run! update-run!]]
-    [rapids.signals :refer [suspend-signal?]]
-    [rapids.stack-frame :as sf]
-    [rapids.run :as r])
-  (:import (rapids.run Run)))
+    [rapids.storage.core :refer :all]
+    [rapids.objects.flow :as flow]
+    [rapids.support.util :refer :all]
+    [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run! update-run!]]
+    [rapids.objects.signals :refer [suspend-signal?]]
+    [rapids.objects.stack-frame :as sf]
+    [rapids.objects.run :as r])
+  (:import (rapids.objects.run Run)))
 
 (declare start! continue!)
 (declare eval-loop! next-continuation!)

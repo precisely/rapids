@@ -1,5 +1,5 @@
 (ns rapids.partition-utils-test
-  (:require [rapids.partition-utils :refer :all]
+  (:require [rapids.partitioner.partition-utils :refer :all]
             [clojure.test :refer :all]))
 
 (deftest ^:unit macroexpand-keeping-metadata-test

@@ -1,10 +1,10 @@
 (ns helpers
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [rapids.storage :refer :all])
+            [rapids.storage.core :refer :all])
   (:import (java.util Properties)
-           (rapids.run Run)
-           (rapids.pool Pool)))
+           (rapids.objects.run Run)
+           (rapids.objects.pool Pool)))
 
 (defmacro with-temp-ns [& body]
   `(let [cur-ns# (symbol (str (.getName *ns*)))]
@@ -30,6 +30,6 @@
                       v]))
     (into {})))
 
-;; easy access functions which
+;; easy access functions
 (defn get-run [id] (ensure-connection (get-record! Run id)))
 (defn get-pool [id] (ensure-connection (get-record! Pool id)))

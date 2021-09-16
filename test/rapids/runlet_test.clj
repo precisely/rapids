@@ -2,15 +2,15 @@
   (:require [clojure.test :refer :all]
             [helpers :refer :all]
             [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]
-            [rapids.address :as a]
-            [rapids.flow :as flow]
-            [rapids.run :as r]
-            [rapids.runlet :refer :all]
-            [rapids.stack-frame :as sf]
-            [rapids.storage :as s :refer [ensure-cached-connection cache-update! cache-get! cache-create!
+            [rapids.objects.address :as a]
+            [rapids.objects.flow :as flow]
+            [rapids.objects.run :as r]
+            [rapids.runtime.runlet :refer :all]
+            [rapids.objects.stack-frame :as sf]
+            [rapids.storage.core :as s :refer [ensure-cached-connection cache-update! cache-get! cache-create!
                                           with-storage ensure-connection]]
-            [rapids.signals :as signals])
-  (:import (rapids.run Run)))
+            [rapids.objects.signals :as signals])
+  (:import (rapids.objects.run Run)))
 
 (deftest ^:unit RunSerialization
   (with-storage (->in-memory-storage)
@@ -33,7 +33,7 @@
           (let [loaded-parent-run (s/get-record! Run (:id parent-run))
                 child-run (-> loaded-parent-run :stack first :bindings :child-run)]
             (is (= (:state child-run) :complete))))))))
-(rapids.deflow/deflow foo [a] (* a a))
+(rapids.language.deflow/deflow foo [a] (* a a))
 
 (deftest ^:unit FlowSerialization
   (with-storage (->in-memory-storage)

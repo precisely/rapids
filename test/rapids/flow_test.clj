@@ -1,6 +1,6 @@
 (ns rapids.flow_test
   (:require [clojure.test :refer :all]
-            [rapids.flow :refer :all]))
+            [rapids.objects.flow :refer :all]))
 
 (deftest flow-predicate
   (testing "Flow instance should be true"

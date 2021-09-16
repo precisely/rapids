@@ -1,6 +1,6 @@
 (ns rapids.signals_test
   (:require [clojure.test :refer :all]
-            [rapids.signals :refer :all]
+            [rapids.objects.signals :refer :all]
             [helpers :refer :all]))
 
 (def some-constant :foo)
@@ -18,8 +18,8 @@
 
     (testing "Is true for unqualified symbols when the current namespace refers the operator"
       (with-temp-ns
-        (use 'rapids.operators)
+        (use 'rapids.language.operators)
         (is (= true (suspending-operator? 'listen!)))))
 
     (testing "Is true for qualified symbols representing operators"
-      (is (true? (suspending-operator? 'rapids.operators/listen!))))))
+      (is (true? (suspending-operator? 'rapids.language.operators/listen!))))))

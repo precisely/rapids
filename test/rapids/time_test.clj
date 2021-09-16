@@ -1,7 +1,7 @@
 (ns ^:unit rapids.time_test
   (:require [clojure.test :refer :all]
             [java-time :as t]
-            [rapids.time :refer :all])
+            [rapids.language.time :refer :all])
   (:import (java.time LocalDateTime)))
 
 (deftest TimeTests

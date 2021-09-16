@@ -2,14 +2,10 @@
 ;; This file represents the interface of the storage system to the rest of the code
 ;; Do not reference
 ;;
-(ns rapids.storage
+(ns rapids.storage.core
   (:require rapids.storage.cache
             rapids.storage.connection-wrapper
-            rapids.run
-            rapids.pool
-            [potemkin :refer [import-vars]])
-  (:import (rapids.run Run)
-           (rapids.pool Pool)))
+            [potemkin :refer [import-vars]]))
 
 (potemkin/import-vars
   [rapids.storage.dynamics

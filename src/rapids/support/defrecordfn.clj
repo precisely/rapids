@@ -1,5 +1,5 @@
 ; from https://gist.github.com/devn/c52a7f5f7cdd45d772a9
-(ns rapids.defrecordfn
+(ns rapids.support.defrecordfn
   (:import (clojure.lang IFn)))
 
 (defn gen-nonvariadic-invokes [f]
