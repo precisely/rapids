@@ -130,7 +130,7 @@
     (let [table (class->table type)
           table-name (:name table)
           to-db-record (:to-db-record table)
-          cast #(field (to-db-record {field %})) ; not very efficient, but convert the field using the to-db-record fn
+          cast #(field (to-db-record {field %}))            ; not very efficient, but convert the field using the to-db-record fn
           where-clause (cond-> [:and]
                          gt (conj [:> field (cast gt)])
                          lt (conj [:< field (cast lt)])
@@ -147,16 +147,17 @@
             limit (h/limit limit)))))))
 
 (defn postgres-storage-migrate!
-  "Creates or updates Rapids tables in a JDBC database (currently only Postgres supported).
+  "Creates or updates Rapids tables in a JDBC database (currently only Postgres supported)."
+  ([]
+   (let [storage (rapids.storage.dynamics/current-storage)]
+     (assert (postgres-storage? storage))
+     (postgres-storage-migrate! )))
 
-  Usage:
-          (migrate! db-config)
-          (migrate! connection-pool)"
-  [^PostgresStorage pg-storage]
-  (let [migration-conf {:store         :database
-                        :migration-dir "migrations/postgres"}]
-    (with-open [c (jdbc/get-connection (:db pg-storage))]
-      (migratus/migrate (assoc migration-conf :db {:connection c})))))
+  ([^PostgresStorage pg-storage]
+   (let [migration-conf {:store         :database
+                         :migration-dir "migrations/postgres"}]
+     (with-open [c (jdbc/get-connection (:db pg-storage))]
+       (migratus/migrate (assoc migration-conf :db {:connection c}))))))
 
 ;; HELPER functions
 (defn- check-class [cls records]

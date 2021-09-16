@@ -72,6 +72,19 @@ Suspends execution of the current run until the given run completes. Returns the
 (continue! run-id permit data)
 ```
 
+## Setting up a backend
+
+Rapids works by persisting state of flows in non-volatile storage. This capability can be provided by implementing the protocols, in rapids.storage.protocol: Storage and StorageConnection. The library contains implementations of an in memory implementation (used for testing) and a Postgres-based implementation.
+
+
+### Setup a PostgresStorage Backend
+```clojure
+(ns mynamespace
+  (:require [rapids :refer :all]
+            [rapids.implementations.postgres-storage :refer [->postgres-storage postgres-storage-migrate!]])
+(set-storage! (->postgres-storage {:jdbcUrl "jdbc:postgresql://{host}:{port}/{dbname}`}))
+(postgres-storage-migrate!) ; uses the top-level storage by default          
+```
 
 ## Testing
 
@@ -140,7 +153,6 @@ A wrapper around `is` and `match` to make it easy to match patterns in maps:
 ```clojure
 (keys-match obj-to-match :key1 pattern1 :key2 pattern2 ...) 
 ```
-
 
 ### Exception Types
 
