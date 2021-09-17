@@ -8,7 +8,7 @@
 (potemkin/import-vars
   [rapids.language.deflow deflow]
   [rapids.language.expire expire-run!]
-  [rapids.language.pool-ops take-out! put-in!]
+  [rapids.language.pool-ops pool take-out! put-in!]
   [rapids.language.operators
     fcall, fapply
    ;; operators. longform, shortform:
