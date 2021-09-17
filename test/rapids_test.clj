@@ -7,7 +7,8 @@
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
-                     side-effects]])
+                     side-effects]]
+            [rapids.objects.address :as address])
   (:import (clojure.lang ExceptionInfo)))
 
 (deftest ^:unit DefaultStorageTest
@@ -307,9 +308,9 @@
       (testing "recur has more bindings"
         (is (thrown-with-msg?
               Exception #"Mismatched argument count to recur"
-              (rapids.language.deflow/expand-flow
+              (rapids.partitioner.flow/partition-flow
                 {}
-                'foo
+                (address/->address `foo)
                 '([]
                   (<* :permit "foo")
                   (loop [a 1]
@@ -317,8 +318,9 @@
       (testing "loop has more bindings"
         (is (thrown-with-msg?
               Exception #"Mismatched argument count to recur"
-              (rapids.language.deflow/expand-flow
-                {} 'foo
+              (rapids.partitioner.flow/partition-flow
+                {}
+                (address/->address `foo)
                 '([]
                   (<* :permit "foo")
                   (loop [a 1 b 2]
@@ -328,8 +330,9 @@
       (testing "non suspending loop"
         (is (thrown-with-msg?
               Exception #"Can only recur from tail position"
-              (rapids.language.deflow/expand-flow
-                {} 'foo
+              (rapids.partitioner.flow/partition-flow
+                {}
+                (address/->address `foo)
                 '([]
                   (<* :permit "a")
                   (loop [a 1]
@@ -338,8 +341,9 @@
       (testing "suspending loop"
         (is (thrown-with-msg?
               Exception #"Can only recur from tail position"
-              (rapids.language.deflow/expand-flow
-                {} 'foo
+              (rapids.partitioner.flow/partition-flow
+                {}
+                (address/->address `foo)
                 '([] (loop [a 1]
                        (<* :permit "a")
                        (recur 2)
@@ -403,8 +407,9 @@
 (deftest ^:unit FunctionTest
   (testing "should throw an error attempting to partition a fn with suspending expressions"
     (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
-          (rapids.language.deflow/expand-flow
-            {} 'fn-with-suspend `([] (fn [] (listen! :permit "boo")))))))
+          (rapids.partitioner.flow/partition-flow
+            {}
+            (address/->address `fn-with-suspend) `([] (fn [] (listen! :permit "boo")))))))
 
   (testing "flow-with-closure"
     (let [run (start! flow-with-closure 2 [3 4 5])]
@@ -522,92 +527,6 @@
     #_(println "after level3 block"))
   (respond! :level2-end)
   :level2-result)
-;
-;(deflow level1-redirects [suspend-blocker?]
-;  (clear-log!)
-;  (log! (current-run))                                      ; need to capture the current run for later testing
-;  (respond! :level1-start)
-;  #_(println "before starting level2")                      ; (current-run))
-;  (let [level2 (start! level2-suspends-and-blocks suspend-blocker?)]
-;    (log! level2)
-;    #_(println "before redirecting to level2")              ; (current-run))
-;    (let [redirect-result (>> level2)]
-;      (log! redirect-result)))
-;  #_(println "after redirecting to level2")
-;  (respond! :level1-end)
-;  :level1-result)
-;
-;(deftest ^:unit RedirectionOperator
-;  (testing "Redirection causes the parent run to switch to the redirected run and back when the redirected run blocks"
-;    #_(println "START! level1-redirects")
-;    (let [level1-start (start! level1-redirects true)       ; passing true causes the blocking (level3) run to suspend
-;          [level1-run, level2-run] @*log*]
-;      ;#_(println "LEVEL1:" (:id level1-run))
-;      ;#_(println "LEVEL2:" (:id level2-run))
-;      (testing "the root run is returned, and the next-id points at the redirect run"
-;        (is (= (:id level1-start) (:id level1-run)))
-;        (is (= (:next-id level1-start) (:id level2-run))))
-;
-;      (testing "run returned by start! should contain parent and redirected responses up to the point redirected run suspended"
-;        (is (= [:level1-start :level2-start] (:response level1-start))))
-;
-;      (testing "continuing the redirect run to a block returns control to the parent run"
-;        ;#_(println "CONTINUE! level2-run")
-;        (let [continue-level2 (simulate-event! level2-run)
-;              [level3-run, redirect-result] @*log*]
-;
-;          (testing "but the object returned is the redirected child run (level2)"
-;            (is (= (:id level2-run) (:id continue-level2))))
-;
-;          (testing "and the next-id / next is the parent (level1)"
-;            (is (= (:next-id continue-level2) (:id level1-start))))
-;
-;          (testing "the expected code runs after the redirected run (level1) is continued"
-;            (is (= (run-in-state? level3-run :suspend)))    ;
-;            (is (= '[:level2-after-suspend :level1-end] (:response continue-level2))))
-;
-;          (testing "the redirect run (level2) is suspended, waiting for the blocking run's id as a permit"
-;            (is (= (-> level2-run :id get-run :state) :suspended))
-;            (is (= (-> level2-run :id get-run :suspend :permit) (:id level3-run))))
-;
-;          (testing "the parent run is the next result"
-;            (is (= (:next-id continue-level2) (:id level1-run)))
-;
-;            (let [parent (:next continue-level2)]
-;              (is (= (:id parent) (:id level1-run)))
-;
-;              (testing "and it complete since no more code needs to be run"
-;                (is (run-in-state? parent :complete)))
-;
-;              (testing "and its :result should be the final value of the parent partition"
-;                (is (= (-> parent :result) :level1-result)))
-;
-;              (testing "its next-id is nil and next is nil"
-;                (is (= (-> parent :next-id) nil))
-;                (is (not (contains? parent :next))))))
-;
-;          (testing "the redirection operator should return the run"
-;            (is (= (:id redirect-result) (:id level2-run))))
-;
-;          (testing "the run returned by the redirection operator should be suspended, blocking on the level3 run"
-;            (is (= (:state redirect-result) :suspended))
-;            (is (= (-> redirect-result :suspend :permit) (:id level3-run)))
-;            (is (= (-> redirect-result :return-mode) :redirect)))
-;
-;          (testing "completing the level3 run should cause the caller (level2) to complete"
-;            #_(println "CONTINUE! level3")
-;            (let [level3-continue (simulate-event! level3-run)]
-;              (testing "level3 run completes"
-;                (is (= (:id level3-continue) (:id level3-run)))
-;                (is (= :complete (:state level3-continue))))
-;              (testing "level3 run response is as expected"
-;                (is (= '[:level3-end] (:run-response level3-continue))))
-;
-;              (testing "blocked run (level2) is unblocked because level3 completes"
-;                (let [fresh-level2 (-> level2-run :id get-run)]
-;                  (is (= :complete (:state fresh-level2)))
-;                  (testing "and the blocker's result and final respond! is captured"
-;                    (is (= '[:level3-result :level2-end] (:response fresh-level2)))))))))))))
 
 (deflow my-respond [a1 a2 a3] (respond! a1 a2 a3))
 
@@ -637,11 +556,15 @@
       (is (= (:response run [1 2 3 4 5 6])))))
 
   (testing "fapply applies a flow symbol to the remaining args"
-      (let [run (start! apply-flows `[[my-respond 1 2 3] [my-respond 3 4 5]])]
-        (is (= (:state run) :complete))
-        (is (= (:response run [1 2 3 4 5 6]))))))
+    (let [run (start! apply-flows `[[my-respond 1 2 3] [my-respond 3 4 5]])]
+      (is (= (:state run) :complete))
+      (is (= (:response run [1 2 3 4 5 6]))))))
 
 (deftest ^:unit Destructuring
   (testing "quick and dirty tests that destructuring expressions compile without error"
     (is (flow? (var-get (eval `(deflow ~'foo [~'s] (let [[~'head & ~'rest] ~'s, ~'val (<*)] (* ~'head ~'val)))))))
     (is (flow? (var-get (eval `(deflow ~'foo [~'s] (loop [[~'head & ~'rest] ~'s] (<*) (if ~'rest (recur ~'rest))))))))))
+
+(deflow pool-creator [])
+
+(deflow pool-consumer [])

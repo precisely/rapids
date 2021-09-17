@@ -7,7 +7,7 @@
             [rapids.partitioner.partition-set :as pset]))
 
 (deftest closure-constructor-test
-  (let [address (a/create `main 0)
+  (let [address (a/->address `main 0)
         fndef '(fn [x] (* x y))
         [closure-ctor, pset]
         (closure-constructor fndef, address '[y z])]

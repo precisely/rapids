@@ -16,7 +16,7 @@
   (with-storage (->in-memory-storage)
     (testing "Run object stored as a binding will reflect the state of the run in the db"
       (let [child-run (r/make-run {:state :running})
-            address (a/create `foo)
+            address (a/->address `foo)
             stack-frame (sf/make-stack-frame address {:child-run child-run} nil)
             parent-run (r/make-run {:state   :running,
                                     :suspend (signals/make-suspend-signal nil nil nil)
@@ -38,7 +38,7 @@
 (deftest ^:unit FlowSerialization
   (with-storage (->in-memory-storage)
     (testing "Run object stored as a binding will reflect the state of the run in the db"
-      (let [address (a/create `foo)
+      (let [address (a/->address `foo)
             stack-frame (sf/make-stack-frame address {:foo-flow foo} nil)
             parent-run (r/make-run {:state   :running,
                                     :suspend (signals/make-suspend-signal nil nil nil)

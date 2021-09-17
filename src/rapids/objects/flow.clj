@@ -3,7 +3,17 @@
             [rapids.support.util :refer [refers-to? qualify-symbol]]
             [rapids.support.defrecordfn :refer [defrecordfn]]))
 
-(def ^:dynamic *defining-flows* [])
+(def ^:dynamic *defining-flows*
+  "The set of all flows currently being defined. This is not currently used for multiple flows, but
+  may be in the future with a (flow-let [(f1...) (f2...)] ) macro to allow defining mutually recursive flows"
+  #{})
+
+(defmacro with-flow-definition
+  "Marks a symbol (name) as binding a flow (which is being defined in body). This tells
+  the partitioner to treat invokation of the symbol as a suspending expression."
+  [name & body]
+  `(binding [*defining-flows* (conj *defining-flows* (qualify-symbol '~name))]
+     ~@body))
 
 (defrecordfn Flow
   [;; Global symbol defined as this flow
@@ -27,8 +37,7 @@
 (defn flow-symbol? [o]
   (and (symbol? o)
     (or (refers-to? flow? o)
-      (let [qsym (qualify-symbol o)]
-        (some #(= % qsym) *defining-flows*)))))
+      (*defining-flows* (qualify-symbol o)))))
 
 (defn exec
   "Executes the flow partition at the address with the given bindings"

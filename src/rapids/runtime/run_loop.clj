@@ -2,6 +2,7 @@
   (:require
     [rapids.storage.core :refer :all]
     [rapids.objects.flow :as flow]
+    [rapids.objects.closure :refer [closure? closure-name]]
     [rapids.support.util :refer :all]
     [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run! update-run!]]
     [rapids.objects.signals :refer [suspend-signal?]]
@@ -16,9 +17,10 @@
   "Starts a run with the flow and given arguments.
   Returns the Run instance."
   [flow & args]
-  {:pre  [(refers-to? flow/flow? flow)]
+  {:pre  [(or (refers-to? flow/flow? flow) (closure? flow))]
    :post [(r/run? %)]}
-  (let [start-form (prn-str `(~(:name flow) ~@args))]
+  (let [flow-name (if (closure? flow) (closure-name flow) (:name flow))
+        start-form (prn-str `(~flow-name ~@args))]
     (ensure-cached-connection
       (with-run (cache-create! (r/make-run {:state :running, :start-form start-form}))
         ;; create the initial stack-continuation to kick of the process

@@ -34,7 +34,7 @@
   (toString [o] (str "<" (to-string o) ">")))
 
 (defn address? [o] (instance? Address o))
-(defn create
+(defn ->address
   [symbol & point]
   {:pre [(qualified-symbol? symbol)
          (valid-point? point)]}

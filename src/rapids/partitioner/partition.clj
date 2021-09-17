@@ -206,6 +206,25 @@
 
       [ctor, pset, false])))
 
+(defn partition-flow-expr
+  "Throws if fn* contain suspending ops - this partitioner acts as a guard
+  against knowing or inadvertent inclusion of a suspending operation inside a fn.
+  This might happen inadvertently if the user uses a macro (like for) which
+  expands into a (fn ...) expression. This is a bit of a blunt instrument,
+  but not sure what else to do right now."
+  [expr mexpr partition-addr address params]
+  (letfn [(check-non-suspending [sig]
+            (let [body (rest sig)
+                  [_, _, suspend?] (partition-body body partition-addr address params)]
+              (if suspend?
+                (throw-partition-error "Illegal attempt to suspend in function body" expr))
+              suspend?))]
+    (let [[_, sigs] (closure/extract-fn-defs mexpr)
+          _ (doseq [sig sigs] (check-non-suspending sig))
+          [ctor, pset] (closure/closure-constructor mexpr address params)]
+
+      [ctor, pset, false])))
+
 (defn partition-let*-expr
   [_, mexpr, partition-addr, address, params]
   (let [address         (a/child address 'let)

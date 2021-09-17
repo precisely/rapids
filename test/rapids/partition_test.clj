@@ -16,8 +16,8 @@
 (defn a [])
 (defn b [])
 
-(def partition-address (address/create `PARTITION-ADDRESS))
-(def address (address/create `MAIN))
+(def partition-address (address/->address `PARTITION-ADDRESS))
+(def address (address/->address `MAIN))
 
 (deftest ^:unit PartitionLiterals
   (testing "literals"
