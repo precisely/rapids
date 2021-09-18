@@ -1,4 +1,4 @@
-(ns rapids.partition_set_test
+(ns rapids.partitioner.partition_set_test
   (:require [clojure.test :refer :all]
             [rapids.partitioner.partition-set :refer :all]
             [rapids.objects.address :as address]))

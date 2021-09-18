@@ -1,4 +1,4 @@
-(ns rapids.pool_test
+(ns rapids.objects.pool_test
   (:require [clojure.test :refer :all]
             [rapids.objects.pool :refer :all])
   (:import [rapids.objects.pool Pool]))

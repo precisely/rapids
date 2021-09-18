@@ -1,4 +1,4 @@
-(ns ^:language rapids.deflow_test
+(ns rapids.language.deflow_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]))
 

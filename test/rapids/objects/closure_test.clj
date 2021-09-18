@@ -1,4 +1,4 @@
-(ns rapids.closure-test
+(ns rapids.objects.closure-test
   (:require [clojure.test :refer :all]
             [clojure.core.match :refer [match]]
             [rapids.objects.closure :refer :all]

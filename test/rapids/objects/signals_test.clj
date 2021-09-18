@@ -1,4 +1,4 @@
-(ns rapids.signals_test
+(ns rapids.objects.signals_test
   (:require [clojure.test :refer :all]
             [rapids.objects.signals :refer :all]
             [helpers :refer :all]))

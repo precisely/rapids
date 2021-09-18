@@ -1,4 +1,4 @@
-(ns rapids.support.util_test
+(ns rapids.util_test
   (:require [clojure.test :refer :all]
             [rapids.support.util :refer :all]))
 

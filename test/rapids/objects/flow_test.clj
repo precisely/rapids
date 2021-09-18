@@ -1,4 +1,4 @@
-(ns rapids.flow_test
+(ns rapids.objects.flow_test
   (:require [clojure.test :refer :all]
             [rapids.objects.flow :refer :all]))
 

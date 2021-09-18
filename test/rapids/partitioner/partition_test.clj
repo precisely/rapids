@@ -1,4 +1,4 @@
-(ns rapids.partition_test
+(ns rapids.partitioner.partition_test
   (:require [clojure.test :refer :all]
             [rapids.support.util :refer :all]
             [clojure.core.match :refer [match]]

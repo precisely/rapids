@@ -1,4 +1,4 @@
-(ns rapids.storage_test
+(ns rapids.storage.storage_test
   (:require [clojure.test :refer :all]
             [rapids.storage.dynamics :refer [*cache*]]
             [rapids.storage.protocol :refer [thaw-record]]

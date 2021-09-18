@@ -1,6 +1,7 @@
-(ns rapids.test-test
+(ns rapids.language.test-test
   (:require [clojure.test :refer :all]
-            [rapids.language.test :refer :all]))
+            [rapids.language.test :refer :all])
+  (:import (java.io StringWriter)))
 
 (deftest BranchTestTest
   (testing "branch"
@@ -28,7 +29,7 @@
       :b ["hi" "there" _]))
 
   (testing "keys-match should fail if any pattern fails to match"
-    (is (false? (binding [*test-out* (new java.io.StringWriter)
+    (is (false? (binding [*test-out* (new StringWriter)
                           *testing-contexts* (list)
                           *report-counters* nil] ; hide failing test output
                   (rapids.language.test/keys-match {:a 1 :b ["hi" "there" "foo"]}

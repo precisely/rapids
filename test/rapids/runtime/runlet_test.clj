@@ -1,4 +1,4 @@
-(ns rapids.runlet-test
+(ns rapids.runtime.runlet-test
   (:require [clojure.test :refer :all]
             [helpers :refer :all]
             [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]

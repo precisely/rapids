@@ -1,4 +1,4 @@
-(ns rapids.address_test
+(ns rapids.objects.address_test
   (:require [clojure.test :refer :all]
             [rapids.objects.address :refer :all]))
 

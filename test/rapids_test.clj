@@ -588,3 +588,6 @@
             (is (= (:received result) :foo)))
           (testing "the anonymous flow represents is a closure which captures lexical bindings"
             (is (= (:captured result) :bar))))))))
+
+(deftest ^:language PoolTest
+  (testing ""))

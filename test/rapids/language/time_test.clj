@@ -1,4 +1,4 @@
-(ns ^:unit rapids.time_test
+(ns ^:unit rapids.language.time_test
   (:require [clojure.test :refer :all]
             [java-time :as t]
             [rapids.language.time :refer :all])

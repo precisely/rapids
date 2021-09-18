@@ -1,4 +1,4 @@
-(ns rapids.recur_test
+(ns rapids.language.recur_test
   (:require [clojure.test :refer :all]
             [rapids.partitioner.recur :refer :all]))
 

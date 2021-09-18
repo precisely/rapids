@@ -1,4 +1,4 @@
-(ns ^:unit rapids.expire_test
+(ns ^:unit rapids.language.expire_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]))
 
