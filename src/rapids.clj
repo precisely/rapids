@@ -7,18 +7,20 @@
 
 (import-vars
   [rapids.language.core
-   deflow expire-run!
+   deflow flow letflow
    pool take-out! put-in!
-    fcall, fapply
+   fcall, fapply
    ;; operators. longform, shortform:
    listen!, <*,
    respond!, *>,
    block!, <<!,
    ;; start operator:
-   !]
+   !
+   expire-run!]
   [rapids.runtime.core current-run start! continue!]
   [rapids.language.time years months weeks days hours minutes seconds weeks now from-now]
   [rapids.objects.flow flow?]
+  [rapids.objects.closure closure?]
   [rapids.objects.run run? run-in-state?]
   [rapids.objects.pool pool?]
   [rapids.storage.core set-storage! with-storage])

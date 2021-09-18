@@ -33,7 +33,7 @@
           (let [loaded-parent-run (s/get-record! Run (:id parent-run))
                 child-run (-> loaded-parent-run :stack first :bindings :child-run)]
             (is (= (:state child-run) :complete))))))))
-(rapids.language.deflow/deflow foo [a] (* a a))
+(rapids.language.flow/deflow foo [a] (* a a))
 
 (deftest ^:unit FlowSerialization
   (with-storage (->in-memory-storage)

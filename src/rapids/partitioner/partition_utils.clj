@@ -18,7 +18,7 @@
   (let [expr-meta (meta expr)
         mexpr     (macroexpand expr)]
     (if expr-meta
-      (with-meta mexpr expr-meta)
+      (if mexpr (with-meta mexpr expr-meta))
       mexpr)))
 
 (defn nsymbols

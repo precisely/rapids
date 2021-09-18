@@ -10,7 +10,7 @@
             [honey.sql :as sql])
   (:import [rapids.objects.run Run]))
 (def test-jdbc-url (env :test-postgres-jdbc-url))
-(def test-storage (->postgres-storage {:jdbcUrl test-jdbc-url}))
+(def test-storage (when test-jdbc-url (->postgres-storage {:jdbcUrl test-jdbc-url})))
 
 (when test-jdbc-url
   (postgres-storage-migrate! test-storage))

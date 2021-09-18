@@ -1,5 +1,5 @@
 (ns rapids.language.pool-ops
-  (:require [rapids.language.deflow :refer [deflow]]
+  (:require [rapids.language.flow :refer [deflow]]
             [rapids.runtime.core :refer [current-run continue!]]
             [rapids.language.operators :refer [listen!]]
             [rapids.support.util :refer [new-uuid]]

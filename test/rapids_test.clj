@@ -4,6 +4,7 @@
             [rapids.storage.core :as storage]
             [helpers :refer :all]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
+            [rapids.partitioner.core :refer [partition-flow-body]]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
@@ -11,7 +12,7 @@
             [rapids.objects.address :as address])
   (:import (clojure.lang ExceptionInfo)))
 
-(deftest ^:unit DefaultStorageTest
+(deftest ^:language DefaultStorageTest
   (testing "The default storage should be an InMemoryStorage"
     (is (in-memory-storage? (storage/current-storage)))))
 
@@ -44,7 +45,7 @@
   "Just returns an event value"
   [permit] (<* :permit permit))
 
-(deftest ^:unit BasicFlowTests
+(deftest ^:language BasicFlowTests
 
   (testing "Start and suspend"
     (clear-log!)
@@ -80,7 +81,7 @@
 (deflow fl-keywords [& {:keys [a b c]}]
   (+ a b c (<* :permit "event")))
 
-(deftest ^:unit FunctionalExpressionTest
+(deftest ^:language FunctionalExpressionTest
   (testing "nested flow arguments"
     (let [run (start! nested-flow-args 2)
           run2 (simulate-event! run, :permit "first", :data 3)
@@ -107,7 +108,7 @@
   (log! :done)
   :final-value)
 
-(deftest ^:unit SimpleConditionals
+(deftest ^:language SimpleConditionals
   (testing "conditional suspends in then expr"
     (clear-log!)
     (let [run (start! conditional-suspend true)]
@@ -135,7 +136,7 @@
       (<* :permit "false-false")))
   (log! :done))
 
-(deftest ^:unit NestedConditionals
+(deftest ^:language NestedConditionals
   (testing "<* correctly suspends inside nested then"
     (clear-log!)
     (let [run (start! nested-conditional-suspend true true)]
@@ -171,7 +172,7 @@
     :then-val
     :else-val))
 
-(deftest ^:unit SuspendingTest
+(deftest ^:language SuspendingTest
   (testing "if expression where the test suspends, "
     (testing "when test is truthy"
       (let [run (start! conditional-with-suspending-test true)]
@@ -219,7 +220,7 @@
         cube (* arg arg arg)]
     [square cube (<* :permit "body")]))
 
-(deftest ^:unit LetTest
+(deftest ^:language LetTest
   (testing "non-suspending let expressions work"
     (let [run (start! non-suspending-let-flow 2)]
       (is (= (-> run :result) [2 3 6]))))
@@ -273,7 +274,7 @@
       (recur (+ a 1))
       :end)))
 
-(deftest ^:unit LoopTest
+(deftest ^:language LoopTest
   (testing "a loop with no suspending operations works like a normal loop"
     (clear-log!)
     (let [run (start! non-suspending-loop 3)]
@@ -308,7 +309,7 @@
       (testing "recur has more bindings"
         (is (thrown-with-msg?
               Exception #"Mismatched argument count to recur"
-              (rapids.partitioner.flow/partition-flow
+              (partition-flow-body
                 {}
                 (address/->address `foo)
                 '([]
@@ -318,7 +319,7 @@
       (testing "loop has more bindings"
         (is (thrown-with-msg?
               Exception #"Mismatched argument count to recur"
-              (rapids.partitioner.flow/partition-flow
+              (partition-flow-body
                 {}
                 (address/->address `foo)
                 '([]
@@ -330,7 +331,7 @@
       (testing "non suspending loop"
         (is (thrown-with-msg?
               Exception #"Can only recur from tail position"
-              (rapids.partitioner.flow/partition-flow
+              (partition-flow-body
                 {}
                 (address/->address `foo)
                 '([]
@@ -341,7 +342,7 @@
       (testing "suspending loop"
         (is (thrown-with-msg?
               Exception #"Can only recur from tail position"
-              (rapids.partitioner.flow/partition-flow
+              (partition-flow-body
                 {}
                 (address/->address `foo)
                 '([] (loop [a 1]
@@ -366,7 +367,7 @@
   (<* :permit "s2")
   (*> :r4 :r5))
 
-(deftest ^:unit Respond
+(deftest ^:language Respond
   (letfn [(response? [run x] (= (:response run) x))]
     (testing "*> adds to an element to the current run's response"
       (let [run1 (start! responding-flow)
@@ -382,7 +383,7 @@
 (deflow datastructures []
   {:a (<* :permit "data") :b (<* :permit "data") :c [(<* :permit "data") {:d (<* :permit "data")}]})
 
-(deftest ^:unit DataStructures
+(deftest ^:language DataStructures
   (testing "nested data structure with multiple suspending operations"
     (let [run (reduce #(simulate-event! %1, :permit "data", :data %2) (start! datastructures) [1 2 3 4])]
       (is (run-in-state? run :complete))
@@ -392,7 +393,7 @@
 (deflow macroexpansion []
   (or (<* :permit "data") (and (<* :permit "data") (<* :permit "data"))))
 
-(deftest ^:unit MacroexpansionTest
+(deftest ^:language MacroexpansionTest
   (testing "macroexpansion with suspending forms"
     (let [run (reduce #(simulate-event! %1, :permit "data", :data %2) (start! macroexpansion) [false true "foo"])]
       (is (run-in-state? run :complete))
@@ -404,10 +405,10 @@
   (let [closure #(* % captured)]
     (map closure uncaptured-list)))
 
-(deftest ^:unit FunctionTest
+(deftest ^:language FunctionTest
   (testing "should throw an error attempting to partition a fn with suspending expressions"
     (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
-          (rapids.partitioner.flow/partition-flow
+          (partition-flow-body
             {}
             (address/->address `fn-with-suspend) `([] (fn [] (listen! :permit "boo")))))))
 
@@ -421,7 +422,7 @@
       (is (run-in-state? run :complete))
       (is (= (:result run) '(1 4 9))))))
 
-(deftest ^:unit FlowsAsFunctions
+(deftest ^:language FlowsAsFunctions
   (testing "Attempt to invoke flow dynamically is caught with an exception"
     (expect (more->
               ExceptionInfo type
@@ -444,7 +445,7 @@
     (*> :parent-after-blocking-call)
     result))
 
-(deftest ^:unit BlockingOperator
+(deftest ^:language BlockingOperator
   (testing "Before blocking, the parent run is returned by the start operator"
     (let [returned-run (start! parent-flow-will-block)
           [parent-run, child-run] @*log*]
@@ -538,7 +539,7 @@
   (doseq [[op a1 & rest-args] forms]
     (fapply op a1 rest-args)))
 
-(deftest ^:unit CallFlow
+(deftest ^:language CallFlow
   (testing "fcall invokes flow objects with the supplied arguments"
     (let [run (start! call-flows [[my-respond 1 2 3] [my-respond 3 4 5]])]
       (is (= (:state run) :complete))
@@ -549,7 +550,7 @@
       (is (= (:state run) :complete))
       (is (= (:response run [1 2 3 4 5 6]))))))
 
-(deftest ^:unit ApplyFlow
+(deftest ^:language ApplyFlow
   (testing "fapply applies a flow object to the remaining args"
     (let [run (start! apply-flows [[my-respond 1 2 3] [my-respond 3 4 5]])]
       (is (= (:state run) :complete))
@@ -560,11 +561,33 @@
       (is (= (:state run) :complete))
       (is (= (:response run [1 2 3 4 5 6]))))))
 
-(deftest ^:unit Destructuring
+(deftest ^:language Destructuring
   (testing "quick and dirty tests that destructuring expressions compile without error"
     (is (flow? (var-get (eval `(deflow ~'foo [~'s] (let [[~'head & ~'rest] ~'s, ~'val (<*)] (* ~'head ~'val)))))))
     (is (flow? (var-get (eval `(deflow ~'foo [~'s] (loop [[~'head & ~'rest] ~'s] (<*) (if ~'rest (recur ~'rest))))))))))
 
-(deflow pool-creator [])
+(deflow anonymous-flow-creator [v]
+  (let [f (flow []
+            {:received (listen!)
+             :captured v})]
+    (fcall f)))
 
-(deflow pool-consumer [])
+(deftest ^:language AnonymousFlowTest
+  (testing "Defining a flow outside of deflow should raise an error"
+    (is (re-find #"(?m)Invalid context: anonymous flow may only be defined inside of deflow"
+          (try (macroexpand `(flow [] ()))
+               (catch Exception e
+                 (str e))))))
+
+  (testing "In a flow which defines an anonymous flow, "
+    (let [r (start! anonymous-flow-creator :bar)]
+      (testing "the parent flow suspends when the internal anonymous flow suspends"
+        (is (= :running (:state r)))
+        (let [r (try (continue! (:id r) :foo)
+                     (catch ExceptionInfo e {}))
+              result (:result r)]
+          (is (= :complete (:state r)))
+          (testing "the anonymous flow can receive continue values"
+            (is (= (:received result) :foo)))
+          (testing "the anonymous flow represents is a closure which captures lexical bindings"
+            (is (= (:captured result) :bar))))))))
