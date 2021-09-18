@@ -29,4 +29,4 @@
                                    (assoc bindings
                                      data-key data)
                                    bindings)]
-        (flow/exec address bindings-with-data)))))
+        (flow/call-continuation address bindings-with-data)))))

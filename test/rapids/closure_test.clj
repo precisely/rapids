@@ -12,7 +12,7 @@
         [closure-ctor, pset]
         (closure-constructor fndef, address '[y z])]
     (testing "the first result is an expression which constructs a Closure object with the correct bindings"
-      (is (= closure-ctor `(->Closure ~address (hash-map :y ~'y)))))
+      (is (= closure-ctor `(->Closure ~address (hash-map :y ~'y) false))))
 
     (testing "the second result is a partition-set which has a value for the address"
       ;; only y is needed, not z which isn't bound by the fn or x which is provided as an argument

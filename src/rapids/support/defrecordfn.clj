@@ -21,18 +21,20 @@
      ~(gen-apply-to f)))
 
 (defmacro defrecordfn
-  "Like defrecord, but accepts a function f before any specs that is
-  used to implement clojure.lang.IFn.  f should accept at least one
-  argument, 'this'.
+  "Like defrecord, but allows easily implementing IFn by providing a function
+   f before any specs. f should accept at least one argument, 'this'.
 
   Example:
-  (defrecord adder [num]
-    (fn [this val] (+ val (:num this))))
+  (defrecordfn adder [num]
+    :fn (fn [this val] (+ val (:num this)))) ; :fn fn must be before other specs!
 
   (let [add2 (adder. 2)]
      (add2 3))
   ;; => 5"
-  [name [& fields] f & opts+specs]
-  `(defrecord ~name [~@fields]
-     ~@(extend-IFn f)
-     ~@opts+specs))
+  [name [& fields] & opts+specs]
+  (if (-> opts+specs first (= :fn))
+    (let [[_, f & opts+specs] opts+specs]
+      `(defrecord ~name [~@fields]
+         ~@(extend-IFn f)
+         ~@opts+specs))
+    `(defrecord ~name [~@fields] ~@opts+specs)))

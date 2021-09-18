@@ -15,6 +15,12 @@
 ;;;
 (defrecord Partition [params body])
 
+(defmethod print-method Partition
+  [o w]
+  (print-simple
+    (str "#<Partition " (:params o) "\n\t" (clojure.string/join "\n\t" (:body o)) ">")
+    w))
+
 (defn partition? [o] (instance? Partition o))
 (defn partition-set? [o] (map? o))
 

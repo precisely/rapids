@@ -13,13 +13,28 @@
 ;;;
 (ns rapids.objects.closure
   (:require [rapids.objects.flow :as flow]
+            [rapids.objects.startable :as s]
             [rapids.objects.address :as a]
             [rapids.support.defrecordfn :refer [defrecordfn]]
-            [rapids.support.util :refer [in? unqualified-symbol?]]))
+            [rapids.support.util :refer [in? unqualified-symbol?]])
+  (:import (rapids.objects.startable Startable)
+           (clojure.lang Named)))
 
-(defrecordfn Closure [address bindings]
-  (fn [this & args]
-    (let [closure-fn (flow/exec (:address this) (:bindings this))] ; generate the closure with the bindings
+(defrecordfn Closure
+  [address bindings suspending?]
+  :fn (fn [this & args]
+        (if suspending?
+          (throw (ex-info "Attempt to call suspending closure directly. Use fcall, fapply or start!"
+                   {:object this}))
+          (s/call-entry-point this args)))
+
+  Named
+  (getNamespace [this] (.getNamespace (-> this address symbol)))
+  (getName [this] (-> this address symbol a/to-string))
+
+  Startable
+  (s/call-entry-point [this args]
+    (let [closure-fn (flow/call-continuation (:address this) (:bindings this))] ; generate the closure with the bindings
       (apply closure-fn args))))
 
 (defn closure? [o] (instance? Closure o))

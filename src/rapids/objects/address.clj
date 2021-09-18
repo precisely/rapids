@@ -76,3 +76,9 @@
 
 (defn simplify-if-symbol [x]
   (if (qualified-symbol? x) (symbol (str (.getName x))) x))
+
+(defmethod print-method Address
+  [o w]
+  (print-simple
+    (str "#<Address " (to-string o) ">")
+    w))

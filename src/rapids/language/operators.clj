@@ -1,24 +1,25 @@
 (ns rapids.language.operators
   (:require [rapids.runtime.core :as rt]
             [rapids.objects.signals :as signals]
-            [rapids.objects.flow :as flow]
+            [rapids.objects.startable :as callable]
             [taoensso.timbre :as log]
-            [clojure.spec.alpha :as s])
+            [clojure.spec.alpha :as s]
+            [rapids.objects.startable :as startable])
   (:import (java.time LocalDateTime)))
 
 ;;
-;; Flow methods
+;; Callable methods
 ;;
-(defn ^:suspending fcall [flow & args]
-  (flow/entry-point flow args))
+(defn ^:suspending fcall [obj & args]
+  (startable/call-entry-point obj args))
 
 (defn ^:suspending fapply
-  ([flow] (flow/entry-point flow ()))
-  ([flow a1] (flow/entry-point flow a1))
-  ([flow a1 a2] (flow/entry-point flow (cons a1 a2)))
-  ([flow a1 a2 a3] (flow/entry-point flow (cons a1 (cons a2 a3))))
+  ([flow] (startable/call-entry-point flow ()))
+  ([flow a1] (startable/call-entry-point flow a1))
+  ([flow a1 a2] (startable/call-entry-point flow (cons a1 a2)))
+  ([flow a1 a2 a3] (startable/call-entry-point flow (cons a1 (cons a2 a3))))
   ([flow a1 a2 a3 & args]
-   (flow/entry-point flow (cons a1 (cons a2 (cons a3 (concat (butlast args) (last args))))))))
+   (startable/call-entry-point flow (cons a1 (cons a2 (cons a3 (concat (butlast args) (last args))))))))
 
 (s/def ::json (s/or
                 :string string?

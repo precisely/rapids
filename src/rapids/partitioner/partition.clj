@@ -218,7 +218,7 @@
   (let [[entry-fn-def, pset] (partition-flow-body (meta expr) address (rest expr) params)
         entry-address (a/child address 'entry-point)
         pset (pset/add pset entry-address params [entry-fn-def])
-        start-expr `(->Closure ~entry-address ~(bindings-expr-from-params params))]
+        start-expr `(->Closure ~entry-address ~(bindings-expr-from-params params) true)]
     ;; TODO: fix the suspend? return value
     ;;       The third return value `suspend?` should be false since the (->Closure ...) form doesn't suspend
     ;;       However, if we do this, the rest of the partitioner code will ignore
@@ -333,7 +333,7 @@
           loop-pset (pset/add (pset/create) loop-partition loop-partition-params loop-partition-body)
 
           flow-continue-bindings (bindings-expr-from-params loop-partition-params)
-          binding-body `[(flow/exec ~loop-partition ~flow-continue-bindings)]
+          binding-body `[(flow/call-continuation ~loop-partition ~flow-continue-bindings)]
 
           ;; now we can compute the initializers and give it the partitioned loop start...
           [binding-start, bindings-pset, binding-suspend?]
@@ -356,7 +356,7 @@
               (if-not (= (count params) (count loop-params))
                 (throw-partition-error "Mismatched argument count to recur" expr "expected: %s args, got: %s"
                   (count params) (count loop-params)))
-              `(flow/exec ~(:address *recur-binding-point*)
+              `(flow/call-continuation ~(:address *recur-binding-point*)
                  ~bindings)))]
     (if-not *recur-binding-point*
       (throw-partition-error "No binding point" expr))
@@ -556,7 +556,7 @@
         [start-body, pset, _] (partition-body (vec code) address address params)
         pset (pset/add pset address params start-body)
         entry-continuation-bindings (bindings-expr-from-params params)]
-    [pset, `([~@args] (flow/exec ~address ~entry-continuation-bindings))]))
+    [pset, `([~@args] (flow/call-continuation ~address ~entry-continuation-bindings))]))
 
 ;;
 ;; HELPERS

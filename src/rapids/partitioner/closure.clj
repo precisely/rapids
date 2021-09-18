@@ -16,13 +16,12 @@
   continuation-def is a definition of a continuation function which returns a closure
   of the fn defined by expr based on the current lexical bindings."
   [fn-form address env-params]
-  {:pre [;(s/assert ::fn-form fn-form)
-         (s/assert ::params env-params)]}
+  {:pre [(s/assert ::params env-params)]}
   (let [[_, fndefs] (extract-fn-defs fn-form)
         params (map first fndefs)
         bodies (map rest fndefs)
         captured-params (closure-captured-bindings params, bodies, env-params)
-        closure-ctor `(->Closure ~address ~(bindings-expr-from-params captured-params))
+        closure-ctor `(->Closure ~address ~(bindings-expr-from-params captured-params) false)
 
         pset (pset/add (pset/create) address captured-params [fn-form] true)]
     [closure-ctor, pset]))

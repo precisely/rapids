@@ -30,6 +30,10 @@
                       v]))
     (into {})))
 
+(defmacro throws-error-output [regex form]
+  `(re-find ~regex (try ~form
+                        (catch Exception e#
+                          (str e#)))))
 ;; easy access functions
 (defn get-run [id] (ensure-connection (get-record! Run id)))
 (defn get-pool [id] (ensure-connection (get-record! Pool id)))

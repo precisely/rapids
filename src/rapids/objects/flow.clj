@@ -1,7 +1,10 @@
 (ns rapids.objects.flow
   (:require [rapids.objects.address :as a]
             [rapids.support.util :refer [refers-to? qualify-symbol]]
-            [rapids.support.defrecordfn :refer [defrecordfn]]))
+            [rapids.support.defrecordfn :refer [defrecordfn]]
+            [rapids.objects.startable :as c])
+  (:import (rapids.objects.startable Startable)
+           (clojure.lang Named)))
 
 (defrecordfn Flow
   [;; Global symbol defined as this flow
@@ -12,12 +15,21 @@
    continuations
    ;; For debugging purposes:
    partitions]
-  (fn [this & _]
-    (throw (ex-info (str "Improperly invoked flow: " (:name this) ". Use start!, fcall or fapply when flow is bound dynamically.")
-             {:type :runtime-error})))
+
+  :fn (fn [this & _]
+        (throw (ex-info (str "Improperly invoked flow: " (:name this) ". Use start!, fcall or fapply when flow is bound dynamically.")
+                 {:type :runtime-error})))
 
   Object
-  (toString [_] (format "#<Flow %s (%d partitions)>" name (count continuations))))
+  (toString [_] (format "#<Flow %s (%d partitions)>" name (count continuations)))
+
+  Named
+  (getNamespace [this] (.getNamespace (:name this)))
+  (getName [this] (-> this :name name))
+
+  Startable
+  (c/call-entry-point [this args]
+    (apply (get this :entry-point) args)))
 
 (defn flow? [o]
   (instance? Flow o))
@@ -42,26 +54,17 @@
     (or (refers-to? flow? o)
       (*defining-flows* (qualify-symbol o)))))
 
-(defn exec
-  "Executes the flow partition at the address with the given bindings"
-  ([address bindings]
-   {:pre [(a/address? address)
-          (map? bindings)]}
-   (let [flow (a/resolved-flow address)
-         continuation (get-in flow [:continuations address])]
-     (if-not (fn? continuation)
-       (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
-                {:type :system-error})))
-     (continuation bindings))))
-
-(defn entry-point
-  [flow args]
-  (cond
-    (flow? flow) (apply (get flow :entry-point) args)
-    (symbol? flow) (recur (resolve flow) args)
-    (var? flow) (recur (var-get flow) args)
-    :else (throw (ex-info (str "Attempt to invoke Flow entry-point for object of type " (type flow))
-                   {:type :runtime-error}))))
+(defn call-continuation
+  "Executes the continuation at address with the given bindings"
+  [address bindings]
+  {:pre [(a/address? address)
+         (map? bindings)]}
+  (let [flow (a/resolved-flow address)
+        continuation (get-in flow [:continuations address])]
+    (if-not (fn? continuation)
+      (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
+               {:type :system-error})))
+    (continuation bindings)))
 
 (defmethod print-method Flow
   [o w]

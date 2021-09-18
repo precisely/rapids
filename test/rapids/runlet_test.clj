@@ -8,8 +8,9 @@
             [rapids.runtime.runlet :refer :all]
             [rapids.objects.stack-frame :as sf]
             [rapids.storage.core :as s :refer [ensure-cached-connection cache-update! cache-get! cache-create!
-                                          with-storage ensure-connection]]
-            [rapids.objects.signals :as signals])
+                                               with-storage ensure-connection]]
+            [rapids.objects.signals :as signals]
+            [rapids.objects.startable :as startable])
   (:import (rapids.objects.run Run)))
 
 (deftest ^:unit RunSerialization
@@ -53,4 +54,4 @@
                 deserialized-foo (-> loaded-parent-run :stack first :bindings :foo-flow)]
             (is (flow/flow? deserialized-foo))
             (is (fn? (:entry-point deserialized-foo)))
-            (is (= 9 (flow/entry-point foo [3])))))))))
+            (is (= 9 (startable/call-entry-point foo [3])))))))))

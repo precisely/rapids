@@ -567,23 +567,20 @@
     (is (flow? (var-get (eval `(deflow ~'foo [~'s] (loop [[~'head & ~'rest] ~'s] (<*) (if ~'rest (recur ~'rest))))))))))
 
 (deflow anonymous-flow-creator [v]
-  (let [f (flow []
-            {:received (listen!)
-             :captured v})]
+  (let [f (flow [] {:received (listen!)
+                    :captured v})]
     (fcall f)))
 
 (deftest ^:language AnonymousFlowTest
   (testing "Defining a flow outside of deflow should raise an error"
-    (is (re-find #"(?m)Invalid context: anonymous flow may only be defined inside of deflow"
-          (try (macroexpand `(flow [] ()))
-               (catch Exception e
-                 (str e))))))
+    (is (throws-error-output #"(?m)Invalid context: anonymous flow may only be defined inside of deflow"
+          (macroexpand `(flow [] ())))))
 
-  (testing "In a flow which defines an anonymous flow, "
+  (testing "In a flow which defines an anonymous flow,"
     (let [r (start! anonymous-flow-creator :bar)]
       (testing "the parent flow suspends when the internal anonymous flow suspends"
         (is (= :running (:state r)))
-        (let [r (try (continue! (:id r) :foo)
+        (let [r (try (continue! (:id r) {:data :foo})
                      (catch ExceptionInfo e {}))
               result (:result r)]
           (is (= :complete (:state r)))
