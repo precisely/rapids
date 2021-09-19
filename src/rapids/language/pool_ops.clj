@@ -33,17 +33,13 @@
   (dosync
     (if (-> p (pool-count :sinks) (> 0))
 
-      ; then: some runs are waiting for a value
+      ; THEN: some runs are waiting for a value
       (let [run-id (sync-pop! p :sinks)]
         ; continue the next run, passing it the put-in value
-        (continue! run-id {:data v :permit (pool-id p)}))
-      ;;
-      ;(let [[popped-pool, run-id] (pool-pop p :sinks)]
-      ;
-      ;  (s/cache-update! popped-pool)
-      ;  (continue! run-id v))
+        (continue! run-id {:data v :permit (pool-id p)})
+        nil)
 
-      ;; else: no runs are available to receive the value
+      ;; ELSE: no runs are available to receive the value
       (if (-> p (pool-count :buffer) (< (pool-size p)))
         ;; if we can buffer this value, do so and return
         (sync-push! p :buffer v)

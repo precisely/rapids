@@ -14,27 +14,46 @@
   `(with-storage (->in-memory-storage)
      (s/ensure-cached-connection
        (with-run (s/cache-create! (r/make-run))
-       (let [~@bindings]
+         (let [~@bindings]
            ~@body)))))
 
-(deftest ^:unit PoolTests
-  (testing "An unbuffered pool,"
+(deftest ^:unit UnbufferedPoolTests
+  (testing "An unbuffered pool, when putting in"
     (with-env [p (->pool)
                run-id (current-run :id)]
-      (testing "should suspend on put-in"
+      (testing "it should suspend"
         (is (suspend-signal? (put-in! p :foo))))
-      (testing "after suspending on put-in!, a single entry should be in :sources"
+      (testing "after suspending, a single entry should be in :sources."
         (let [put-in-data (-> @p :sources peek)]
           (is (instance? PutIn put-in-data))
-          (testing "the entry should contain the current run id "
+          (testing "The entry should contain the current run id "
             (is (= (:run-id put-in-data) run-id)))
-          (testing "the entry should contain the value the put in"
+          (testing "The entry should contain the value the put in"
             (is (= (:value put-in-data) :foo)))))
-      (testing "take-out! should unblock the run which was blocked by put-in! by..."
+      (testing "take-out! should unblock the run which was blocked by put-in! by"
         (let [stub (spy/stub :bar)]
           (with-redefs [rapids.runtime.run-loop/continue! stub]
-            (testing "returning the value put in"
-              (is (= (take-out! p) :foo)))
-            (testing "continue! is called once with the blocked run id, no data and the pool-id as permit"
-              (is (spy/called-once-with? stub               ; NB: called-once-with? requires exact argument match
-                    run-id {:permit (pool-id p)})))))))))   ; i.e., data not provided
+            (with-run (r/make-run)                          ; simulate takeout happening in a different run
+              (testing "returning the value put in"
+                (is (= (take-out! p) :foo)))
+              (testing "calling continue! once with the blocked run id, no data and the pool-id as permit"
+                (is (spy/called-once-with? stub             ; NB: called-once-with? requires exact argument match
+                      run-id {:permit (pool-id p)})))))))))    ; i.e., no :data key provided
+  (testing "An unbuffered pool, when taking out"
+    (with-env [p (->pool)
+               run-id (current-run :id)]
+      (testing "it should suspend"
+        (is (suspend-signal? (take-out! p))))
+      (testing "after suspending, the current run's uuid should be in :sinks."
+        (is (= (pool-count p :sinks) 1))
+        (let [sink-id (-> @p :sinks peek)]
+          (is (= sink-id (current-run :id)))))
+      (testing "put-in! should unblock the run which was blocked by take-in! by"
+        (let [stub (spy/stub :bar)]
+          (with-redefs [rapids.runtime.run-loop/continue! stub]
+            (testing "returning nil immediately"
+              (is (= (put-in! p :foo) nil)))
+            (testing "calling continue! once with the blocked run id, and the put-in value, using the pool-id as permit"
+              (is (spy/called-once-with? stub
+                    run-id {:permit (pool-id p)
+                            :data :foo})))))))))
