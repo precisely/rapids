@@ -56,7 +56,8 @@
              {
               :source-paths ["src"]
               :dependencies [[expectations/clojure-test "1.2.1"]
-                             [org.clojure/core.match "1.0.0"]] ; used by tests
+                             [org.clojure/core.match "1.0.0"]
+                             [tortue/spy "2.9.0"]]
               :plugins      [[lein-cloverage "1.1.2"]
                              [migratus-lein "0.7.3"]
                              [lein-localrepo "0.5.4"]]

@@ -8,7 +8,7 @@
 (import-vars
   [rapids.language.core
    deflow flow letflow
-   pool take-out! put-in!
+   ->pool take-out! put-in!
    fcall, fapply
    ;; operators. longform, shortform:
    listen!, <*,

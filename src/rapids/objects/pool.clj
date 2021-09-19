@@ -3,6 +3,8 @@
   (:import (clojure.lang PersistentQueue)
            (java.util UUID)))
 
+(defrecord PutIn [run-id value])
+
 (defrecord Pool
   [^UUID id,
    ^Long size,

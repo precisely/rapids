@@ -9,7 +9,7 @@
       (is (= 2 (:size p)))
       (is (instance? Pool p))))
   (doseq [field [:sources :sinks :buffer]]
-    (testing (str "testing push and pop on " field)
+    (testing (str "testing pool-push and pool-pop on " field)
       (let [pool (make-pool 0)
             pushed-pool (pool-push pool field :foo)]
         (is (= 0 (:dirty-counter pool)))
