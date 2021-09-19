@@ -215,6 +215,7 @@
   The partitioner partitions the flow body and returns a closure which invokes an
   entry point function for the flow."
   [expr, mexpr, partition-addr, address params]
+  (println "PARAMS during" expr " => " params)
   (let [[entry-fn-def, pset] (partition-flow-body (meta expr) address (rest expr) params)
         entry-address (a/child address 'entry-point)
         pset (pset/add pset entry-address params [entry-fn-def])
