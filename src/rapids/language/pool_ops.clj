@@ -42,7 +42,7 @@
       ;; ELSE: no runs are available to receive the value
       (if (-> p (pool-count :buffer) (< (pool-size p)))
         ;; if we can buffer this value, do so and return
-        (sync-push! p :buffer v)
+        (do (sync-push! p :buffer v) nil)
         ;(s/cache-update! (pool-push p buffer v))
         ;; otherwise, we suspend the current run and make it available for future take-out
         (do
