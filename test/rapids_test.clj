@@ -263,7 +263,7 @@
       (recur (+ a 1))
       a)))
 
-(deflow recur-in-body-after-suspend
+(deflow recur-after-suspend
   "This subtle alternative effectively tests whether partition-body handles a recur-containing expression.
   In the loop-with-suspending-body, the if expr is suspending. However in this version, the if expr is
   non-suspending."
@@ -271,6 +271,15 @@
   (loop [a 1]
     (<*)
     (if (< a 2)
+      (recur (+ a 1))
+      :end)))
+
+(deflow suspending-loop-with-external-params
+  "Tests that non-loop bindings are preserved after suspending op."
+  [n]
+  (loop [a 1]
+    (<*)
+    (if (< a n)
       (recur (+ a 1))
       :end)))
 
@@ -350,8 +359,17 @@
                        (recur 2)
                        (println "I'm in the tail pos")))))))))
 
-  (testing "recur-in-body-after-suspend"
-    (let [run (start! recur-in-body-after-suspend)]
+  (testing "recur-after-suspend"
+    (let [run (start! recur-after-suspend)]
+      (is (run-in-state? run :running))
+      (let [run (simulate-event! run)]
+        (is (run-in-state? run :running))
+        (let [run (simulate-event! run)]
+          (is (run-in-state? run :complete))
+          (is (= (:result run) :end))))))
+
+  (testing "suspending-loop-with-external-params"
+    (let [run (start! suspending-loop-with-external-params 2)]
       (is (run-in-state? run :running))
       (let [run (simulate-event! run)]
         (is (run-in-state? run :running))

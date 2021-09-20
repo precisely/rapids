@@ -215,7 +215,6 @@
   The partitioner partitions the flow body and returns a closure which invokes an
   entry point function for the flow."
   [expr, mexpr, partition-addr, address params]
-  (println "PARAMS during" expr " => " params)
   (let [[entry-fn-def, pset] (partition-flow-body (meta expr) address (rest expr) params)
         entry-address (a/child address 'entry-point)
         pset (pset/add pset entry-address params [entry-fn-def])
@@ -315,7 +314,7 @@
         [loop-params, loop-initializers] (reverse-interleave bindings 2)]
 
     ;; we need to partition the loop body FIRST, then pass the start-body to partition-bindings
-    (let [loop-body-params (vec (concat params loop-params))
+    (let [loop-body-params (-> (concat params loop-params) distinct vec)
 
           ;; partition the loop body with the loop-partition registered as a recur
           ;; binding point; if recur calls happen within this partition, they
@@ -323,7 +322,7 @@
           ;; in a resumed runlet, so a call to the loop-partition is generated.
           [start-body, body-pset, body-suspend?]
           (with-tail-position [:reset]
-            (with-binding-point [loop-partition loop-params] ; partition-recur-expr will use this
+            (with-binding-point [loop-partition loop-params loop-body-params] ; partition-recur-expr will use this
               (partition-body loop-body loop-partition loop-partition loop-body-params)))
 
           ;; the loop merely rebinds the loop parameters provided by the continuation
@@ -351,12 +350,16 @@
   "Returns:
   [start, pset, suspend?]"
   [expr, mexpr, partition-address, address, params]
-  (letfn [(make-call [params]
-            (let [loop-params (:params *recur-binding-point*)
-                  bindings (bindings-expr-from-params loop-params params)]
-              (if-not (= (count params) (count loop-params))
+  (letfn [(make-call [args]
+            (let [partition-params (:partition-params *recur-binding-point*)
+                  loop-params (:loop-params *recur-binding-point*)
+                  recur-arity (count loop-params)
+                  bindings `(merge
+                              ~(bindings-expr-from-params partition-params) ;; ensure all the partition params are represented
+                              ~(bindings-expr-from-params loop-params args))]
+              (if-not (= (count args) recur-arity)
                 (throw-partition-error "Mismatched argument count to recur" expr "expected: %s args, got: %s"
-                  (count params) (count loop-params)))
+                  (count args) recur-arity))
               `(flow/call-continuation ~(:address *recur-binding-point*)
                  ~bindings)))]
     (if-not *recur-binding-point*
@@ -471,7 +474,7 @@
          current-bindings []                                ; the new bindings introduced to the partition
          partition-address partition-address
          arg-address (a/child address 0)                    ; address of the arg
-         part-params params                                 ; params provided to this partition
+         params params                                 ; params provided to this partition
          start nil
          any-suspend? false
          pset (pset/create)]
@@ -480,18 +483,18 @@
                 (partition-expr arg, partition-address, arg-address, params) ;
 
                 pset (pset/combine pset arg-pset)
-                next-address (a/increment arg-address)]
+                next-address (a/increment arg-address)
+                new-params (conj params key)]
             (if suspend?
-              (let [cur-part-params (vec (map first current-bindings))
-                    resume-params (vec (concat part-params, cur-part-params))
-                    resume-pexpr `(resume-at [~next-address [~@resume-params] ~key]
-                                    ~arg-start)
-                    new-params (if key (conj resume-params key) resume-params) ; the next partition's params includes the key
+              (let [resume-pexpr `(resume-at [~next-address [~@params] ~key]
+                                               ~arg-start) #_(let [r-at ]
+                                   (println "let-bindings generating resume-at with" r-at)
+                                   r-at)
                     let-bindings (vec (apply concat current-bindings))
                     pexpr (if (> (count current-bindings) 0)
                             `(let [~@let-bindings] ~resume-pexpr)
                             resume-pexpr)
-                    pset (pset/add pset partition-address part-params [pexpr])
+                    pset (pset/add pset partition-address params [pexpr])
                     start (or start pexpr)]
                 (recur rest-keys, rest-args, [], next-address, next-address,
                   new-params, start, (or suspend? any-suspend?), pset))
@@ -499,7 +502,7 @@
                 (recur rest-keys, rest-args
                   (conj current-bindings [key arg-start]),
                   partition-address, next-address,
-                  part-params, start, any-suspend?, pset))))
+                  new-params, start, any-suspend?, pset))))
 
           ;; finalize the last partition by executing the body with the
           ;; bound params
@@ -507,7 +510,7 @@
                 final-body (if (> (count current-bindings) 0) [`(let [~@let-bindings] ~@body)] (vec body))
                 clean-pset (pset/delete pset dirty-address)
                 start (or start (first final-body))
-                pset (pset/add clean-pset partition-address part-params final-body)]
+                pset (pset/add clean-pset partition-address params final-body)]
             [start, pset, any-suspend?]))))))
 
 ;;;

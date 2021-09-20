@@ -1,4 +1,5 @@
-(ns rapids.partitioner.recur)
+(ns rapids.partitioner.recur
+  (:require [clojure.data :refer [diff]]))
 
 ;;
 ;; Macros used for loop/recur partitioning
@@ -34,6 +35,6 @@
 (defmacro with-binding-point
   "Establishes a flow binding point to be used by partition-recur-expr.
   The body argument represents calls to partitioning functions, not user-land flows."
-  [[address params] & body]
-  `(binding [*recur-binding-point* {:address ~address :params ~params}]
+  [[address loop-params partition-params] & body]
+  `(binding [*recur-binding-point* {:address ~address :loop-params ~loop-params :partition-params ~partition-params}]
      ~@body))
