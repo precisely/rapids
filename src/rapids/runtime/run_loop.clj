@@ -1,7 +1,6 @@
 (ns rapids.runtime.run-loop
   (:require
     [rapids.storage.core :refer :all]
-    [rapids.objects.flow :as flow]
     [rapids.objects.startable :as startable]
     [rapids.objects.closure :refer [closure? closure-name]]
     [rapids.support.util :refer :all]
@@ -47,6 +46,8 @@
        (if (not= (current-run :suspend :permit) permit)
          (throw (ex-info "Invalid permit. Unable to continue run."
                   {:type :input-error
+                   :expected (current-run :suspend :permit)
+                   :received permit
                    :run-id run-id})))
        (initialize-run-for-runlet)                   ;; ensure response and suspend are empty
        (eval-loop! (next-continuation!) data)

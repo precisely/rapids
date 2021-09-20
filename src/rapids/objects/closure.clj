@@ -30,7 +30,7 @@
 
   Named
   (getNamespace [this] (.getNamespace (-> this address symbol)))
-  (getName [this] (-> this address symbol a/to-string))
+  (getName [this] (-> this :address a/to-string))
 
   Startable
   (s/call-entry-point [this args]

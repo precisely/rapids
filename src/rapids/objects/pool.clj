@@ -11,9 +11,21 @@
    ^PersistentQueue sources,
    ^PersistentQueue buffer,
    ^PersistentQueue sinks
-   ^Long dirty-counter]) ;; queues are side-effecty Java objects; this field shows the cache the pool has changed
+   ^Long dirty-counter]  ;; queues are side-effecty Java objects; this field shows the cache the pool has changed
+  Object
+  (toString [o]
+    (str "#<Pool :sources " (into [] (:sources o))
+      ": buffer " (into [] (:buffer o))
+      " :sinks " (into [] (:sinks o))
+      ">")))
 
-(defn pool? [p] (instance? p Pool))
+(defmethod print-method clojure.lang.PersistentQueue
+  [o w]
+  (print-simple
+    (str "#<PersistentQueue " (into [] o) ">")
+    w))
+
+(defn raw-pool? [p] (and p (instance? Pool p)))
 
 (defn make-pool
   "Creates a pool. Takes an optional integer representing buffer size."

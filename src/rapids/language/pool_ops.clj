@@ -3,12 +3,12 @@
             [rapids.runtime.core :refer [current-run continue!]]
             [rapids.language.operators :refer [listen!]]
             [rapids.support.util :refer [new-uuid]]
-            [rapids.objects.pool :refer [pool? make-pool pool-push pool-pop ->PutIn]]
+            [rapids.objects.pool :refer [raw-pool? make-pool pool-push pool-pop ->PutIn]]
             [rapids.storage.core :as s])
   (:import (clojure.lang Ref)))
 
-(defn pool-ref? [o]
-  (and (instance? Ref o) (pool? @o)))
+(defn pool? [o]
+  (and (instance? Ref o) (raw-pool? @o)))
 
 (declare sync-pop! sync-push!)
 
@@ -29,25 +29,29 @@
   "Puts value v in pool p. If the pool has pending take-outs or has free buffer slots,
   the call returns immediately. Otherwise, it suspends."
   [p v]
-  {:pre [(s/cache-exists?)]}
+  {:pre [(s/cache-exists?)
+         (pool? p)]}
+  (println "putting in" v)
   (dosync
     (if (-> p (pool-count :sinks) (> 0))
 
       ; THEN: some runs are waiting for a value
       (let [run-id (sync-pop! p :sinks)]
+        (println "put-in! immediately passing value" v "to" run-id)
         ; continue the next run, passing it the put-in value
         (continue! run-id {:data v :permit (pool-id p)})
         nil)
 
       ;; ELSE: no runs are available to receive the value
       (if (-> p (pool-count :buffer) (< (pool-size p)))
+
         ;; if we can buffer this value, do so and return
-        (do (sync-push! p :buffer v) nil)
-        ;(s/cache-update! (pool-push p buffer v))
+        (do (println "put-in! buffering" v "for now") (sync-push! p :buffer v) nil)
+
         ;; otherwise, we suspend the current run and make it available for future take-out
         (do
+          (println "put-in! suspending" (current-run :id) "while attempting to add" v)
           (sync-push! p, :sources, (->PutIn (current-run :id) v))
-          ;(s/cache-update! (pool-push p :sources (->PutIn (current-run :id), v)))
           (listen! :permit (:id p)))))))
 
 (defn ^:suspending take-out!
@@ -65,6 +69,7 @@
        (when (-> p (pool-count :sources) (> 0))
          ;; then: a run is blocked waiting to put a value into the pool
          (let [{value :value, run-id :run-id} (sync-pop! p :sources)]
+           (println "take-out! received" value "and is continuing run" run-id)
            ;; retrieve the value and allow the blocked run to continue..
            (continue! run-id {:permit (pool-id p)})
            ;; push the value into the buffer - note it may not be immediately
@@ -75,7 +80,7 @@
        (if (-> p (pool-count :buffer) (> 0))
 
          ;; THEN: values exist in the buffer, pop and return one:
-         (sync-pop! p :buffer)
+         (let [val (sync-pop! p :buffer)] (println "take-out! returning value" val) val)
 
          ;; ELSE: no values exist in the buffer...
          (if (= default :rapids.objects.pool/no-default)
@@ -83,8 +88,10 @@
            ;; THEN: since no default was provided, we must suspend this run
            ;; until a value becomes available
            (do
+             (println "take-out! suspending" (current-run :id))
              (sync-push! p :sinks (current-run :id))
-             (listen! :permit (:id p)))
+             (println "pool state = " p)
+             (listen! :permit (pool-id p)))
 
            ;; ELSE: a default was provided... simply return it
            default))))))

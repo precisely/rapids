@@ -8,7 +8,7 @@
 (import-vars
   [rapids.language.core
    deflow flow letflow
-   ->pool take-out! put-in!
+   ->pool take-out! put-in! pool?
    fcall, fapply
    ;; operators. longform, shortform:
    listen!, <*,
@@ -22,7 +22,6 @@
   [rapids.objects.flow flow?]
   [rapids.objects.closure closure?]
   [rapids.objects.run run? run-in-state?]
-  [rapids.objects.pool pool?]
   [rapids.storage.core set-storage! with-storage])
 
 ;; the in memory storage is used by default

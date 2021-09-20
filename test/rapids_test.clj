@@ -2,14 +2,15 @@
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
             [rapids.storage.core :as storage]
-            [helpers :refer :all]
+            [helpers :refer [get-run get-pool throws-error-output]]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [rapids.partitioner.core :refer [partition-flow-body]]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
                      side-effects]]
-            [rapids.objects.address :as address])
+            [rapids.objects.address :as address]
+            [spy.core :as spy])
   (:import (clojure.lang ExceptionInfo)))
 
 (deftest ^:language DefaultStorageTest
@@ -607,34 +608,59 @@
           (testing "the anonymous flow represents is a closure which captures lexical bindings"
             (is (= (:captured result) :bar))))))))
 
+(def pool-test-atom
+  (atom {:user-run nil :take-out-values []}))
+
+(defn- pool-test-report [key f & args]                      ; test helper
+  (apply swap! pool-test-atom update key f args))
+
 (deflow start-user-interaction
-  [test-atom]
-  (let [pool (->pool)]
-    (let [user-run (start! (flow []
-                             (loop [user-input (<*)
-                                    counter 0]
-                               (put-in! pool (str "User said " user-input "(" counter ")"))
-                               (if (= user-input "stop")
-                                 (put-in! pool :halt)
-                                 (recur (listen!) (inc counter))))))]
-      (swap! test-atom assoc :user-run user-run)          ; for ease of testing
-      pool)))
+  []
+  (let [pool (->pool)
+        user-run (start! (flow []
+                           (loop [user-input (<*)
+                                  counter 0]
+                             (println "loop #" counter "pool = " pool)
+                             (put-in! pool (str "User said '" user-input "' (" counter ")"))
+                             (if (= user-input "stop")
+                               (do (println "HALTING user-run")
+                                   (put-in! pool :halt))
+                               (recur (listen!) (inc counter))))))]
+    (pool-test-report :user-run (constantly user-run))
+    pool))
 
 (deflow pool-consumer
   "Starts the user interaction flow and continuously pulls out values until :halt is received"
-  [test-atom]
-  (let [pool (start-user-interaction test-atom)]
+  []
+  (let [pool (start-user-interaction)]
     (loop [result (take-out! pool)]
-      (when-not (= result :stop)
-        (swap! test-atom #(update % :take-out-values conj result))
+      (pool-test-report :take-out-values conj result)
+      (when-not (= result :halt)
         (recur (take-out! pool))))))
 
 (deftest ^:language PoolTest
   (testing "Two runs communicating via a pool"
-    (let [test-atom (atom {:user-run nil, :take-out-values []}) ; for monitoring progress
-          pool-consumer-run (start! pool-consumer test-atom)
-          user-run (:user-run @test-atom)]
-      (testing "the parent run starts the user interaction run"
+    (let [pool-consumer-run (start! pool-consumer)
+          user-run-id (-> @pool-test-atom :user-run :id)]
+      (println "parent run id" (:id pool-consumer-run))
+      (println "user-run-id" user-run-id)
+      (testing "where the parent run starts the user interaction run"
         (is (run-in-state? pool-consumer-run :running))
-        (is (run-in-state? pool-consumer-run :running)))
-      )))
+        (is (run-in-state? (get-run user-run-id) :running)))
+      (testing "inputs to the run which acts as the pool source are received by the pool sink"
+        (println "before continue! hello")
+        (continue! user-run-id {:data "hello"})
+        (is (run-in-state? (get-run user-run-id) :running))
+
+        (println "before continue! sailor")
+        (continue! user-run-id {:data "sailor"})
+        (is (run-in-state? (get-run user-run-id) :running))
+
+        (println "before continue! stop")
+        (continue! user-run-id {:data "stop"})
+        (is (run-in-state? (get-run user-run-id) :complete))
+        (println (into {} (get-run user-run-id)))
+        (is (= (:received-values @pool-test-atom)
+              ["User said 'hello' (0)"
+               "User said 'sailor' (1)"
+               "User said 'stop' (2)"]))))))

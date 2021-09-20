@@ -29,4 +29,5 @@
                                    (assoc bindings
                                      data-key data)
                                    bindings)]
+        (println "Calling" address "with" bindings-with-data)
         (flow/call-continuation address bindings-with-data)))))

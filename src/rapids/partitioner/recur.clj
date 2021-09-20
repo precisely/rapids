@@ -37,4 +37,4 @@
   The body argument represents calls to partitioning functions, not user-land flows."
   [[address loop-params partition-params] & body]
   `(binding [*recur-binding-point* {:address ~address :loop-params ~loop-params :partition-params ~partition-params}]
-     ~@body))
+        ~@body))

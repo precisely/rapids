@@ -86,8 +86,10 @@
      (freeze [ctor-symbol data]))))
 
 (defn thaw-record [blob]
+  ;(println "thawing record" (hash blob))
   (let [[ctor-symbol data] (thaw blob)
         ctor  (resolve ctor-symbol)]
+    ; (println "thawed record" (hash blob) [ctor-symbol data])
     (if-not ctor
       (throw (ex-info "Failed to thaw record. Constructor cannot be resolved."
                {:ctor-symbol ctor-symbol :data data})))
