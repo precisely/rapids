@@ -68,7 +68,8 @@
   "For ease of testing - simulates the end of a request by flushing the cache contents to the storage and clearing it"
   []
   (rapids.storage.cache/save-cache!)
-  (set! rapids.storage.dynamics/*cache* {}))
+  (set! rapids.storage.dynamics/*cache* {})
+  (assert (empty? rapids.storage.dynamics/*cache*)))
 
 ;; easy access functions
 (defn get-run

@@ -69,6 +69,8 @@
 (defn storage? [o] (satisfies? Storage o))
 (defn storage-connection? [o] (satisfies? StorageConnection o))
 
+(def FrozenClass (class (freeze "foo")))
+(defn frozen? [o] (instance? FrozenClass o))
 ;;
 ;; Protocol helper functions
 ;;

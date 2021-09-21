@@ -508,7 +508,7 @@
             (let [parent-after-block (get-run (:id parent-run))]
               (is (= (:state parent-after-block) :running))
               (is (-> parent-after-block :suspend rapids.objects.signals/suspend-signal?))
-              (println "parent-after-block" (-> parent-after-block :suspend :permit))
+
               (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
 
               (testing "attempting to continue without a valid permit throws"
