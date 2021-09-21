@@ -36,13 +36,11 @@
   [p v]
   {:pre [(s/cache-exists?)
          (pool? p)]}
-  (println "putting in" v)
   (dosync
     (if (-> p (pool-count :sinks) (> 0))
 
       ; THEN: some runs are waiting for a value
       (let [run-id (pool-pop! p :sinks)]
-        (println "put-in! immediately passing value" v "to" run-id)
         ; continue the next run, passing it the put-in value
         (continue! run-id {:data v :permit (pool-id p)})
         nil)
@@ -51,11 +49,10 @@
       (if (-> p (pool-count :buffer) (< (pool-size p)))
 
         ;; if we can buffer this value, do so and return
-        (do (println "put-in! buffering" v "for now") (pool-push! p :buffer v) nil)
+        (do (pool-push! p :buffer v) nil)
 
         ;; otherwise, we suspend the current run and make it available for future take-out
         (do
-          (println "put-in! suspending" (current-run :id) "while attempting to add" v)
           (pool-push! p, :sources, (->PutIn (current-run :id) v))
           (listen! :permit (:id p)))))))
 
@@ -74,7 +71,6 @@
        (when (-> p (pool-count :sources) (> 0))
          ;; then: a run is blocked waiting to put a value into the pool
          (let [{value :value, run-id :run-id} (pool-pop! p :sources)]
-           (println "take-out! received" value "and is continuing run" run-id)
            ;; retrieve the value and allow the blocked run to continue..
            (continue! run-id {:permit (pool-id p)})
            ;; push the value into the buffer - note it may not be immediately
@@ -85,7 +81,7 @@
        (if (-> p (pool-count :buffer) (> 0))
 
          ;; THEN: values exist in the buffer, pop and return one:
-         (let [val (pool-pop! p :buffer)] (println "take-out! returning value" val) val)
+          (pool-pop! p :buffer)
 
          ;; ELSE: no values exist in the buffer...
          (if (= default :rapids.objects.pool/no-default)
@@ -93,9 +89,7 @@
            ;; THEN: since no default was provided, we must suspend this run
            ;; until a value becomes available
            (do
-             (println "take-out! suspending" (current-run :id))
              (pool-push! p :sinks (current-run :id))
-             (println "pool state = " p)
              (listen! :permit (pool-id p)))
 
            ;; ELSE: a default was provided... simply return it

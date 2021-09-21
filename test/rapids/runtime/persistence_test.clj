@@ -34,6 +34,4 @@
               (swap! rid (constantly (current-run :id))))))
         (s/ensure-cached-connection
           (with-run (s/cache-get! Run @rid)
-            (let [p (-> (current-run :stack) first :bindings :mypool)]
-              (println "P=" p)
-              (is (pool? p)))))))))
+            (is (pool? (-> (current-run :stack) first :bindings :mypool)))))))))
