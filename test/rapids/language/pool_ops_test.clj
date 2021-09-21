@@ -19,7 +19,7 @@
         (testing "it should suspend"
           (is (suspend-signal? (put-in! p :foo))))
         (testing "after suspending, a single entry should be in :sources."
-          (let [put-in-data (-> @p :sources peek)]
+          (let [put-in-data (-> (:sources p) peek)]
             (is (instance? PutIn put-in-data))
             (testing "The entry should contain the current run id "
               (is (= (:run-id put-in-data) run-id)))
@@ -27,7 +27,7 @@
               (is (= (:value put-in-data) :foo)))))
         (testing "take-out! should unblock the run which was suspended by put-in! by"
           (with-continue!-stub [stub :unused]
-            (with-run (r/make-run)                          ; simulate takeout happening in a different run
+            (with-run (s/cache-insert! (r/make-run))        ; simulate takeout happening in a different run
               (testing "returning the value put in"
                 (is (= (take-out! p) :foo)))
               (testing "calling continue! once with the suspended run id, no data and the pool-id as permit"
@@ -41,7 +41,7 @@
           (is (suspend-signal? (take-out! p))))
         (testing "after suspending, the current run's uuid should be in :sinks."
           (is (= (pool-count p :sinks) 1))
-          (let [sink-id (-> @p :sinks peek)]
+          (let [sink-id (-> (:sinks p) peek)]
             (is (= sink-id (current-run :id)))))
         (testing "put-in! should unblock the run which was suspended by take-in! by"
           (with-continue!-stub [stub :unused]
@@ -57,10 +57,10 @@
     (with-test-storage
       (with-runtime-env [p (->pool 2)
                          run1 (current-run)
-                         run2 (s/cache-create! (r/make-run))
-                         run3 (s/cache-create! (r/make-run))
-                         run4 (s/cache-create! (r/make-run))
-                         take-out-run (s/cache-create! (r/make-run))]
+                         run2 (s/cache-insert! (r/make-run))
+                         run3 (s/cache-insert! (r/make-run))
+                         run4 (s/cache-insert! (r/make-run))
+                         take-out-run (s/cache-insert! (r/make-run))]
         (testing "It should allow two unbuffered put-ins"
           (with-run run1
             (is (nil? (put-in! p 1))))
@@ -95,8 +95,8 @@
     (with-test-storage
       (with-runtime-env [p (->pool 2)
                          run1 (current-run)
-                         run2 (s/cache-create! (r/make-run))
-                         put-in-run (s/cache-create! (r/make-run))]
+                         run2 (s/cache-insert! (r/make-run))
+                         put-in-run (s/cache-insert! (r/make-run))]
         (testing "the pool should suspend the current run"
           (with-run run1
             (is (suspend-signal? (take-out! p))))

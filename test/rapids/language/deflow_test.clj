@@ -1,6 +1,7 @@
 (ns rapids.language.deflow_test
   (:require [clojure.test :refer :all]
-            [rapids :refer :all]))
+            [rapids :refer :all]
+            [rapids.storage.core :as storage]))
 
 (deflow suspending-flow [] (listen! :permit :a))
 (deflow flow-calling-flow [] (suspending-flow))
@@ -14,31 +15,32 @@
   (* a (<*)))
 
 (deftest deflow-macro
-  (testing "it should create a Flow object"
+  (storage/ensure-cached-connection
+    (testing "it should create a Flow object"
 
-    (testing "when a suspend expression is in the body"
-      (is (flow? suspending-flow)))
+      (testing "when a suspend expression is in the body"
+        (is (flow? suspending-flow)))
 
-    (testing "when a flow expression is in the body"
-      (is (flow? flow-calling-flow))))
+      (testing "when a flow expression is in the body"
+        (is (flow? flow-calling-flow))))
 
-  (testing "it should produce a valid multi-arity flow"
-    (let [run (start! multi-arity :a)]
-      (is (= (:response run) [:a :b]))))
+    (testing "it should produce a valid multi-arity flow"
+      (let [run (start! multi-arity :a)]
+        (is (= (:response run) [:a :b]))))
 
-  (testing "it should succeed when valid and pre-post conditions"
-    (let [run (start! prepost-conditions 2)]
-      (is (= (:state run) :running))
-      (let [run (continue! (:id run) {:data 3})]
-        (is (= (:state run) :complete))
-        (is (= (:result run) 6)))))
+    (testing "it should succeed when valid and pre-post conditions"
+      (let [run (start! prepost-conditions 2)]
+        (is (= (:state run) :running))
+        (let [run (continue! (:id run) {:data 3})]
+          (is (= (:state run) :complete))
+          (is (= (:result run) 6)))))
 
-  (testing "it should error on invalid pre condition"
-    (is (thrown-with-msg? AssertionError #"Assert failed\: \(number\? a\)"
-          (start! prepost-conditions "invalid-not-a-number"))))
+    (testing "it should error on invalid pre condition"
+      (is (thrown-with-msg? AssertionError #"Assert failed\: \(number\? a\)"
+            (start! prepost-conditions "invalid-not-a-number"))))
 
-  (testing "it should error on invalid post condition"
-    (let [run (start! prepost-conditions 2)]
-      (is (= (:state run) :running))
-      (is (thrown-with-msg? AssertionError #"Assert failed\: \(< % 10\)"
-            (continue! (:id run) {:data 100}))))))
+    (testing "it should error on invalid post condition"
+      (let [run (start! prepost-conditions 2)]
+        (is (= (:state run) :running))
+        (is (thrown-with-msg? AssertionError #"Assert failed\: \(< % 10\)"
+              (continue! (:id run) {:data 100})))))))

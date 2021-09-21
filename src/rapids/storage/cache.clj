@@ -14,7 +14,10 @@
 (ns rapids.storage.cache
   (:require [rapids.storage.dynamics :refer [ensure-connection *cache*]]
             [rapids.storage.connection-wrapper :as c]
-            [rapids.support.util :refer :all]))
+            [rapids.support.util :refer :all])
+  (:import (rapids.storage CacheProxy)))
+
+(declare ensure-raw-object ->CacheProxy cache-proxy?)
 
 (defn cache-exists? [] (boolean *cache*))
 
@@ -31,45 +34,34 @@
         (c/update-records! updates))
       (setf! *cache* assoc cls synced-entries))))
 
-(declare get-cache-entry set-cache-entry find-in-cache)
+(declare get-cache-entry set-cache-entry find-in-cache ensure-raw-object)
 
-(defn cache-get! [cls id]
+(defn cache-get!
   "Gets an object from storage, locking it and saving it in cache, of a particular type or loads it from the storage"
-  {:pre [(cache-exists?)
-         (instance? cls Class)
-         (not (nil? id))]}
-  (or (:object (get-cache-entry cls id))
-    (if-let [obj (c/get-record! cls id)]
-      (do (set-cache-entry obj) obj)
-      (throw (ex-info "Object not found." {:class cls :id id})))))
+  ([cls id & keys]
+   (get-in (ensure-raw-object cls id) keys))
 
-(defn cache-update!
-  "Updates inst in cache, setting the :op state appropriately: :created objects stay in :created state,
-  changed objects are put in :update state."
-  [inst]
-  {:pre [(cache-exists?)]}
-  (let [id (:id inst)
-        cls (class inst)
-        {existing :object existing-change :op} (get-cache-entry cls id)
-        cache-change (if existing
-                       (or existing-change :update)
-                       (throw (ex-info "Attempt to update cache object doesn't exist"
-                                {:object inst})))]
-    (set-cache-entry inst cache-change)
-    inst))
+  ([cls id]
+   {:pre [(cache-exists?)
+          (instance? Class cls)
+          (not (nil? id))]}
+   (if (ensure-raw-object cls id)
+     (->CacheProxy cls id))))
 
-(defn cache-create!
-  "Adds inst to cache"
+(defn cache-insert!
+  "Adds inst to cache, returning a CacheProxy"
   [inst]
   {:pre [(cache-exists?)]}
   (let [id (:id inst)
         cls (class inst)]
     (assert (not (get-cache-entry cls id)) (str "Attempt to create object in cache which already exists: " (.getName cls) id))
-    (set-cache-entry inst :create))
-  inst)
+    (set-cache-entry inst :create)
+    (->CacheProxy cls id)))
 
 (defn cache-find!
-  "Finds objects matching criteria on a single field, loading them from storage as necessary."
+  "Finds objects matching criteria on a single field, loading them from storage as necessary.
+
+  Returns - list of CacheProxy objects"
   [type field & {:keys [eq lt gt lte gte eq in limit order] :as keys}]
   (let [tests (dissoc keys :limit)
         existing (find-in-cache type field tests)
@@ -85,7 +77,7 @@
                                   {:order order})))
         limited-result (if limit (take limit ordered-result) ordered-result)]
     (map set-cache-entry new-objects)
-    limited-result))
+    (map #(->CacheProxy (class %) (:id %)) limited-result)))
 
 (defmacro ensure-cached-connection
   "Ensures a transactional cache and connection exists then executes body in the context
@@ -136,3 +128,23 @@
      (setf! *cache* update-in [cls id]
        (constantly {:object inst
                     :op     op})))))
+(defn ensure-raw-object
+  "Ensures the raw object is in the cache and returns it. If it doesn't exist, throws an error."
+  [cls id]
+  {:pre [(instance? Class cls)
+         (not (nil? id))]}
+  (or (:object (get-cache-entry cls id))
+    (if-let [obj (c/get-record! cls id)]
+      (do (set-cache-entry obj) obj)
+      (throw (ex-info "Object not found." {:class cls :id id})))))
+
+(defn ->CacheProxy [cls id]
+  (CacheProxy. cls id))
+
+(defn cache-proxy? [o]
+  (and o (instance? CacheProxy o)))
+;
+;(defmethod print-method CacheProxy
+;  [o w]
+;  (.write w (format "(->CacheProxy %s %s)"
+;              (-> o (.theClass) (.getName)) (-> o (.theId) str))))

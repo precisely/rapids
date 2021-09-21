@@ -53,10 +53,10 @@
 (deftest ^:unit CachedConnectionTest
   (testing "Inside ensure-cached-connection"
     (with-storage (->in-memory-storage)
-      (testing "cache-create! adds object to the cache, but the item does not get saved to storage"
+      (testing "cache-insert! adds object to the cache, but the item does not get saved to storage"
         (ensure-cached-connection
-          (cache-create! (Foo. 2 :initial))
-          (is (= (cache-get! Foo 2) (Foo. 2 :initial)))
+          (cache-insert! (Foo. 2 :initial))
+          (is (= (cache-get! Foo 2) (->CacheProxy Foo 2)))
           (is (nil? (get-record! Foo 2)))))
       (testing "finally, created objects are saved to the storage"
         (ensure-connection
@@ -69,9 +69,11 @@
             (is (nil? (get-in *cache* [Foo 2])))
             (cache-get! Foo 2)
             (is (instance? Foo (:object (get-in *cache* [Foo 2])))))
-          (testing "cache-update! updates object in the cache, but the item does not change in storage"
-            (cache-update! (Foo. 2 :updated))
-            (is (= (cache-get! Foo 2) (Foo. 2 :updated)))
+          (testing "CacheProxy.update object in the cache, but the item does not change in storage"
+            (.update (->CacheProxy Foo 2) #(assoc % :val :updated))
+            (is (= (->CacheProxy Foo 2) (cache-get! Foo 2)))
+            (is (= (Foo. 2 :updated)
+                  (get-in rapids.storage.dynamics/*cache* [Foo 2 :object])))
             (is (= (get-record! Foo 2) (Foo. 2 :initial))))))
       (testing "finally, items are updated in the storage"
         (ensure-connection
@@ -83,24 +85,24 @@
                                 :a {:object (Foo. :a 1)},
                                 :c {:object (Foo. :c 3)}}}]
           (testing "it should find items using :eq in the cache"
-            (is (= (cache-find! Foo :val :eq 1) (list (Foo. :a 1)))))
+            (is (= (cache-find! Foo :val :eq 1) (list (->CacheProxy Foo :a)))))
           (testing "it should find items using :gt in the cache"
-            (is (= (sort-by :val (cache-find! Foo :val :gt 1))
-                  (list (Foo. :b 2) (Foo. :c 3)))))
-          (testing "it should find items using :gte in the cache"
-            (is (= (sort-by :val (cache-find! Foo :val :gte 1))
-                  (list (Foo. :a 1) (Foo. :b 2) (Foo. :c 3)))))
+            (is (= (set (cache-find! Foo :val :gt 1))
+                  (set [(->CacheProxy Foo :b) (->CacheProxy Foo :c)])))
+            (testing "it should find items using :gte in the cache"
+              (is (= (set (cache-find! Foo :val :gte 1))
+                    (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)])))))
           (testing "it should find items using :lt in the cache"
-            (is (= (sort-by :val (cache-find! Foo :val :lt 3))
-                  (list (Foo. :a 1) (Foo. :b 2)))))
+            (is (= (set (cache-find! Foo :val :lt 3))
+                  (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b)]))))
           (testing "it should find items using :lte in the cache"
-            (is (= (sort-by :val (cache-find! Foo :val :lte 3))
-                  (list (Foo. :a 1) (Foo. :b 2) (Foo. :c 3)))))
+            (is (= (set (cache-find! Foo :val :lte 3))
+                  (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)]))))
           (testing "it should find items up to :limit in the cache"
             (is (= 2 (count (cache-find! Foo :val :gte 1 :limit 2)))))
           (testing "it should find items in :ascending order in the cache"
             (is (= (cache-find! Foo :val :lte 3 :order :ascending)
-                  (list (Foo. :a 1) (Foo. :b 2) (Foo. :c 3)))))
+                  (list (->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)))))
           (testing "it should find items in :descending order in the cache"
             (is (= (cache-find! Foo :val :lte 3 :order :descending)
-                  (list (Foo. :c 3)  (Foo. :b 2) (Foo. :a 1))))))))))
+                  (list (->CacheProxy Foo :c) (->CacheProxy Foo :b) (->CacheProxy Foo :a))))))))))

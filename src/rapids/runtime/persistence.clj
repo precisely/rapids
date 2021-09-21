@@ -8,10 +8,11 @@
             rapids.objects.pool
             [clojure.main :as main]
             [rapids.storage.core :as s])
-  (:import (rapids.objects.run Run)
-           (rapids.objects.flow Flow)
-           (clojure.lang AFunction Atom Ref)
-           (rapids.objects.pool Pool)))
+  (:import (rapids.objects.flow Flow)
+           (rapids.objects.run Run)
+           (rapids.objects.pool Pool)
+           (clojure.lang AFunction)
+           (rapids.storage CacheProxy)))
 
 (defn debug-result [msg & args]
   (let [result (last args)]
@@ -60,69 +61,28 @@
   [data-input]
   (-> data-input .readUTF symbol resolve var-get))
 
+(s/extend-freeze CacheProxy ::cache-proxy
+  [x data-output]
+  (let [code [(.theClass x) (.theId x)]]
+    (taoensso.nippy/freeze-to-out! data-output code)))
+
+(s/extend-thaw ::cache-proxy
+  [data-input]
+  (let [[cls id] (taoensso.nippy/thaw-from-in! data-input)]
+    (s/->CacheProxy cls id)))
 ;;
-;; Run - always acquired from the storage, when the cache is available
+;; Run -
 ;;
 (s/extend-freeze Run ::run
   [run data-output]
-  ;(println "freezing Run" (:id run))
-  (let [run-id (prn-str (:id run))]
-    (.writeUTF data-output run-id)))
-
-(s/extend-thaw ::run
-  [data-input]
-  (let [thawed-str (.readUTF data-input)
-        run-id (read-string thawed-str)]
-    ;(println "thawing Run" run-id)
-    (if (s/cache-exists?)
-      (s/cache-get! Run run-id)
-
-      ;; special handling for when a run is retrieved outside of a run-cache context
-      ;; just get the run without locking it or storing it in the cache
-      (s/get-record! Run [run-id]))))
-
+  (throw (ex-info "Refusing to freeze raw Run record."
+           {:type :runtime-error
+            :object run})))
 ;;
 ;; Pool - always acquired from the storage, when the cache is available
 ;;
 (s/extend-freeze Pool ::pool
   [pool data-output]
-  ;(println "freezing Pool" (:id pool))
-  (let [pool-id (prn-str (:id pool))]
-    (.writeUTF data-output pool-id)))
-
-(s/extend-thaw ::pool
-  [data-input]
-  (let [thawed-str (.readUTF data-input)
-        pool-id (read-string thawed-str)]
-    ;(println "thawing Pool" pool-id)
-    (if (s/cache-exists?)
-      (s/cache-get! Pool pool-id)
-
-      ;; special handling for when a run is retrieved outside of a run-cache context
-      ;; just get the run without locking it or storing it in the cache
-      (s/get-record! Pool [pool-id]))))
-
-;;
-;; Atom
-;;
-(s/extend-freeze Atom ::atom
-  [atom data-output]
-  (s/freeze-to-out! data-output @atom))
-
-(s/extend-thaw ::atom
-  [data-input]
-  (atom (s/thaw-from-in! data-input)))
-
-;;
-;; Ref
-;;
-(s/extend-freeze Ref ::ref
-  [ref data-output]
-  (s/freeze-to-out! data-output @ref))
-
-(s/extend-thaw ::ref
-  [data-input]
-  (let [o (s/thaw-from-in! data-input)]
-    ;(println "Thawed Ref:"o)
-    (ref o)))
-
+  (throw (ex-info "Refusing to freeze raw Pool record."
+           {:type :runtime-error
+            :object pool})))

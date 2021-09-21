@@ -10,22 +10,19 @@
     [rapids.objects.address :as a]
     [rapids.objects.stack-frame :as sf]
     [rapids.support.util :refer :all])
-  (:import (java.util UUID)))
+  (:import (java.util UUID Vector)
+           (clojure.lang Keyword)))
 
-(declare run-in-state?)
+(defrecord Run
+  [^UUID id
+   ^Keyword state
+   ^Vector stack
+   ^Object result
+   ^Object response])
 
-(defrecord
-  Run [id state stack result run-response response])
-
-(defn run? [run] (instance? Run run))
+(defn raw-run? [run] (instance? Run run))
 
 (def ^:const RunStates #{:running :error :complete})
-(defn run-in-state?
-  [run & states]
-  {:pre [(every? #(in? RunStates %) states)]}
-  (let [state (:state run)
-        result (and (run? run) (or (in? states state) (in? states :any)))]
-    result))
 
 (defn make-run
   ([] (make-run {}))
@@ -38,12 +35,12 @@
      :as   fields}]
    {:post [(s/assert ::run %)]}
    (map->Run (into (or fields {})
-                     {:id           id,
-                      :state        state,
-                      :stack        stack,
-                      :response     response,
-                      :result       result
-                      :cached-state :created}))))
+               {:id           id,
+                :state        state,
+                :stack        stack,
+                :response     response,
+                :result       result
+                :cached-state :created}))))
 
 (defn make-test-run
   "Returns a run and a record"
@@ -61,7 +58,6 @@
                 remove-keys))]
     ;record (run-to-record run)]
     run))
-
 
 (defmethod print-method Run
   [o w]

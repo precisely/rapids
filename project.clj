@@ -50,6 +50,7 @@
                  [danlentz/clj-uuid "0.1.9"]
                  [migratus "1.3.5"]
                  [hikari-cp "2.13.0"]]
+  :aot [rapids.storage.CacheProxy]
   :clean-targets ^{:protect false} ["target"]
   :plugins [[s3-wagon-private "1.3.4"]]
   :profiles {:dev

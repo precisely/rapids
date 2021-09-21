@@ -15,6 +15,6 @@
    get-record! find-record! update-record! create-record!]
   [taoensso.nippy freeze thaw extend-freeze extend-thaw
    freeze-to-out! thaw-from-in!]
-  [rapids.storage.cache
-   ensure-cached-connection cache-create! cache-update! cache-get! cache-find! cache-exists?
+  [rapids.storage.cache ->CacheProxy cache-proxy?
+   cache-proxy? ensure-cached-connection cache-insert! cache-get! cache-find! cache-exists?
    cache-find!])

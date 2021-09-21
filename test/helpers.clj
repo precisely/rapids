@@ -6,15 +6,19 @@
             [rapids.runtime.runlet :as runlet]
             [rapids.implementations.in-memory-storage :as imrs]
             [spy.core :as spy]
-            [potemkin :refer [import-vars]])
+            [potemkin :refer [import-vars]]
+            [rapids.storage.core :as storage])
   (:import (java.util Properties)
            (rapids.objects.run Run)
            (rapids.objects.pool Pool)))
 
-(import-vars
-  [rapids.runtime.core current-run]
-  [rapids.storage.core with-storage]
-  [rapids.implementations.in-memory-storage ->in-memory-storage])
+(defn run-in-state? [r state]
+  (storage/ensure-cached-connection
+    (= state (:state r))))
+
+(defn proxy-field [p & ks]
+  (storage/ensure-cached-connection
+    (get-in p ks)))
 
 (defmacro with-temp-ns [& body]
   `(let [cur-ns# (symbol (str (.getName *ns*)))]
@@ -51,7 +55,7 @@
 
 (defmacro with-runtime-env [[& bindings] & body]
   `(s/ensure-cached-connection
-     (runlet/with-run (s/cache-create! (r/make-run))
+     (runlet/with-run (s/cache-insert! (r/make-run))
        (let [~@bindings]
          ~@body))))
 
@@ -59,6 +63,12 @@
   `(let [~stub (spy/stub ~return-value)]
      (with-redefs [rapids.runtime.run-loop/continue! ~stub]
        ~@body)))
+
+(defn flush-cache!
+  "For ease of testing - simulates the end of a request by flushing the cache contents to the storage and clearing it"
+  []
+  (rapids.storage.cache/save-cache!)
+  (set! rapids.storage.dynamics/*cache* {}))
 
 ;; easy access functions
 (defn get-run

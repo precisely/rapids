@@ -5,10 +5,10 @@
 ;; 3. pools created or used during the runlet
 ;;
 (ns rapids.runtime.runlet
-  (:require [rapids.objects.stack-frame :as sf]
-            [rapids.objects.signals :as s :refer [make-suspend-signal]]
-            [rapids.objects.run :as r]
-            [rapids.storage.core :as storage]
+  (:require rapids.objects.run
+            [rapids.objects.stack-frame :as sf]
+            [rapids.objects.signals :refer [suspend-signal? make-suspend-signal]]
+            [rapids.storage.core :as s]
             [rapids.support.util :refer :all])
   (:import (rapids.objects.run Run)))
 
@@ -16,14 +16,18 @@
 ;;; Current Run
 ;;;
 (def ^{:dynamic true
-       :doc     "The id of the current run"}
+       :doc     "The id of the currewnt run"}
   *current-run-id*)
+
+(defn run? [o]
+  (and (s/cache-proxy? o)
+    (= Run (.theClass o))))
 
 (defmacro with-run
   "Ensures a run is in the cache and establishes it as the current run. Used by internal functions."
   [run-form & body]
   `(let [run# ~run-form]
-     (assert (r/run? run#))
+     (assert (run? run#))
      (binding [*current-run-id* (:id run#)]
        ~@body)))
 
@@ -36,7 +40,7 @@
   ([& fields]
    (get-in (current-run) fields))
   ([]
-   (storage/cache-get! Run *current-run-id*)))
+   (s/->CacheProxy Run *current-run-id*)))
 
 ;;
 ;; Operations
@@ -45,13 +49,13 @@
 (defn update-run!
   "Updates the current run, returning the new run"
   [& kvs]
-  (storage/cache-update! (apply assoc (current-run) kvs)))
+  (.update (current-run) #(apply assoc % kvs)))
 
 (defn initialize-run-for-runlet []
   (update-run! :suspend nil, :response []))
 
 (defn push-stack! [address bindings data-key]
-  {:post [(r/run? %)
+  {:post [(run? %)
           (linked-list? (:stack %))]}
   (let [frame (sf/make-stack-frame address bindings data-key)]
     (update-run! :stack (cons frame (current-run :stack)))))
@@ -71,17 +75,16 @@
 
 (defn attach-child-run!
   [child-run]
-  {:pre [(r/run-in-state? (current-run) :running)
-         (r/run-in-state? child-run :running)
+  {:pre [(= (current-run :state) :running)
          (not= *current-run-id* (:id child-run))]}
-  (storage/cache-update! (assoc child-run :parent-run-id *current-run-id*)))
+  (.setKey child-run :parent-run-id *current-run-id*))
 
 (defn complete-run! [result]
-  {:pre [(r/run-in-state? (current-run) :running)
-         (not (s/suspend-signal? result))]}
+  {:pre [(= (current-run :state) :running)
+         (not (suspend-signal? result))]}
   (update-run! :state :complete, :result result))
 
 (defn suspend-run! [suspend]
-  {:pre [(r/run-in-state? (current-run) :running)
-         (s/suspend-signal? suspend)]}
+  {:pre [(= (current-run :state) :running)
+         (suspend-signal? suspend)]}
   (update-run! :suspend suspend))

@@ -474,7 +474,7 @@
          current-bindings []                                ; the new bindings introduced to the partition
          partition-address partition-address
          arg-address (a/child address 0)                    ; address of the arg
-         params params                                 ; params provided to this partition
+         params params                                      ; params provided to this partition
          start nil
          any-suspend? false
          pset (pset/create)]
@@ -487,9 +487,7 @@
                 new-params (conj params key)]
             (if suspend?
               (let [resume-pexpr `(resume-at [~next-address [~@params] ~key]
-                                               ~arg-start) #_(let [r-at ]
-                                   (println "let-bindings generating resume-at with" r-at)
-                                   r-at)
+                                    ~arg-start) 
                     let-bindings (vec (apply concat current-bindings))
                     pexpr (if (> (count current-bindings) 0)
                             `(let [~@let-bindings] ~resume-pexpr)

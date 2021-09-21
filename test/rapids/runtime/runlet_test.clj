@@ -7,7 +7,7 @@
             [rapids.objects.run :as r]
             [rapids.runtime.runlet :refer :all]
             [rapids.objects.stack-frame :as sf]
-            [rapids.storage.core :as s :refer [ensure-cached-connection cache-update! cache-get! cache-create!
+            [rapids.storage.core :as s :refer [ensure-cached-connection cache-get! cache-insert!
                                                with-storage ensure-connection]]
             [rapids.objects.signals :as signals]
             [rapids.objects.startable :as startable])
@@ -16,24 +16,26 @@
 (deftest ^:unit RunSerialization
   (with-storage (->in-memory-storage)
     (testing "Run object stored as a binding will reflect the state of the run in the db"
-      (let [child-run (r/make-run {:state :running})
-            address (a/->address `foo)
-            stack-frame (sf/make-stack-frame address {:child-run child-run} nil)
-            parent-run (r/make-run {:state   :running,
-                                    :suspend (signals/make-suspend-signal nil nil nil)
-                                    :stack   (list stack-frame)})]
+      (let [address (a/->address `foo)
+            stack-frame (sf/make-stack-frame address {:myvar :xyzzy} nil)
+            run (r/make-run {:state   :running,
+                             :suspend (signals/make-suspend-signal nil nil nil)
+                             :stack   (list stack-frame)})]
 
-        ;; ensure run1 and run2 are saved to the storage
-        (s/ensure-connection
-          (s/create-record! child-run)
-          (s/create-record! parent-run))
-        ;; alter child-run (change state)
-        (s/ensure-connection
-          (s/update-record! (assoc child-run :suspend nil, :state :complete))
-          ;; retrieve parent run
-          (let [loaded-parent-run (s/get-record! Run (:id parent-run))
-                child-run (-> loaded-parent-run :stack first :bindings :child-run)]
-            (is (= (:state child-run) :complete))))))))
+        (testing "run can be saved to storage and retrieved"
+          (s/ensure-connection
+            (s/create-record! run)
+            (is (= run (get-run (:id run))))))
+
+        (testing "run can be altered"
+          (s/ensure-connection
+            (s/update-record! (assoc run :state :complete))
+            ;; retrieve run
+            (let [loaded-run (s/get-record! Run (:id run))
+                  bound-value (-> run :stack first :bindings :myvar)]
+              (is (= bound-value :xyzzy))
+              (is (= (:state loaded-run) :complete)))))))))
+
 (rapids.language.flow/deflow foo [a] (* a a))
 
 (deftest ^:unit FlowSerialization
@@ -46,7 +48,7 @@
                                     :stack   (list stack-frame)})]
         ;; ensure run1 and run2 are saved to the storage
         (ensure-cached-connection
-          (cache-create! parent-run))
+          (cache-insert! parent-run))
 
         ;; retrieve parent run
         (ensure-connection

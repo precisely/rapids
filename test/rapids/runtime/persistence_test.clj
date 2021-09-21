@@ -5,7 +5,7 @@
             [rapids.objects.pool :refer [raw-pool?]]
             [rapids.storage.protocol :refer [thaw-record freeze-record]]
             [helpers :refer :all]
-            [rapids.runtime.core :refer [with-run]]
+            [rapids.runtime.core :refer [with-run current-run]]
             [rapids.objects.run :as r]
             [rapids.objects.stack-frame :as sf]
             [rapids.objects.address :as a]
@@ -29,7 +29,7 @@
             rid (atom nil)]
         (s/ensure-cached-connection
           (let [p (->pool)]                                 ; this adds the pool to the cache
-            (with-run (s/cache-create! (make-run-with-bindings :mypool p))
+            (with-run (s/cache-insert! (make-run-with-bindings :mypool p))
               (swap! pid (constantly (pool-id p)))
               (swap! rid (constantly (current-run :id))))))
         (s/ensure-cached-connection

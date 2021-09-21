@@ -17,11 +17,10 @@
    ;; start operator:
    !
    expire-run!]
-  [rapids.runtime.core current-run start! continue!]
+  [rapids.runtime.core current-run start! continue! run?]
   [rapids.language.time years months weeks days hours minutes seconds weeks now from-now]
   [rapids.objects.flow flow?]
   [rapids.objects.closure closure?]
-  [rapids.objects.run run? run-in-state?]
   [rapids.storage.core set-storage! with-storage])
 
 ;; the in memory storage is used by default

@@ -4,7 +4,7 @@
     [rapids.objects.startable :as startable]
     [rapids.objects.closure :refer [closure? closure-name]]
     [rapids.support.util :refer :all]
-    [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run! update-run!]]
+    [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run! update-run! run?]]
     [rapids.objects.signals :refer [suspend-signal?]]
     [rapids.objects.stack-frame :as sf]
     [rapids.objects.run :as r])
@@ -17,11 +17,11 @@
   "Starts a run with the flow and given arguments.
   Returns the Run instance."
   [startable & args]
-  {:post [(r/run? %)]}
+  {:post [(run? %)]}
   (let [startable-name (name startable)
         start-form (prn-str `(~startable-name ~@args))]
     (ensure-cached-connection
-      (with-run (cache-create! (r/make-run {:state :running, :start-form start-form}))
+      (with-run (cache-insert! (r/make-run {:state :running, :start-form start-form}))
         ;; create the initial stack-continuation to kick of the process
         (eval-loop! (fn [_] (startable/call-entry-point startable args)))
         (current-run)))))
@@ -38,20 +38,20 @@
     run - Run instance indicated by run-id"
   ([run-id] (continue! run-id {}))
   ([run-id {:keys [data permit]}]
-   {:pre  [(not (nil? run-id))
-           (not (r/run? run-id))]
-    :post [(r/run? %)]}
+   {:pre  [(not (nil? run-id))]
+    :post [(run? %)]}
    (ensure-cached-connection
-     (with-run (cache-get! Run run-id)
-       (if (not= (current-run :suspend :permit) permit)
-         (throw (ex-info "Invalid permit. Unable to continue run."
-                  {:type :input-error
-                   :expected (current-run :suspend :permit)
-                   :received permit
-                   :run-id run-id})))
-       (initialize-run-for-runlet)                   ;; ensure response and suspend are empty
-       (eval-loop! (next-continuation!) data)
-       (current-run)))))
+     (let [true-run (if (run? run-id) run-id (cache-get! Run run-id))]
+       (with-run true-run
+         (if (not= (current-run :suspend :permit) permit)
+           (throw (ex-info "Invalid permit. Unable to continue run."
+                    {:type     :input-error
+                     :expected (current-run :suspend :permit)
+                     :received permit
+                     :run-id   run-id})))
+         (initialize-run-for-runlet)                        ;; ensure response and suspend are empty
+         (eval-loop! (next-continuation!) data)
+         (current-run))))))
 
 ;;
 ;; Helpers
@@ -91,7 +91,7 @@
   ([continuation] (stack-processor! continuation nil))
 
   ([continuation result]
-   {:pre [(r/run-in-state? (current-run) :running)
+   {:pre [(= (current-run :state) :running)
           (or (fn? continuation) (nil? continuation))]}
 
    (if continuation
