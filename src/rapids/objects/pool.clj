@@ -11,13 +11,18 @@
    ^PersistentQueue sources,
    ^PersistentQueue buffer,
    ^PersistentQueue sinks
-   ^Long dirty-counter]  ;; queues are side-effecty Java objects; this field shows the cache the pool has changed
+   ^Long access-counter]
+  ;; queues are side-effecty Java objects; this field shows the cache the pool has changed
   Object
   (toString [o]
     (str "#<Pool :sources " (into [] (:sources o))
       ": buffer " (into [] (:buffer o))
       " :sinks " (into [] (:sinks o))
       ">")))
+
+
+
+ ;;;  Work in Progress
 
 (defmethod print-method clojure.lang.PersistentQueue
   [o w]
@@ -40,7 +45,7 @@
 (defn- dirty
   "Dirties the pool so the cache will detect the change"
   [p]
-  (update p :dirty-counter inc))
+  (update p :access-counter inc))
 
 (defn pool-pop
   "Pops an item from one of the queues of a pool.

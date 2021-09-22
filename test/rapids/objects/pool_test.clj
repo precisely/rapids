@@ -12,9 +12,9 @@
     (testing (str "testing pool-push and pool-pop on " field)
       (let [pool (make-pool 0)
             pushed-pool (pool-push pool field :foo)]
-        (is (= 0 (:dirty-counter pool)))
+        (is (= 0 (:access-counter pool)))
         (is (= 0 (-> pool field count)))
-        (is (= 1 (:dirty-counter pushed-pool)))
+        (is (= 1 (:access-counter pushed-pool)))
         (is (= 1 (-> pushed-pool field count))))))
   (testing "Invalid fields to pool-push or pool-pop cause errors"
     (is (thrown? AssertionError (pool-pop (make-pool 0) :foo)))

@@ -45,8 +45,8 @@
    {:pre [(cache-exists?)
           (instance? Class cls)
           (not (nil? id))]}
-   (if (ensure-raw-object cls id)
-     (->CacheProxy cls id))))
+   (if-let [fresh (ensure-raw-object cls id)]
+     (->CacheProxy cls id fresh))))
 
 (defn cache-insert!
   "Adds inst to cache, returning a CacheProxy"
@@ -56,7 +56,7 @@
         cls (class inst)]
     (assert (not (get-cache-entry cls id)) (str "Attempt to create object in cache which already exists: " (.getName cls) id))
     (set-cache-entry inst :create)
-    (->CacheProxy cls id)))
+    (->CacheProxy cls id inst)))
 
 (defn cache-find!
   "Finds objects matching criteria on a single field, loading them from storage as necessary.
@@ -77,7 +77,7 @@
                                   {:order order})))
         limited-result (if limit (take limit ordered-result) ordered-result)]
     (map set-cache-entry new-objects)
-    (map #(->CacheProxy (class %) (:id %)) limited-result)))
+    (map #(->CacheProxy (class %) (:id %) %) limited-result)))
 
 (defmacro ensure-cached-connection
   "Ensures a transactional cache and connection exists then executes body in the context
@@ -138,8 +138,10 @@
       (do (set-cache-entry obj) obj)
       (throw (ex-info "Object not found." {:class cls :id id})))))
 
-(defn ->CacheProxy [cls id]
-  (CacheProxy. cls id))
+(defn ->CacheProxy
+  ([cls id] (->CacheProxy cls id nil))
+  ([cls id obj]
+   (CacheProxy. cls id obj)))
 
 (defn cache-proxy? [o]
   (and o (instance? CacheProxy o)))
