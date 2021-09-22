@@ -12,14 +12,17 @@ Also see `tests/Rapids_test.clj`.
 ### Define a flow
 ```clojure
 (deflow multiply-by-user-input [x]
-  (respond! {:type :chat
-             :text "Hi, please enter a number!"})
-  (respond! {:type :number-input          ;\__ interpreted by caller to display
-             :type :number            ;/   user input UI
-             :context :user-number}) ; caller uses this when sending event
-  (* (listen!) x))       ; returns the value the user entered multiplied by x
+  (respond! "Hi, please enter a number!")
+  (let [user-num, (Integer/parseInt (listen!))
+        result (* user-num x)]
+  (*> (str "Multiplying " x " by " user-num " gives " result))  
 ```
 
+### Start the flow
+```clojure
+(start! multiply-by-user-input 5)
+=> 
+```
 As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions like `defn`.
 
 #### respond! (shorthand: *>)

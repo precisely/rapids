@@ -59,7 +59,8 @@
   "Returns the s-expr representing the continuation at address"
   [pset address]
   (let [cdef (get pset address)
-        name (symbol (a/to-string address))]
+        addr-name (a/to-string address)
+        name (symbol addr-name)]
     `(fn ~name [{:keys ~(:params cdef)}] ~@(:body cdef))))
 
 (defn continuation-set-def

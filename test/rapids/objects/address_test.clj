@@ -23,6 +23,10 @@
       (is (= (:point (child c 2) [1 2])))
       (is (= (:point (child a 1 2 3)) [1 2 3]))))
 
+  (testing "Addresses with class access operator - dot should be converted"
+    (let [a (->address `foo '.)]
+      (is (= (:point a) ['dot]))))
+
   (testing "increment"
     (let [a (->address `foo)
           c (child a 1)]

@@ -28,8 +28,8 @@
 ;;         (b)}))       ; point = [1,baz,0,map,2]
 (declare to-string valid-point? simplify-if-symbol)
 (defrecord Address
-  [flow                       ; Symbol
-   point]                     ; Vector
+  [flow                                                     ; Symbol
+   point]                                                   ; Vector
   Object
   (toString [o] (str "<" (to-string o) ">")))
 
@@ -60,7 +60,7 @@
           (number? step)
           (-> address :point last number?)]}
    (let [point (:point address)
-         last  (last point)]
+         last (last point)]
      (assoc address :point (conj (pop point)
                              (+ step last))))))
 
@@ -75,7 +75,11 @@
   (and (every? #(or (keyword? %) (symbol? %) (number? %)) elts)))
 
 (defn simplify-if-symbol [x]
-  (if (qualified-symbol? x) (symbol (str (.getName x))) x))
+  (cond
+    (= x '.) 'dot
+    (qualified-symbol? x) (symbol (str (.getName x)))
+    :otherwise x))
+
 
 (defmethod print-method Address
   [o w]
