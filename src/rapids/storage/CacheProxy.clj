@@ -9,8 +9,8 @@
     :constructors {[Class Object] []}                       ; mapping of my-constructor -> superclass constuctor
     :init init
     :state index                                            ; name for the var that holds your internal state
-    :methods [[update [clojure.lang.IFn] rapids.storage.CacheProxy]
-              [setKey [clojure.lang.Keyword Object] Object]
+    :methods [[update [clojure.lang.IFn] Object]            ; should be CacheProxy, but gen-class generates an error
+              [setKey [clojure.lang.Keyword Object] Object] ;     see https://ask.clojure.org/index.php/736/gc-issue-81-compile-gen-class-fail-when-class-returns- self
               [theClass [] Class]
               [theId [] Object]]
     :main false))
