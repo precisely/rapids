@@ -1,10 +1,10 @@
 # Rapids
 
-A DSL for programming long running flows, involving interactions with the real world which may occur over minutes, days, or months. This library is intended to make it easy to write sophisticated user flows. 
+A DSL for programming long running user interaction flows. Rapids lets you build user interactions using  involving interactions with the real world which may occur over minutes, days, or months. This library is intended to make it easy to write sophisticated user flows. 
 
-Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits listening execution until an external event is received. This is done with the `(listen! :permit :permit context)` special form. The system uses a user-definable RunStore which stores the state of the computation when a `listen!` is encountered. A default in memory runstore is provided, but the system is intended to be used with persistent storage. 
+Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `(listen!)` special form. The system uses a persistent Storage which stores the state of the computation when a `listen!` is encountered. A default in memory runstore is provided, but the system is intended to be used with persistent storage. 
 
-Execution is restarted using `(continue! run-id context optional-result)`. The result provided to `continue!` becomes the value of the `listen!` expression in the ensuing computation, which continues until complete or another `listen!` is encountered.  
+Execution is restarted using `(continue! run-id {context optional-result)`. The result provided to `continue!` becomes the value of the `listen!` expression in the ensuing computation, which continues until complete or another `listen!` is encountered.  
 
 ## Basic Usage
 Also see `tests/Rapids_test.clj`.
@@ -12,14 +12,17 @@ Also see `tests/Rapids_test.clj`.
 ### Define a flow
 ```clojure
 (deflow multiply-by-user-input [x]
-  (respond! {:type :chat
-             :text "Hi, please enter a number!"})
-  (respond! {:type :number-input          ;\__ interpreted by caller to display
-             :type :number            ;/   user input UI
-             :context :user-number}) ; caller uses this when sending event
-  (* (listen!) x))       ; returns the value the user entered multiplied by x
+  (respond! "Hi, please enter a number!")
+  (let [user-num, (Integer/parseInt (listen!))
+        result (* user-num x)]
+  (*> (str "Multiplying " x " by " user-num " gives " result))  
 ```
 
+### Start the flow
+```clojure
+(start! multiply-by-user-input 5)
+=> 
+```
 As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions like `defn`.
 
 #### respond! (shorthand: *>)
@@ -50,22 +53,12 @@ When the expiry time is passed, execution resumes, with the `listen!` operator e
 
 #### block! (shorthand: <<!)
 
-Suspends execution of the current run until the given run completes. Returns the value returned by the given run. If the current run was redirected, control passes back to its parent.
+Suspends execution of the current run until the given run completes. Returns the value returned by the given run. 
 
 ```
 (block! run) ; or (<<! run)
 (block! run :expires expiry-time, :default value) 
 ```
-
-#### redirect! (shorthand: >>)
-
-Suspends the current run and passes control to the given run.
-
-```
-(redirect! run) ; or (>> run)
-```
-
-Adds the passed run's response to the current response, and sets the run as the next run. The current run is suspended until the passed run completes or blocks. The value returned will be the passed run in a suspended  or completed state.
 
 ### Starting a flow
 ```clojure
@@ -82,8 +75,48 @@ Adds the passed run's response to the current response, and sets the run as the 
 (continue! run-id permit data)
 ```
 
+## Setting up a backend
+
+Rapids works by persisting state of flows in non-volatile storage. This capability can be provided by implementing the protocols, in rapids.storage.protocol: Storage and StorageConnection. The library contains implementations of an in memory implementation (used for testing) and a Postgres-based implementation.
+
+
+### Setup a PostgresStorage Backend
+```clojure
+(ns mynamespace
+  (:require [rapids :refer :all]
+            [rapids.implementations.postgres-storage :refer [->postgres-storage postgres-storage-migrate!]])
+(set-storage! (->postgres-storage {:jdbcUrl "jdbc:postgresql://{host}:{port}/{dbname}`}))
+(postgres-storage-migrate!) ; uses the top-level storage by default          
+```
 
 ## Testing
+
+### IntelliJ / Cursive
+
+The IntelliJ project has shortcuts for running tests under the Tools Menu. First, start the Clojure nREPL, then choose one of the following:
+
+Tools -> Run Tests in Current Namespace in REPL
+Tools -> Run Tests Under Caret in REPL
+Tools -> Commands -> Run All Tests!
+
+### Postgres tests
+
+The test suite includes some tests for the Postgres backend which only run conditionally. To run them:
+
+1. install postgres
+   with homebrew: `brew install postgresql`
+2. start postgres
+   with homebrew: `brew services start postgresql`
+3. create a test database: `createdb rapids-test`
+4. include the following line in your .env file:
+   `TEST_POSTGRES_URL=postgresql://localhost:5432/rapids-test`
+
+### Command line
+
+I've had some issues with running tests from the command line:
+```shell
+lein test
+```
 
 The `rapids.test` namespace includes a couple of `clojure.test` compatible macros (`branch` and `keys-match`) which make it easier to test branching flows. These are useful because the `start!` and `continue!` methods cause side effects on the run. 
 
@@ -122,66 +155,6 @@ A wrapper around `is` and `match` to make it easy to match patterns in maps:
 
 ```clojure
 (keys-match obj-to-match :key1 pattern1 :key2 pattern2 ...) 
-```
-
-## Integrating Rapids into server
-
-### Import Run and IRunStore from rapids.runstore 
-
-```clojure
-(ns my.package
-  (:require [rapids.runstore :as rs]))
-
-...
-
-(extend MyDBAdapter
-  rs/IRunStore ; 
-  (rs/rs-create! [rs record] ...) ; return an object implementing rs/IRun with the given properties
-  (rs/rs-get [rs run-id] ...) ; find and return the record identified by run-id
-  (rs/rs-lock! [rs run-id] ...) ; return a record as provided by rs-update, locking it against changes (e.g., use `SELECT FOR UPDATE`)
-  (rs/rs-update! [rs record expires] ...) ; save the given record to the db - a map with a set of keys with values of `string`, `byte array`, `uuid` or `timestamp`
-                                          ; if expires is set, server should arrange for expire-run! to be called for that `run_id` at the given time
-```
-
-Here is an example Postgres definition of a table for storing runs:
-```sql
- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-DO $$ BEGIN
-  CREATE TYPE RUN_STATES AS ENUM ('created', 'suspended', 'complete', 'error');
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
-
-DO $$ BEGIN
-  CREATE TYPE RETURN_MODES AS ENUM ('block', 'redirect');
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
-
-CREATE TABLE IF NOT EXISTS runs (
-  id UUID DEFAULT uuid_generate_v4(),
-  PRIMARY KEY (id),
-
-  -- data columns
-  error BYTEA,
-  next_id UUID,
-  parent_run_id UUID,
-  response BYTEA,
-  result BYTEA,
-  return_mode RETURN_MODES,
-  run_response BYTEA,
-  stack BYTEA,
-  start_form TEXT,
-  state RUN_STATES,
-  suspend BYTEA,
-  suspend_expires TIMESTAMP,
-
-  -- timestamps
-  created_at TIMESTAMP  NOT NULL  DEFAULT current_timestamp,
-  updated_at TIMESTAMP  NOT NULL  DEFAULT current_timestamp
-);
-CREATE INDEX IF NOT EXISTS runs_suspend_expires ON runs (suspend_expires);
 ```
 
 ### Exception Types

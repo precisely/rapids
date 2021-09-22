@@ -1,32 +1,27 @@
 (ns rapids
-  ; macros must be explicitly referred to be available to ClojureScript
-  (:require rapids.deflow
-            rapids.run-loop
-            rapids.runstore
-            rapids.operators
-            rapids.expire
-            rapids.time
-            rapids.persistence
-            [rapids.in-memory-runstore :as imrs]
+  (:require rapids.runtime.core
+            rapids.language.core
+            rapids.language.time
+            [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]
             [potemkin :refer [import-vars]]))
 
 (import-vars
-  [rapids.runstore with-runstore set-runstore! create-run! save-run! get-run lock-run!]
-  [rapids.run run? run-in-state? run-in-mode?]
-  [rapids.deflow deflow]
-  [rapids.flow flow?]
-  [rapids.run-context current-run]
-  [rapids.run-loop start!, continue!]
-  [rapids.expire expire-run!]
-  [rapids.time years months weeks days hours minutes seconds weeks now from-now]
-  [rapids.operators
+  [rapids.language.core
+   deflow flow letflow
+   ->pool take-out! put-in! pool?
    fcall, fapply
    ;; operators. longform, shortform:
    listen!, <*,
    respond!, *>,
    block!, <<!,
-   redirect!, >>
    ;; start operator:
-   ! ])
+   !
+   expire-run!]
+  [rapids.runtime.core current-run start! continue! run?]
+  [rapids.language.time years months weeks days hours minutes seconds weeks now from-now]
+  [rapids.objects.flow flow?]
+  [rapids.objects.closure closure?]
+  [rapids.storage.core set-storage! with-storage])
 
-(rapids.runstore/set-runstore! (imrs/create-in-memory-runstore))
+;; the in memory storage is used by default
+(set-storage! (->in-memory-storage))
