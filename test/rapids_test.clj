@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
             [rapids.storage.core :as storage :refer [ensure-cached-connection]]
-            [helpers :refer [flush-cache! with-test-storage proxy-field with-runtime-env get-run get-pool throws-error-output run-in-state?]]
+            [test_helpers :refer [flush-cache! with-test-storage proxy-field with-runtime-env get-run get-pool throws-error-output run-in-state?]]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [rapids.partitioner.core :refer [partition-flow-body]]
             [expectations.clojure.test

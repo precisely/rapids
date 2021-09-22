@@ -1,8 +1,9 @@
-(ns helpers
+(ns test_helpers
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [rapids.storage.core :as s]
             [rapids.objects.run :as r]
+            rapids.objects.pool
             [rapids.runtime.runlet :as runlet]
             [rapids.implementations.in-memory-storage :as imrs]
             [spy.core :as spy]

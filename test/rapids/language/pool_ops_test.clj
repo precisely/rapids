@@ -7,7 +7,7 @@
             [rapids.objects.run :as r]
             [rapids.storage.core :as s]
             [rapids.language.pool-ops :refer :all]
-            [helpers :refer :all]
+            [test_helpers :refer :all]
             [spy.core :as spy])
   (:import (rapids.objects.pool PutIn)))
 

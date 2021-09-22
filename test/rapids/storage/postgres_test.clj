@@ -1,6 +1,6 @@
 (ns rapids.storage.postgres-test
   (:require [clojure.test :refer :all]
-            [helpers :refer [env]]
+            [test_helpers :refer [env]]
             [rapids.implementations.postgres-storage :refer :all]
             [rapids.storage.core :refer :all]
             [next.jdbc :as jdbc]
