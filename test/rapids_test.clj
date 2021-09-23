@@ -1,7 +1,7 @@
 (ns rapids_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [rapids.storage.core :as storage :refer [ensure-cached-connection]]
+            [rapids.storage.core :as storage :refer [ensure-cached-connection cache-proxy?]]
             [test_helpers :refer [flush-cache! with-test-storage proxy-field with-runtime-env get-run get-pool throws-error-output run-in-state?]]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [rapids.partitioner.core :refer [partition-flow-body]]
@@ -55,6 +55,16 @@
           (is (run-in-state? run :running))
           (is-log [:before-suspend])
 
+          (testing "Object returned by start! is a CacheProxy"
+            (is (storage/cache-proxy? run)))
+
+          (testing "CacheProxy returned by start provides access to full object"
+            (binding [rapids.storage.dynamics/*cache* nil]
+              (assert (not (storage/cache-exists?)))
+              (is (map? (.rawData run)))
+              (is (= :running (:state (.rawData run))))
+              (is (= :running (:state run)))))
+
           (testing "send event - with no permit"
             (flush-cache!)
             (let [ev-result (simulate-event! run)]
@@ -71,6 +81,16 @@
 
       (testing "providing a mismatched context throws an exception"
         (is (thrown? Exception (simulate-event! (start! event-value-flow "expecting"), :permit "actual")))))))
+
+(deftest ^:language CacheProxyTopLevelTests
+  (let [run (start! suspending-flow :foo)]
+    (testing "Invoking start! outside of cached connection should produce a CacheProxy with accessible raw data"
+      (assert (not (storage/cache-exists?)))
+      (is (map? (.rawData run))))
+    (testing "Invoking continue! outside of cached connection should produce a CacheProxy with accessible raw data"
+      (let [continued-run (continue! run :bar)]
+        (assert (not (storage/cache-exists?)))
+        (is (map? (.rawData continued-run)))))))
 
 (deflow fl-nest [arg context]
   (* arg (<* :permit context)))
@@ -703,3 +723,4 @@
                   "User said 'stop' (2)"
                   :halt]
                 (:take-out-values @pool-test-atom))))))))
+

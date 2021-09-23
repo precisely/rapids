@@ -40,7 +40,7 @@
   ([& fields]
    (get-in (current-run) fields))
   ([]
-   (s/->CacheProxy Run *current-run-id*)))
+   (s/cache-get! Run *current-run-id*)))
 
 ;;
 ;; Operations
