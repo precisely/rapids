@@ -9,8 +9,7 @@
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
                      side-effects]]
-            [rapids.objects.address :as address]
-            [spy.core :as spy])
+            [rapids.objects.address :as address])
   (:import (clojure.lang ExceptionInfo)))
 
 (deftest ^:language DefaultStorageTest

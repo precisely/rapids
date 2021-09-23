@@ -7,7 +7,9 @@
             [rapids.partitioner.partition-set :as pset]
             [rapids.partitioner.partition-utils :refer :all]
             [rapids.partitioner.recur :refer [with-tail-position with-binding-point *recur-binding-point* *tail-position*]]
-            [rapids.support.util :refer :all]))
+            [rapids.support.util :refer :all]
+            [rapids.objects.stack-frame :as sf])
+  (:import (clojure.lang ArityException)))
 
 ;;;; Partitioner
 
@@ -60,7 +62,7 @@
   partition-if-expr partition-let*-expr partition-fn*-expr
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
   partition-vector-expr partition-map-expr
-  partition-suspend-expr partition-flow-expr
+  partition-suspend-expr partition-flow-expr partition-ccc-expr
   resume-at)
 
 (defn partition-body
@@ -160,6 +162,7 @@
 
 (defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur} x))
 (defn flow-op? [x] (#{'flow 'rapids/flow} x))
+(defn ccc-op? [x] (#{'ccc `rapids/ccc} x))
 
 (defn partition-list-expr
   [expr mexpr partition-addr address params]
@@ -174,6 +177,7 @@
       (some suspending-operator? ops) (partition-suspend-expr expr mexpr partition-addr address params)
       (some flow/flow-symbol? ops) (partition-flow-invokation-expr mop expr mexpr partition-addr address params)
       (some flow-op? ops) (partition-flow-expr expr mexpr partition-addr address params)
+      (some ccc-op? ops) (partition-ccc-expr expr mexpr partition-addr address params)
       :else (partition-fncall-expr mop expr mexpr partition-addr address params))))
 
 ;;
@@ -439,6 +443,22 @@
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
       #(vec %))))
 
+(defn partition-ccc-expr
+  [exp, mexpr, partition-addr, address, params]
+  (let [[_ & args] exp
+        [f & _] args
+        faddr (a/child address 'ccc 0)
+        [fstart, fpset, fsuspending?] (partition-expr f, partition-addr, faddr, params)]
+    (if (= 1 (count args))
+      [`(let [stack# (rapids.runtime.runlet/current-run :stack)
+              fstart# ~fstart
+              continuation# (fn [data#]
+                              (rapids.runtime.runlet/update-run! :stack stack#)
+                              data#)]
+          (fstart# continuation#)), fpset, true]
+      (throw (ArityException. 2 "rapids/ccc")))))
+
+
 (defn partition-flow-invokation-expr
   [op, expr, mexpr, partition-addr, address, params]
   (let [[start, pset, _] (partition-functional-expr op expr mexpr partition-addr address params
@@ -488,7 +508,7 @@
                 new-params (conj params key)]
             (if suspend?
               (let [resume-pexpr `(resume-at [~next-address [~@params] ~key]
-                                    ~arg-start) 
+                                    ~arg-start)
                     let-bindings (vec (apply concat current-bindings))
                     pexpr (if (> (count current-bindings) 0)
                             `(let [~@let-bindings] ~resume-pexpr)
@@ -539,12 +559,12 @@
    (let [sigs (extract-signatures fdecl)
          entry-point-name (str (a/to-string address) "__entry-point")
          [psets, sig-defs] (reverse-interleave
-                               (apply concat
-                                 (map-indexed
-                                   (fn [idx sig]
-                                     (partition-signature m (a/child address idx) sig params))
-                                   sigs))
-                               2)
+                             (apply concat
+                               (map-indexed
+                                 (fn [idx sig]
+                                   (partition-signature m (a/child address idx) sig params))
+                                 sigs))
+                             2)
          pset (apply pset/combine psets)
          entry-fn-def `(fn ~(symbol entry-point-name) ~@sig-defs)]
      [entry-fn-def, pset])))
