@@ -1,7 +1,7 @@
 (ns rapids.language.flow
   (:require rapids.runtime.core
             [rapids.objects.address :refer [->address]]
-            [rapids.partitioner.core :refer [continuation-set-def partition-flow-body]]
+            [rapids.partitioner.core :refer [partition-fn-set-def partition-flow-body]]
             [rapids.objects.flow :refer [->Flow with-flow-definitions in-flow-definition-context?]]
             [rapids.support.util :refer [qualify-symbol]]))
 
@@ -16,8 +16,8 @@
       (let [qualified-name (qualify-symbol name)
             address (->address qualified-name)
             [entry-fn-def, pset] (partition-flow-body (meta &form) address fdecl)
-            flow-form `(let [cset# ~(continuation-set-def pset)]
-                         (->Flow '~qualified-name, ~entry-fn-def, cset#, ~pset))]
+            flow-form `(let [pfn-set# ~(partition-fn-set-def pset)]
+                         (->Flow '~qualified-name, ~entry-fn-def, pfn-set#, ~pset))]
         `(def ^{:doc ~docstring?} ~name ~flow-form)))))
 
 (defmacro flow

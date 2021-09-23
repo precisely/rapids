@@ -15,20 +15,21 @@
 ;;; Breaks flow bodies into partitions representing sequences of expressions
 ;;; which can be executed without being suspending.
 ;;;
-;;; Partitions are used to define continuations. Breaks are introduced by calls
-;;; to flows or to the `wait-for` function, which may only appear inside
-;;; flow bodies.
+;;; Partitions are the AST representations of code, used to define "partition functions" .
+;;; Breaks are introduced by calls to flows or to any suspending function like `listen!`.
+;;; Suspending functions can be defined by tagging the function ^:suspending. It tells
+;;; the partitions to introduce a break because calling the function _might_ return
+;;; a suspending event.
 ;;;
 ;;; When a flow is called, a StackFrame is created which captures the bindings
-;;; and the address where execution should resume. When a `(wait-for context)`
-;;; expression is encountered, the stack of thunks is persisted
-;;; to a non-volatile storage and associated with these values. When an event
-;;; matching the current `*run-id*` and `context` is received, the thunk stack is
-;;; retrieved, and execution is resumed at the point in the flow after the
-;;; `(wait-for)` call, with the bindings that were present when `(wait-for...)`
-;;; was invoked. At the end of each continuation, the thunk at the top of
-;;; the stack is popped and execution continues at the address in the next
-;;; thunk.
+;;; and the address where execution should resume. When a `(listen! :permit "foo")`
+;;; expression is encountered, the stack is persisted to a non-volatile storage
+;;; and associated with these values. When an event matching the current `*run-id*`
+;;; and `permit` is received, the run (which holds the stack) is retrieved, and
+;;; execution is resumed at the point in the flow after the `(listen!...)` call,
+;;; with the bindings that were present when `(listen!...)` was invoked. At the end
+;;; of each partition, the frame at the top of the stack is popped and execution
+;;; continues at the address in the next frame.
 ;;;
 
 ;;; A small, incomplete example:
@@ -41,7 +42,7 @@
 ;;;
 ;;; gets broken into 2 partitions, named by addresses (shown in angle brackets).
 ;;; The partitions contain all the information necessary for generating
-;;; continuations, the functions that actually implement a flow.
+;;; partition functions.
 ;;;
 ;;; <a1> => ```(fn [{:keys [arg]}] (resume-at [<a2> {:arg arg} 'result] (flow2 arg)))```
 ;;; <a2> => ```(fn [{:keys [arg result]}] (println "(flow2 %s) = %s" arg result))```
@@ -132,14 +133,14 @@
 
 (defn partition-expr
   "Breaks an expression down into partitions - blocks of code which are wrapped into
-  continuation functions which perform incremental pieces of evaluation.
+  functions which perform incremental pieces of evaluation.
 
   Args:
     expr - the expression to be partitioned
     partition = Address of the partition currently being built
     address - Address of the expression
     params - vector of currently bound parameters at this address point
-            these become keys when defining continuations
+            these become keys when defining functions
     data-key - where the code should
 
   Returns:
@@ -325,7 +326,7 @@
             (with-binding-point [loop-partition loop-params loop-body-params] ; partition-recur-expr will use this
               (partition-body loop-body loop-partition loop-partition loop-body-params)))
 
-          ;; the loop merely rebinds the loop parameters provided by the continuation
+          ;; the loop merely rebinds the loop parameters provided by the partition
           ;; note: we need a normal (loop ...) expression because we may have normal non-suspending
           ;; recur expressions in addition to suspending recur expressions.
           loop-partition-body [`(loop [~@(apply concat (map #(vector % %) loop-params))] ~@start-body)]
@@ -333,7 +334,7 @@
           loop-pset (pset/add (pset/create) loop-partition loop-partition-params loop-partition-body)
 
           flow-continue-bindings (bindings-expr-from-params loop-partition-params)
-          binding-body `[(flow/call-continuation ~loop-partition ~flow-continue-bindings)]
+          binding-body `[(flow/call-partition ~loop-partition ~flow-continue-bindings)]
 
           ;; now we can compute the initializers and give it the partitioned loop start...
           [binding-start, bindings-pset, binding-suspend?]
@@ -360,7 +361,7 @@
               (if-not (= (count args) recur-arity)
                 (throw-partition-error "Mismatched argument count to recur" expr "expected: %s args, got: %s"
                   (count args) recur-arity))
-              `(flow/call-continuation ~(:address *recur-binding-point*)
+              `(flow/call-partition ~(:address *recur-binding-point*)
                  ~bindings)))]
     (if-not *recur-binding-point*
       (throw-partition-error "No binding point" expr))
@@ -537,7 +538,7 @@
   ([m address fdecl params]
    (let [sigs (extract-signatures fdecl)
          entry-point-name (str (a/to-string address) "__entry-point")
-         [psets, arity-defs] (reverse-interleave
+         [psets, sig-defs] (reverse-interleave
                                (apply concat
                                  (map-indexed
                                    (fn [idx sig]
@@ -545,20 +546,23 @@
                                    sigs))
                                2)
          pset (apply pset/combine psets)
-         entry-fn-def `(fn ~(symbol entry-point-name) ~@arity-defs)]
+         entry-fn-def `(fn ~(symbol entry-point-name) ~@sig-defs)]
      [entry-fn-def, pset])))
 
 (defn- partition-signature
-  "Returns a pset and an arity definition.
+  "Returns a pset and and a partitioned sig definition.
 
-  Arity definition is a list containing an argument vector and code body"
+  For example, this function definition has 2 signatures aka
+  E.g., (defn foo
+          ([] (foo :bar))
+          ([msg] (println \"foo\" msg))"
   [m address sig params]
   (let [[args & code] sig
         params (vec (concat (params-from-args args [] (-> m :line)) params))
         [start-body, pset, _] (partition-body (vec code) address address params)
         pset (pset/add pset address params start-body)
-        entry-continuation-bindings (bindings-expr-from-params params)]
-    [pset, `([~@args] (flow/call-continuation ~address ~entry-continuation-bindings))]))
+        entry-bindings (bindings-expr-from-params params)]
+    [pset, `([~@args] (flow/call-partition ~address ~entry-bindings))]))
 
 ;;
 ;; HELPERS
@@ -585,9 +589,9 @@
 ;;
 (defmacro resume-at
   "Generates code that continues execution at address after flow-form is complete.
-  address - names the continuation
-  params - list of parameters needed by the continuation
-  data-key - the key to which the value of form will be bound in the continuation
+  address - names the partition
+  params - list of parameters needed by the partition
+  data-key - the key to which the value of form will be bound in the partition
   body - expression which may suspend the run
 
   Returns:

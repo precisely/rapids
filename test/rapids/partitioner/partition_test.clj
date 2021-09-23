@@ -98,7 +98,7 @@
               [_] false))
         (is (true? suspend?)))
 
-      (testing "there should be one continuation with the final expr"
+      (testing "there should be one partition with the final expr"
         (is (= (-> pset addresses count) 1))
         (let [cdef (get pset part2-address)]
           (is (= (get cdef :params) '[]))

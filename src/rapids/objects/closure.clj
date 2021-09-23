@@ -1,9 +1,9 @@
 ;;;
-;;; Enables persisting a closure across partitions. The strategy is to generate a flow
-;;; continuation which returns the closure. I.e., the continuation (stored in Flow :continuations)
+;;; Enables persisting a closure across partitions. The strategy is to generate a partition
+;;; function which returns the closure. I.e., the partition-fn (stored in Flow :partition-fns)
 ;;; looks like:
 ;;; #Flow{:name myflow
-;;;       :continuations {closure-address (fn [bindings]
+;;;       :partition-fns {closure-address (fn [bindings]
 ;;;                                          (fn ([argument-list...] ...) ([....] ...)))
 ;;;                       ...}
 ;;;       ...}
@@ -34,7 +34,7 @@
 
   Startable
   (s/call-entry-point [this args]
-    (let [closure-fn (flow/call-continuation (:address this) (:bindings this))] ; generate the closure with the bindings
+    (let [closure-fn (flow/call-partition (:address this) (:bindings this))] ; generate the closure with the bindings
       (apply closure-fn args))))
 
 (defn closure? [o] (instance? Closure o))

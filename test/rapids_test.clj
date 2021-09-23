@@ -476,7 +476,7 @@
   (log! (current-run))
   (*> :child-flow-response)
   (<*)
-  (*> :child-flow-after-continuation)
+  (*> :child-flow-after-suspending)
   :child-result)
 
 (deflow parent-flow-will-block []
@@ -543,7 +543,7 @@
                   (is (run-in-state? completed-child :complete))
                   (is (= (:id child-run) (:id completed-child))))
                 (testing "child response should contain only the child response"
-                  (is (= '(:child-flow-after-continuation) (:response completed-child))))
+                  (is (= '(:child-flow-after-suspending) (:response completed-child))))
 
                 (flush-cache!)
 

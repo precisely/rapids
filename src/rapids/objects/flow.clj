@@ -12,7 +12,7 @@
    ;; Function with arbitrary signature
    entry-point
    ;; A map of address-point strings to functions of the form (fn [{:keys [...]}])
-   continuations
+   partition-fns
    ;; For debugging purposes:
    partitions]
 
@@ -21,7 +21,7 @@
                  {:type :runtime-error})))
 
   Object
-  (toString [_] (format "#<Flow %s (%d partitions)>" name (count continuations)))
+  (toString [this] (format "#<Flow %s (%d partitions)>" (:name this) (-> this :partition-fns count)))
 
   Named
   (getNamespace [this] (.getNamespace (:name this)))
@@ -54,17 +54,17 @@
     (or (refers-to? flow? o)
       (*defining-flows* (qualify-symbol o)))))
 
-(defn call-continuation
-  "Executes the continuation at address with the given bindings"
+(defn call-partition
+  "Executes the partition function at address with the given bindings"
   [address bindings]
   {:pre [(a/address? address)
          (map? bindings)]}
   (let [flow (a/resolved-flow address)
-        continuation (get-in flow [:continuations address])]
-    (if-not (fn? continuation)
+        pfn (get-in flow [:partition-fns address])]
+    (if-not (fn? pfn)
       (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
                {:type :system-error})))
-    (continuation bindings)))
+    (pfn bindings)))
 
 (defmethod print-method Flow
   [o w]

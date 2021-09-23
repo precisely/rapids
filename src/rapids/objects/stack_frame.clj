@@ -14,11 +14,10 @@
              (not (qualified-symbol? data-key))))]}
   (StackFrame. address, bindings, (keyword data-key)))
 
-(defn stack-continuation
-  "Returns a function `(fn [data] ...)` which calls a flow continuation with the bindings
-  provided by the stack frame, plus a `value` which will be bound to the data-key
-  provided in `(resume-at ...)`. This is how external events transmit a value into a point
-  a flow."
+(defn stack-fn
+  "Returns a function `(fn [data] ...)` which calls a partition fn with the bindings
+  provided by the stack frame and ensures the value of `data` is bound to stack frame's data-key.
+  This is how external events transmit a value into a point of a flow."
   [frame]
   {:pre [(stack-frame? frame)]}
   (let [address    (:address frame)
@@ -29,4 +28,4 @@
                                    (assoc bindings
                                      data-key data)
                                    bindings)]
-        (flow/call-continuation address bindings-with-data)))))
+        (flow/call-partition address bindings-with-data)))))

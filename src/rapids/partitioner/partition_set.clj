@@ -1,17 +1,16 @@
 (ns rapids.partitioner.partition-set
   (:require [rapids.objects.address :as a :refer [address?]]))
 
-;;;; ContinuationSet
+;;;; PartitionSet
 
-;;; Stores continuation definitions. This structure is the main workhorse
-;;; used by partitioning functions to store and connect continuation functions
-;;; together.
+;;; Stores partitions. This structure is the main workhorse used by partitioning
+;;; functions to store and connect partitions together.
 
 (declare add create combine)
 
 ;;;; PartitionSet
 
-;;; A Partition is a body of code which defines a Continuation
+;;; A Partition is a signature which will be used to create a partition function
 ;;;
 (defrecord Partition [params body])
 
@@ -55,19 +54,19 @@
 (defn addresses [pset]
   (dissoc pset :unforced))
 
-(defn continuation-def
-  "Returns the s-expr representing the continuation at address"
+(defn partition-fn-def
+  "Returns the code which defines the partition fn at address"
   [pset address]
   (let [cdef (get pset address)
         addr-name (a/to-string address)
         name (symbol addr-name)]
     `(fn ~name [{:keys ~(:params cdef)}] ~@(:body cdef))))
 
-(defn continuation-set-def
+(defn partition-fn-set-def
   "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"
   [pset]
   (let [cdefs (map (fn [[address _]]
-                     [address (continuation-def pset address)]) (dissoc pset :unforced))]
+                     [address (partition-fn-def pset address)]) (dissoc pset :unforced))]
     `(hash-map ~@(apply concat cdefs))))
 
 (defn combine

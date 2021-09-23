@@ -6,5 +6,5 @@
 
 (import-vars
   [rapids.partitioner.partition-utils bindings-expr-from-params]
-  [rapids.partitioner.partition-set continuation-set-def]
+  [rapids.partitioner.partition-set partition-fn-set-def]
   [rapids.partitioner.partition partition-body partition-expr partition-flow-body])

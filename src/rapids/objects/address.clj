@@ -4,7 +4,7 @@
 
 ;; Address identifies a point in a flow.
 ;; While addresses can be generated for any point in the tree,
-;; not every point is a valid location for a continuation.
+;; not every point is a valid location for a partition.
 ;; Addresses are meant to be human readable for debugging purposes
 ;; E.g., in
 ;; (deflow foo []       ; flow = myns/foo
