@@ -16,7 +16,7 @@
    block!, <<!,
    ;; start operator:
    !
-   expire-run! ccc]
+   expire-run! callcc]
   [rapids.runtime.core current-run start! continue! run?]
   [rapids.language.time years months weeks days hours minutes seconds weeks now from-now]
   [rapids.objects.flow flow?]

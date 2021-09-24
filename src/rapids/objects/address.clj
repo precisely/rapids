@@ -44,7 +44,7 @@
 
 (defn to-string
   [a]
-  (str (.getName (:flow a)) "__" (string/join "_" (:point a))))
+  (str (.getName (:flow a)) "$" (string/join "_" (:point a))))
 
 (defn child
   [address & point]
@@ -81,7 +81,7 @@
     :otherwise x))
 
 
-(defmethod print-method Address
+#_(defmethod print-method Address
   [o w]
   (print-simple
     (str "#<Address " (to-string o) ">")

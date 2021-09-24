@@ -14,7 +14,9 @@
 ;;;
 (defrecord Partition [params body])
 
-(defmethod print-method Partition
+(defn partition? [o] (instance? Partition o))
+
+#_(defmethod print-method Partition
   [o w]
   (print-simple
     (str "#<Partition " (:params o) "\n\t" (clojure.string/join "\n\t" (:body o)) ">")

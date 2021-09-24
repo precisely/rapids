@@ -577,21 +577,16 @@
                     (is (= :child-result (:result parent-after-block-release)))))))))))))
 
 (deflow level3-suspends [suspend?]
-  #_(println "LEVEL3: " (:id (current-run)))
   (respond! :level3-start)                                  ; this does not get captured by level1 or level2 because the redirect operator is not used
-  #_(println "before level3 suspend")
   (if suspend? (listen!))
-  #_(println "after level3 suspend")
   (respond! :level3-end)
   :level3-result)
 
 (deflow level2-suspends-and-blocks [suspend-blocker?]
-  #_(println "inside level2")
   (respond! :level2-start)
   (listen!)                                                 ;; up to this point is capture by level1-start
   (clear-log!)                                              ;; continue level2-run should start here
   (respond! :level2-after-suspend)
-  #_(println "before level3 start")
   (let [level3 (start! level3-suspends suspend-blocker?)]
     (log! level3)                                           ;; continue level2-run ends here
     #_(println "before level3 block")
@@ -723,3 +718,12 @@
                   :halt]
                 (:take-out-values @pool-test-atom))))))))
 
+(deflow call-cc-fn-test []
+  (+ 1 (callcc (flow [cc]
+                 (+ 2
+                   (fcall cc 3)
+                   (assert false "This code never executes"))))))
+
+(deftest ^:language CallWithCurrentContinuationTest
+  (testing "Calling the current continuation abandons the current expression & provides a value to the location where it was generated"
+    (is (= 4 (:result (start! call-cc-fn-test))))))

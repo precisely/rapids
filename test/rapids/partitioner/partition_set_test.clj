@@ -34,14 +34,14 @@
 
     (testing "partition-fn-def"
       (is (= (partition-fn-def {addr1 (->Partition '[a b] '[(* a b)])} addr1)
-            '(clojure.core/fn main__1 [{:keys [a b]}] (* a b)))))
+            '(clojure.core/fn main$1 [{:keys [a b]}] (* a b)))))
 
     (testing "partition-fn-set-def"
       (is (= (partition-fn-set-def {addr1 (->Partition '[a b] '[(* a b)])
                                     addr2 (->Partition '[a c] '[(+ c a)])})
             `(clojure.core/hash-map
-               ~addr1 ~'(clojure.core/fn main__1 [{:keys [a b]}] (* a b))
-               ~addr2 ~'(clojure.core/fn main__2 [{:keys [a c]}] (+ c a))))))
+               ~addr1 ~'(clojure.core/fn main$1 [{:keys [a b]}] (* a b))
+               ~addr2 ~'(clojure.core/fn main$2 [{:keys [a c]}] (+ c a))))))
 
     (testing "forced and unforced addresses"
       (let [full-pset   (create)

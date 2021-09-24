@@ -7,10 +7,10 @@
 ;;
 (ns rapids.language.continuation
   (:require [rapids.runtime.runlet :refer [current-run update-run!]]
-            [rapids.language.flow :refer [flow]]
+            [rapids.language.flow :refer [flow deflow]]
             [rapids.language.operators :refer [fcall]]))
 
-(defmacro ccc
+(defmacro callcc
   "Call with current continuation. Saves the current state of the stack, and calls f
   with a function k of one argument which sets the stack to the current state and
   returns the value provided to it.
@@ -22,6 +22,9 @@
   => 4
   "
   [f]
-  `(throw (ex-info "Attempt to invoke ccc outside of deflow" {:form `(ccc ~f)})))
+  `(throw (ex-info "Attempt to invoke ccc outside of deflow" {:form `(callcc ~~f)})))
 
 
+(deflow make-current-continuation [data, stack]
+  (rapids.runtime.runlet/update-run! :stack stack)
+  data)

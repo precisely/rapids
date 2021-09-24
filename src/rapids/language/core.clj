@@ -7,7 +7,7 @@
             rapids.language.operators))
 
 (potemkin/import-vars
-  [rapids.language.continuation ccc]
+  [rapids.language.continuation callcc]
   [rapids.language.flow deflow flow letflow]
   [rapids.language.expire expire-run!]
   [rapids.language.pool-ops ->pool pool-id take-out! put-in! pool?]

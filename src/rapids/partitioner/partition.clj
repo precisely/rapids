@@ -62,14 +62,14 @@
   partition-if-expr partition-let*-expr partition-fn*-expr
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
   partition-vector-expr partition-map-expr
-  partition-suspend-expr partition-flow-expr partition-ccc-expr
+  partition-suspend-expr partition-flow-expr partition-callcc-expr
   resume-at)
 
 (defn partition-body
   "Partitions a list of expressions, e.g., for do, let and deflow forms
   Args:
    body     - list of expressions which should be partitiond
-   partition - the current external pAartition address
+   partition - the current external partition address
    address  - address of the current body; body forms will be address/0, address/1 etc
    params   - vector of symbols which will be bound on entry
 
@@ -162,7 +162,7 @@
 
 (defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur} x))
 (defn flow-op? [x] (#{'flow 'rapids/flow} x))
-(defn ccc-op? [x] (#{'ccc `rapids/ccc} x))
+(defn callcc-op? [x] (#{'callcc `rapids/callcc} x))
 
 (defn partition-list-expr
   [expr mexpr partition-addr address params]
@@ -174,10 +174,10 @@
       ;; attempt to detect operator in expression
       (some special-form-op? ops) (partition-special-expr mop expr mexpr partition-addr address params)
       ;; note: the following are not special-symbols, though the docs list them as special forms:
+      (some callcc-op? ops) (partition-callcc-expr expr mexpr partition-addr address params)
       (some suspending-operator? ops) (partition-suspend-expr expr mexpr partition-addr address params)
       (some flow/flow-symbol? ops) (partition-flow-invokation-expr mop expr mexpr partition-addr address params)
       (some flow-op? ops) (partition-flow-expr expr mexpr partition-addr address params)
-      (some ccc-op? ops) (partition-ccc-expr expr mexpr partition-addr address params)
       :else (partition-fncall-expr mop expr mexpr partition-addr address params))))
 
 ;;
@@ -443,20 +443,19 @@
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
       #(vec %))))
 
-(defn partition-ccc-expr
-  [exp, mexpr, partition-addr, address, params]
-  (let [[_ & args] exp
+(defn partition-callcc-expr
+  [exp, _, partition-addr, address, params]
+  (let [[op & args] exp
+        _ (assert (callcc-op? op))
         [f & _] args
-        faddr (a/child address 'ccc 0)
-        [fstart, fpset, fsuspending?] (partition-expr f, partition-addr, faddr, params)]
-    (if (= 1 (count args))
-      [`(let [stack# (rapids.runtime.runlet/current-run :stack)
-              fstart# ~fstart
-              continuation# (fn [data#]
-                              (rapids.runtime.runlet/update-run! :stack stack#)
-                              data#)]
-          (fstart# continuation#)), fpset, true]
-      (throw (ArityException. 2 "rapids/ccc")))))
+        faddr (a/child address 'callcc 0)
+        [fstart, fpset, _] (partition-expr f, partition-addr, faddr, params)]
+    (if (not= 1 (count args))
+      (throw (ArityException. 2 "rapids/callcc")))
+    [`(let [stack# (rapids.runtime.runlet/current-run :stack)
+            fstart# ~fstart
+            continuation# (rapids.language.operators/fcall rapids.language.flow/make-current-continuation stack#)]
+        (rapids/fcall fstart# continuation#)), fpset, true]))
 
 
 (defn partition-flow-invokation-expr
