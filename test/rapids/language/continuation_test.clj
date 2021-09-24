@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [rapids :refer [start!]]
             [rapids.objects.closure :refer [closure?]]
-            [rapids.language.continuation :refer :all]))
+            [rapids.language.cc :refer :all]))
 
 (deftest ^:unit ContinuationTest
   (testing "Cannot call callcc outside of deflow"

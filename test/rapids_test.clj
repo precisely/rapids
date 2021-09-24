@@ -514,72 +514,73 @@
 
 (deftest ^:language BlockingOperator
   (with-test-env
-   (testing "Before blocking, the parent run is returned by the start operator"
-     (let [returned-run (start! parent-flow-will-block)
-           [parent-run, child-run] @*log*]
-       (is (= (:id returned-run) (:id parent-run)))
-       (is (run-in-state? returned-run :running))
-       (is (-> parent-run :parent-run-id nil?))
-       (is (= '(:parent-before-blocking-call) (proxy-field returned-run :response)))
-       (testing "The child run is created, but is not returned initially"
-         (is child-run)
-         (is (:id child-run))
-         (is (:id parent-run))
-         (is (not (= (:id child-run) (:id parent-run)))))
+    (testing "Before blocking, the parent run is returned by the start operator"
+      (let [returned-run (start! parent-flow-will-block)
+            [parent-run, child-run] @*log*]
+        (is (= (:id returned-run) (:id parent-run)))
+        (is (run-in-state? returned-run :running))
+        (is (-> parent-run :parent-run-id nil?))
+        (is (= '(:parent-before-blocking-call) (proxy-field returned-run :response)))
+        (testing "The child run is created, but is not returned initially"
+          (is child-run)
+          (is (:id child-run))
+          (is (:id parent-run))
+          (is (not (= (:id child-run) (:id parent-run)))))
 
-       (testing "After blocking, the parent run is returned, suspended with a child-run id as permit"
-         (flush-cache!)
-         (let [parent-after-block (get-run (:id parent-run))]
-           (is (= (:state parent-after-block) :running))
-           (is (-> parent-after-block :suspend rapids.objects.signals/suspend-signal?))
+        (testing "After blocking, the parent run is returned, suspended with a child-run id as permit"
+          (flush-cache!)
+          (let [parent-after-block (get-run (:id parent-run))]
+            (is (= (:state parent-after-block) :running))
+            (is (-> parent-after-block :suspend rapids.objects.signals/suspend-signal?))
 
-           (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
+            (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
 
-           (testing "attempting to continue without a valid permit throws"
-             (flush-cache!)
-             (expect (more->
-                       ExceptionInfo type
-                       #"Invalid permit. Unable to continue run." ex-message
-                       :input-error (-> ex-data :type))
-               (continue! (:id parent-after-block))))
+            (testing "attempting to continue without a valid permit throws"
+              (flush-cache!)
+              (expect (more->
+                        ExceptionInfo type
+                        #"Invalid permit. Unable to continue run." ex-message
+                        :input-error (-> ex-data :type))
+                (continue! (:id parent-after-block))))
 
-           (testing "but the parent run is still suspended"
-             (is (= (-> parent-after-block :id get-run :state) :running)))
+            (testing "but the parent run is still suspended"
+              (is (= (-> parent-after-block :id get-run :state) :running)))
 
-           (testing "the parent response includes only the response from the parent run"
-             (is (= '(:parent-before-blocking-call) (:response parent-after-block)))))
+            (testing "the parent response includes only the response from the parent run"
+              (is (= '(:parent-before-blocking-call) (:response parent-after-block)))))
 
-         (flush-cache!)
+          (flush-cache!)
 
-         (let [child-run-after-block (get-run (:id child-run))]
+          (let [child-run-after-block (get-run (:id child-run))]
 
-           (testing "the child run has a record of its parent id"
-             (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
+            (testing "the child run has a record of its parent id"
+              (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
 
-           (testing "the child response includes only the response from the child run"
-             (is (= '(:child-flow-response) (:response child-run-after-block)))))
+            (testing "the child response includes only the response from the child run"
+              (is (= '(:child-flow-response) (:response child-run-after-block)))))
 
-         (flush-cache!)
+          (flush-cache!)
 
-         (testing "Continuing the child run..."
-           (let [completed-child (simulate-event! child-run)]
-             (testing "returns a completed child run"
-               (is (run-in-state? completed-child :complete))
-               (is (= (:id child-run) (:id completed-child))))
-             (testing "child response should contain only the child response"
-               (is (= '(:child-flow-after-suspending) (:response completed-child))))
+          (flush)
+          (testing "Continuing the child run..."
+            (let [completed-child (simulate-event! child-run)]
+              (testing "returns a completed child run"
+                (is (run-in-state? completed-child :complete))
+                (is (= (:id child-run) (:id completed-child))))
+              (testing "child response should contain only the child response"
+                (is (= '(:child-flow-after-suspending) (:response completed-child))))
 
-             (flush-cache!)
+              (flush-cache!)
 
-             (let [parent-after-block-release (get-run (:id parent-run))]
-               (testing "parent response should contain only the parent response"
-                 (is (= '(:parent-after-blocking-call) (:response parent-after-block-release))))
+              (let [parent-after-block-release (get-run (:id parent-run))]
+                (testing "parent response should contain only the parent response"
+                  (is (= '(:parent-after-blocking-call) (:response parent-after-block-release))))
 
-               (testing "parent should be in complete state"
-                 (is (run-in-state? parent-after-block-release :complete)))
+                (testing "parent should be in complete state"
+                  (is (run-in-state? parent-after-block-release :complete)))
 
-               (testing "parent result should be set correctly, which in this case is the result of the blocking call"
-                 (is (= :child-result (:result parent-after-block-release))))))))))))
+                (testing "parent result should be set correctly, which in this case is the result of the blocking call"
+                  (is (= :child-result (:result parent-after-block-release))))))))))))
 
 (deflow level3-suspends [suspend?]
   (respond! :level3-start)                                  ; this does not get captured by level1 or level2 because the redirect operator is not used
@@ -746,3 +747,87 @@
     (is (= ["callcc returns a closure" "callcc returns a value: 123"]
           (:response (start! call-cc-fn-test :recurrence))))))
 
+(def ^:dynamic *test-binding*)
+(declare dynamic-binding-test2)
+
+(deflow dynamic-binding-child-flow [pos]
+  (*> {:child [pos *test-binding*]}))
+
+(deflow dynamic-binding-parent-flow []
+  (binding [*test-binding* :outer-value]
+    (*> {:parent [:p1 *test-binding*]})
+    (dynamic-binding-child-flow :p1)
+    (<*)
+    ;;
+    ;; :p2
+    ;;
+    (*> {:parent [:p2 *test-binding*]})
+    (dynamic-binding-child-flow :p2)
+    (<*)
+
+    ;;
+    ;; :p3
+    ;;
+
+    (binding [*test-binding* :inner-value]
+      (*> {:parent [:p3 *test-binding*]})
+      (dynamic-binding-child-flow :p3)
+      (<*)
+
+      ;;
+      ;; :p4
+      ;;
+      (*> {:parent [:p4-inner *test-binding*]})
+      (dynamic-binding-child-flow :p4-inner))
+
+
+    ;;
+    ;; binding is undone
+    ;;
+    (*> {:parent [:p4-outer *test-binding*]})
+    (dynamic-binding-child-flow :p4-outer)
+    (<*)
+
+    ;;
+    ;; :p5
+    ;;
+    (*> {:parent [:p5 *test-binding*]})
+    (dynamic-binding-child-flow :p5)))
+
+(deftest ^:language DynamicBindingTest
+  (with-test-env
+    (testing ""
+      (let [run (start! dynamic-binding-parent-flow)]
+        (testing "Binding works normally in the first partition"
+          (is (= (:response run) [{:parent [:p1 :outer-value]}
+                                  {:child [:p1 :outer-value]}])))
+
+        ;; :p2
+        (flush-cache!)
+        (continue! run)
+        (testing "The binding holds in a subsequent partition"
+          (is (= (:response run) [{:parent [:p2 :outer-value]}
+                                  {:child [:p2 :outer-value]}])))
+
+        ;; :p3
+        (flush-cache!)
+        (continue! run)
+        (testing "The binding can be overridden"
+          (is (= (:response run) [{:parent [:p3 :inner-value]}
+                                  {:child [:p3 :inner-value]}])))
+
+        ;; :p4
+        (flush-cache!)
+        (continue! run)
+        (testing "The overriding binding holds in a subsequent partition, and can be released"
+          (is (= (:response run) [{:parent [:p4-inner :inner-value]}
+                                  {:child [:p4-inner :inner-value]}
+                                  {:parent [:p4-outer :outer-value]}
+                                  {:child [:p4-outer :outer-value]}])))
+
+        ;; :p5
+        (flush-cache!)
+        (continue! run)
+        (testing "Once released the binding remains at its original value in subsequent partitions"
+          (is (= (:response run) [{:parent [:p5 :outer-value]}
+                                  {:child [:p5 :outer-value]}])))))))

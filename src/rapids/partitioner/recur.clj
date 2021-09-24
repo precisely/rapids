@@ -10,10 +10,15 @@
   "Can be nil, false or true; nil = undefined; false = non-tail; true=tail"
   nil)
 
-(defmacro with-tail-position [[state] & body]
-  "Allows partitioning functions to determine whether they are executing
-  within a tail context. Note that the body argument represents calls to
-  partitioning functions, not user-land flows.
+(defmacro with-tail-position
+  "Every partitioning function should implement with-tail-position to allow
+  recur calls to be processed correctly.
+
+  Allows partitioning functions to determine whether they are executing
+  within a tail context by checking *tail-position*.
+
+  Note that the body argument represents calls to partitioning functions,
+  not user-land flows.
 
   state is boolean expression which sets *tail-position*
 
@@ -24,6 +29,7 @@
   :reset => sets *tail-position* to nil
   truthy => sets *tail-position* to true if *tail-position* is true or nil
   falsey => sets *tail-position* to false"
+  [state & body]
   `(let [state# ~state]
      (binding [*tail-position* (cond
                                  (not state#) false

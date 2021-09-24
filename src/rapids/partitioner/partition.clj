@@ -8,10 +8,9 @@
             [rapids.partitioner.partition-utils :refer :all]
             [rapids.partitioner.recur :refer [with-tail-position with-binding-point *recur-binding-point* *tail-position*]]
             [rapids.support.util :refer :all]
-            [rapids.support.debug :refer :all]
-            [rapids.objects.stack-frame :as sf])
+            [rapids.support.debug :refer :all])
   (:import (clojure.lang ArityException)))
-
+(use 'debux.core)
 ;;;; Partitioner
 
 ;;;
@@ -65,9 +64,10 @@
   partition-vector-expr partition-map-expr partition-set-expr
   partition-java-interop-expr partition-java-new-expr
   partition-suspend-expr partition-flow-expr partition-callcc-expr
-  partition-case-expr partition-case*-expr
+  partition-case-expr partition-case*-expr partition-binding-expr
   resume-at)
 
+(defn default-partition-modifier [p _ _] p)
 (defn partition-body
   "Partitions a list of expressions, e.g., for do, let and deflow forms
   Args:
@@ -75,7 +75,10 @@
    partition - the current external partition address
    address  - address of the current body; body forms will be address/0, address/1 etc
    params   - vector of symbols which will be bound on entry
-
+   modifier  - optional function which produces a modified version of the partition of the form (modifier p start? final?)
+               where start? is true if p is the first partition, and final? is true if p is the last partition.
+               Note that modifier will be called exactly once with both start? and final? set to true if the body
+               contains a single partition.
   Returns [
     start-body - forms which begin the execution of the body
     pset,      - partition set
@@ -99,6 +102,8 @@
   ;; The if-partitioner ends up calling partition-body twice, pasting the
   ;; results
   ([body partition-address address params]
+   (partition-body body partition-address address params default-partition-modifier))
+  ([body partition-address address params modifier]
    {:pre  [(vector? params)]
     :post [(vector (first %))]}
    (let [dirty-address partition-address]
@@ -111,26 +116,29 @@
             any-suspend? false]
        (if-not (empty? iter-body)
          (let [[expr & rest-body] iter-body
-               [pexpr expr-pset suspend?] (with-tail-position [(empty? rest-body)]
+               [pexpr expr-pset suspend?] (with-tail-position (empty? rest-body)
                                             (partition-expr expr partition-address cur-address params))
                pset (pset/combine pset expr-pset)
                next-address (a/increment cur-address)]
            (if suspend?
              (let [final-part-expr (if (> (count rest-body) 0) `(resume-at [~next-address [~@params] nil] ~pexpr) pexpr)
-                   part-body (conj part-body final-part-expr)
+                   part-body (modifier (conj part-body final-part-expr) (not start-body) (empty? rest-body))
                    pset (pset/add pset partition-address params part-body)]
 
+               ;; this partition ends here; next-address becomes the new partition-address
                (recur rest-body, pset, next-address, next-address, [], (or start-body part-body), suspend?))
              (recur rest-body, pset, next-address, partition-address, (conj part-body pexpr), start-body, any-suspend?)))
 
          ;; return result
          (let* [clean-pset (pset/delete pset dirty-address)
+                part-body (modifier part-body (not any-suspend?) true)
                 pset (if (> (count part-body) 0)
                        (pset/add clean-pset partition-address params part-body)
                        clean-pset)]
            (if any-suspend?
              [start-body, pset, any-suspend?]
-             [part-body, (pset/remove-unforced pset), false])))))))
+             [part-body,                                    ; we haven't run make-partition-body on this code yet
+              (pset/remove-unforced pset), false])))))))
 
 ;;
 ;; Expressions
@@ -157,7 +165,7 @@
   ]"
   [expr partition-addr address params]
   {:pre [(vector? params) (not (some constant? params))]}
-  (letfn [(attempt []
+  (letfn [(attempt-partitioning []
             (cond
               (non-partitioning? expr) [expr nil nil]
               (vector? expr) (partition-vector-expr expr partition-addr address params)
@@ -165,7 +173,7 @@
               (set? expr) (partition-set-expr expr partition-addr address params)
               (seq? expr) (partition-list-expr expr partition-addr address params)))]
     (binding [*partitioning-expr* (if (-> expr meta :line) expr *partitioning-expr*)]
-      (or (attempt)
+      (or (attempt-partitioning)
         (let [expanded (macroexpand-1 expr)]
           (cond
             (non-partitioning? expanded) [expr, nil, nil]
@@ -187,6 +195,7 @@
     (-> x resolve meta :macro (not= true))))
 (defn fn-like? [x] (#{'throw} x))
 (defn java-new-op? [x] (= 'new x))
+(defn binding-op? [x] (#{'binding `clojure.core/binding} x))
 
 (defn partition-list-expr
   [expr partition-addr address params]
@@ -199,6 +208,8 @@
       (java-inter-op? op) (partition-java-interop-expr expr partition-addr address params)
       (java-new-op? op) (partition-java-new-expr expr partition-addr address params)
       (special-form-op? op) (partition-special-expr op expr partition-addr address params)
+      (binding-op? op) (partition-binding-expr expr partition-addr address params)
+
       ;; note: the following are not special-symbols, though the docs list them as special forms:
       (callcc-op? op) (partition-callcc-expr expr partition-addr address params)
       (suspending-operator? op) (partition-suspend-expr expr partition-addr address params)
@@ -274,20 +285,108 @@
       #(list* 'new %))))
 
 (defn partition-let*-expr
+  ([expr, partition-addr, address, params]
+   (partition-let*-expr expr, partition-addr, address, params default-partition-modifier))
+  ([expr, partition-addr, address, params, modifier]
+   (let [address (a/child address 'let)
+         binding-address (a/child address 0)
+         body-address (a/child address 1)
+         [_ bindings & body] expr
+         [keys, args] (map vec (reverse-interleave bindings 2))
+
+         [body-start, body-pset, body-suspend?]
+         (partition-body body, partition-addr, body-address, (vec (concat params keys)), modifier)
+
+         [bind-start, bind-pset, bind-suspend?]
+         (partition-bindings keys, args, partition-addr, binding-address, params, body-start)
+
+         pset (pset/combine body-pset bind-pset)]
+     [bind-start, pset, (or bind-suspend? body-suspend?)])))
+
+
+;;
+;; Dynamic binding: (binding [*foo* "bar"] ...)
+;;
+;; To ensure dynamic binding semantics
+;;   - maintain a FILO stack of dynamic bindings in the Run, the "run dynamic bindings" (RDBs)
+;;   - separately manage the RDBs from the thread dynamic bindings (TDBs)
+;;   - the (binding [] ...) form is partitioned and has specific behaviors in each partition of the enclosed body:
+;;        1. in the first partition:
+;;              a the RDBs are saved (pushed) as a hashmap of vars to values
+;;              b the entire partition is wrapped by a standard Clojure (binding...) block, i.e.,
+;;                     TDBs are pushed at the beginning and popped at the end. This ensures dynamic value
+;;                     semantics during the first partition
+;;        2 the runtime environment generates TDBs from RDBs at the start of a runlet - e.g., within a
+;;              start! or continue! call. I.e., it effectively wraps runlets with a standard Clojure
+;;              (binding ...) form, ensuring that any RDBs in the run are made available in the runlet's
+;;              dynamic environment
+;;        3. code is added to the end of the last partition that pops the RDB hash-map pushed in step 1a
+;;
+
+(defn make-dynamic-binding-body-modifier
+  "Bindings should be a vector of two-typles of the form [[*dynvar* val] ...]"
+  [bindings]
+  (fn [body start? end?]
+    {:pre [(vector? body)]}
+    (let [var-map (into {} (map (fn [[lhs rhs]] `[(var ~lhs) ~rhs]) bindings))
+          ;; we cannot store vars in the run because nippy serialization doesn't handle Vars well
+          ;; see https://github.com/ptaoussanis/nippy/issues/143
+          ;; so, we store vars instead:
+          #_#_symbol-map (into {} (map (fn [[lhs rhs]] `[(quote ~(qualify-symbol lhs)) ~rhs]) bindings))]
+      (if (-> bindings count (= 0))
+        body
+        (if start?
+          ;; first partition: we need to add dynamic bindings to the run
+          ;; and establish the thread bindings.
+          `[(rapids.runtime.runlet/enter-binding-body (fn [] ~@body), ~var-map, ~end?)]
+
+          ;; subsequent partitions: run dynamic bindings have been established, so the runtime
+          ;; creates thread bindings automatically. All we need to do is undo the RDBs in
+          ;; the final partition.
+          `[(rapids.runtime.runlet/continue-binding-body (fn [] ~@body), ~end?)])))))
+
+
+(defn partition-binding-expr
+  "Partitions an expression of the form (binding [...] ...). Strategy is to partition the let bindings as normal,
+  then generate bindings using the keys. It effectively transforms
+
+  (binding [*a* (foo) *b* (bar)]
+    ... body)
+
+  to something like ...
+
+  (let [*a*123 (foo), *b*124 (bar)] ; gensymed symbols used to partition the values
+    (push-dynamic-bindings! {#'*a* *a*123, #'*b* *b*124})
+    (push-thread-dynamic-bindings {#'*a* *a*123, #'*b* *b*124})
+    (try ...body
+       (finally (pop-thread-dynamic-bindings))
+    (pop-dynamic-bindings!))
+
+    But we can't just simply rewrite the input then partition it because (try ..) cannot span a body
+    with suspending expressions. Hence, the code here. make-dynamic-binding-body-modifier does the bulk
+    of the work."
   [expr, partition-addr, address, params]
-  (let [address (a/child address 'let)
+  (let [address (a/child address 'binding)
         binding-address (a/child address 0)
         body-address (a/child address 1)
         [_ bindings & body] expr
-        [keys, args] (map vec (reverse-interleave bindings 2))
+        [dynvars, args] (map vec (reverse-interleave bindings 2))
+        keys (map gensym dynvars)
+        body-bindings (map #(vector %1 %2) dynvars keys)
+        modifier (make-dynamic-binding-body-modifier body-bindings)
 
         [body-start, body-pset, body-suspend?]
-        (partition-body body, partition-addr, body-address, (vec (concat params keys)))
+        (partition-body body, partition-addr, body-address, (vec (concat params keys))
+          modifier)
 
         [bind-start, bind-pset, bind-suspend?]
         (partition-bindings keys, args, partition-addr, binding-address, params, body-start)
 
         pset (pset/combine body-pset bind-pset)]
+    ;(println "\n\nbind-start")
+    ;(clojure.pprint/pprint bind-start)
+    ;(println "\n\npset")
+    ;(clojure.pprint/pprint pset)
     [bind-start, pset, (or bind-suspend? body-suspend?)]))
 
 (defn partition-if-expr
@@ -297,7 +396,7 @@
         [test-addr, then-addr, else-addr] (map #(a/child address %) [0 1 2])
 
         [test-start, test-pset, test-suspend?]
-        (with-tail-position [false]
+        (with-tail-position false
           (partition-expr test, partition-addr, test-addr, params))
 
         [then-start, then-pset, then-suspend?]
@@ -368,7 +467,7 @@
           ;; are treated as regular recur calls; otherwise, the recur is being executed
           ;; in a resumed runlet, so a call to the loop-partition is generated.
           [start-body, body-pset, body-suspend?]
-          (with-tail-position [:reset]
+          (with-tail-position :reset
             (with-binding-point [loop-partition loop-params loop-body-params] ; partition-recur-expr will use this
               (partition-body loop-body loop-partition loop-partition loop-body-params)))
 
@@ -439,21 +538,10 @@
         (partition-functional-expr op expr partition-addr address params
           #(cons op %))]
     [start, pset, true]))
-(require '[rapids.support.debug :refer :all])
+
 ;;
 ;; Partitioning expressions with bindings
 ;;
-(defn make-let-body [bindings body]
-  {:pre [(vector? body)]}
-  (let [filtered-bindings (filter (fn [[k v]]
-                                    (if (constant? k)       ; accept [asdf :foo] but not [:foo asdf]
-                                      (assert (= k v))      ; returns nil
-                                      [k v]))
-                            bindings)
-        let-bindings (vec (apply concat filtered-bindings))]
-    (if (-> let-bindings count (> 0))
-      [`(let [~@let-bindings] ~@body)]
-      body)))
 
 (defn partition-functional-expr
   "Partitions a function-like expression - a list with an operator followed
@@ -478,10 +566,17 @@
         [start, pset, true]                                 ; partition bindings has provided the correct result
         [value-expr, nil, false]))))
 
-(defn add-binding [bindings k v]
-  {:pre  [(vector? bindings)]
-   :post [(vector? bindings) (every? vector? bindings)]}
-  (if (or (constant? k) (= k v)) bindings (conj bindings [k v])))
+(defn make-let-body [bindings body]
+  {:pre [(vector? body)]}
+  (let [filtered-bindings (filter (fn [[k v]]
+                                    (if (constant? k)       ; accept [asdf :foo] but not [:foo asdf]
+                                      (assert (= k v))      ; returns nil
+                                      [k v]))
+                            bindings)
+        let-bindings (vec (apply concat filtered-bindings))]
+    (if (-> let-bindings count (> 0))
+      [`(let [~@let-bindings] ~@body)]
+      body)))
 
 (defn partition-bindings
   "Partitions the bindings, and executes `body` in that context. Note:
@@ -491,6 +586,8 @@
   The caller should separately partition forms and supply the `start` result
   as the `body` argument.
 
+  Note: the caller may pass constants for k, which indicates that the binding can be eliminated
+        this function also eliminates re-binding (where k is the same as v).
   Args:
   Returns: [start, pset, suspend?]"
   [keys, args, partition-address, address, params, body]
@@ -498,8 +595,13 @@
          (a/address? address)
          (vector? params)
          (vector? body)]}
-  (with-tail-position [false]
-    (let [dirty-address partition-address]
+  (with-tail-position false
+    (let [dirty-address partition-address
+          add-binding (fn [bindings k v]
+                        {:pre  [(vector? bindings)]
+                         :post [(vector? bindings) (every? vector? bindings)]}
+                        ;; eliminate constants and rebinding
+                        (if (or (constant? k) (= k v)) bindings (conj bindings [k v])))]
       (loop
         [[key & rest-keys] keys
          [arg & rest-args] args
@@ -600,7 +702,7 @@
       (throw (ArityException. (count args) "rapids/callcc")))
     [`(let [stack# (rapids.runtime.runlet/current-run :stack)
             fstart# ~fstart
-            continuation# (rapids.language.operators/fcall rapids.language.continuation/make-current-continuation stack#)]
+            continuation# (rapids.language.operators/fcall rapids.language.cc/make-current-continuation stack#)]
         (rapids/fcall fstart# continuation#)), fpset, true]))
 
 (defn partition-flow-invokation-expr
@@ -654,7 +756,7 @@
          entry-fn-def `(fn ~(symbol entry-point-name) ~@sig-defs)]
      [entry-fn-def, pset])))
 
-(defn- partition-signature
+(defn partition-signature
   "Returns a pset and and a partitioned sig definition.
 
   For example, this function definition has 2 signatures aka
@@ -693,7 +795,7 @@
 ;; resume-at
 ;;
 (defmacro resume-at
-  "Generates code that continues execution at address after flow-form is complete.
+  "Generates code that continues execution at address after body.
   address - names the partition
   params - list of parameters needed by the partition
   data-key - the key to which the value of form will be bound in the partition
