@@ -1,6 +1,6 @@
 (ns rapids.storage.storage_test
   (:require [clojure.test :refer :all]
-            [rapids.storage.dynamics :refer [*cache*]]
+            [rapids.storage.globals :refer [*cache*]]
             [rapids.storage.protocol :refer [thaw-record]]
             [rapids.storage.cache :refer [set-cache-entry get-cache-entry]]
             [rapids.storage.core :refer :all]
@@ -79,7 +79,7 @@
             (.update (->CacheProxy Foo 2) #(assoc % :val :updated))
             (is (= (->CacheProxy Foo 2) (cache-get! Foo 2)))
             (is (= (Foo. 2 :updated)
-                  (get-in rapids.storage.dynamics/*cache* [Foo 2 :object])))
+                  (get-in rapids.storage.globals/*cache* [Foo 2 :object])))
             (is (= (get-record! Foo 2) (Foo. 2 :initial))))))
       (testing "finally, items are updated in the storage"
         (ensure-connection

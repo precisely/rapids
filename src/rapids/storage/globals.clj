@@ -1,7 +1,7 @@
 ;;
 ;; Dynamics variables used by the storage system
 ;;
-(ns rapids.storage.dynamics
+(ns rapids.storage.globals
   (:require [rapids.storage.protocol :as p]))
 
 (def ^:dynamic *storage* nil)

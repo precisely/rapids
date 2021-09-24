@@ -149,7 +149,7 @@
 (defn postgres-storage-migrate!
   "Creates or updates Rapids tables in a JDBC database (currently only Postgres supported)."
   ([]
-   (let [storage (rapids.storage.dynamics/current-storage)]
+   (let [storage (rapids.storage.globals/current-storage)]
      (assert (postgres-storage? storage))
      (postgres-storage-migrate! )))
 

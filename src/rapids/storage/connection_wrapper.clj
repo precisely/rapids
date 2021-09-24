@@ -4,7 +4,7 @@
 (ns rapids.storage.connection-wrapper
   (:require
     [rapids.storage.protocol :as p]
-    [rapids.storage.dynamics :refer :all]))
+    [rapids.storage.globals :refer :all]))
 
 (declare instances-of? instances-of-same?)
 (defn transaction-begin! []

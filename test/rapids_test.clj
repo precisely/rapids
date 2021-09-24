@@ -58,7 +58,7 @@
             (is (storage/cache-proxy? run)))
 
           (testing "CacheProxy returned by start provides access to full object"
-            (binding [rapids.storage.dynamics/*cache* nil]
+            (binding [rapids.storage.globals/*cache* nil]
               (assert (not (storage/cache-exists?)))
               (is (map? (.rawData run)))
               (is (= :running (:state (.rawData run))))

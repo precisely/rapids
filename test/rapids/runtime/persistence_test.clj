@@ -11,7 +11,7 @@
             [rapids.storage.cache :refer [ensure-cached-connection]]
             [rapids.objects.address :as a]
             [rapids.storage.core :as s]
-            [rapids.storage.dynamics :refer [*cache*]])
+            [rapids.storage.globals :refer [*cache*]])
   (:import (rapids.objects.run Run)))
 
 (defn make-run-with-bindings [& {:keys [] :as keys}]
