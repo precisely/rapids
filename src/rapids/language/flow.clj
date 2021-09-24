@@ -42,8 +42,3 @@
     (with-flow-definitions flow-symbols
       `(let ~flow-bindings
          ~@body))))
-
-(deflow make-current-continuation [stack]
-  (flow [retval]
-    (rapids.runtime.runlet/update-run! :stack stack)
-    retval))

@@ -24,7 +24,7 @@
   [f]
   `(throw (ex-info "Attempt to invoke ccc outside of deflow" {:form `(callcc ~~f)})))
 
-
-(deflow make-current-continuation [data, stack]
-  (rapids.runtime.runlet/update-run! :stack stack)
-  data)
+(deflow make-current-continuation [stack]
+  (flow [retval]
+    (rapids.runtime.runlet/update-run! :stack stack)
+    retval))

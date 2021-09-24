@@ -454,9 +454,8 @@
       (throw (ArityException. 2 "rapids/callcc")))
     [`(let [stack# (rapids.runtime.runlet/current-run :stack)
             fstart# ~fstart
-            continuation# (rapids.language.operators/fcall rapids.language.flow/make-current-continuation stack#)]
+            continuation# (rapids.language.operators/fcall rapids.language.continuation/make-current-continuation stack#)]
         (rapids/fcall fstart# continuation#)), fpset, true]))
-
 
 (defn partition-flow-invokation-expr
   [op, expr, mexpr, partition-addr, address, params]
