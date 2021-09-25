@@ -23,7 +23,7 @@
   (+ 1 (ccc (flow [k] (+ 2 (k 3)))))
   => 4
   "
- [& args] `(throw (ex-info "Attempt to invoke ccc outside of deflow" () {:form `(callcc ~~@args)})))
+ [& args] `(throw (ex-info "Attempt to invoke callcc outside of deflow" {:form `(callcc ~~@args)})))
 
 (deflow make-current-continuation [stack]
   (flow [retval]
