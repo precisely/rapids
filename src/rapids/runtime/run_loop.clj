@@ -11,7 +11,7 @@
   (:import (rapids.objects.run Run)))
 
 (declare start! continue!)
-(declare eval-loop! next-continuation!)
+(declare eval-loop! next-stack-fn!)
 
 (defn start!
   "Starts a run with the flow and given arguments.
@@ -22,7 +22,7 @@
         start-form (prn-str `(~startable-name ~@args))]
     (ensure-cached-connection
       (with-run (cache-insert! (r/make-run {:state :running, :start-form start-form}))
-        ;; create the initial stack-continuation to kick of the process
+        ;; create the initial stack-fn to kick of the process
         (eval-loop! (fn [_] (startable/call-entry-point startable args)))
         (current-run)))))
 
@@ -50,58 +50,58 @@
                      :received permit
                      :run-id   run-id})))
          (initialize-run-for-runlet)                        ;; ensure response and suspend are empty
-         (eval-loop! (next-continuation!) data)
+         (eval-loop! (next-stack-fn!) data)
          (current-run))))))
 
 ;;
 ;; Helpers
 ;;
-(declare complete-run! stack-processor! next-continuation!)
+(declare complete-run! stack-processor! next-stack-fn!)
 (defn- eval-loop!
-  "Evaluates a stack-continuation (a closure taking a single argument representing the suspend variable value,
-  aka the result), passing values from one continuation to the next while reduce-stack! returns
+  "Evaluates a stack-fn (a closure taking a single argument representing the suspend variable value,
+  aka the result), passing values from one stack-fn to the next while reduce-stack! returns
   a function.
 
   Returns:  nil"
-  ([stack-continuation] (eval-loop! stack-continuation nil))
+  ([stack-fn] (eval-loop! stack-fn nil))
 
-  ([stack-continuation result]
-   (trampoline stack-processor! stack-continuation result)
+  ([stack-fn result]
+   (trampoline stack-processor! stack-fn result)
    nil))
 
-(defn- next-continuation!
-  "Gets the next stack-continuation in the current run-context.
+(defn- next-stack-fn!
+  "Gets the next stack-fn in the current run-context.
 
   Returns:
    function (fn [value] ...) which causes execution of the next partition, where value
    will be bound to the data-key established by `resume-at`"
   []
   (if-let [it (pop-stack!)]
-    (sf/stack-continuation it)))
+    (sf/stack-fn it)))
 
 (defn- stack-processor!
-  "Evaluates a stack continuation, popping the stack and passing the result to the next
-   continuation until either a continuation returns a Suspend instance or the stack is empty.
+  "Evaluates a stack function, popping the stack and passing the result to the next
+   stack-fn until either a stack-fn returns a Suspend instance or the stack is empty.
 
    This function updates the run in the cache.
 
    Returns:
-   Either a stack-continuation (to continue processing)
+   Either a stack-fn (to continue processing)
    or some undefined value."
-  ([continuation] (stack-processor! continuation nil))
+  ([stack-fn] (stack-processor! stack-fn nil))
 
-  ([continuation result]
+  ([stack-fn result]
    {:pre [(= (current-run :state) :running)
-          (or (fn? continuation) (nil? continuation))]}
+          (or (fn? stack-fn) (nil? stack-fn))]}
 
-   (if continuation
-     (let [next-result (continuation result)]
+   (if stack-fn
+     (let [next-result (stack-fn result)]
        (if (suspend-signal? next-result)
          ;; suspend current run
          (suspend-run! next-result)
 
-         ;; pass the value to the next continuation
-         (recur (next-continuation!) next-result)))
+         ;; pass the value to the next stack-fn
+         (recur (next-stack-fn!) next-result)))
 
      ;; stack exhausted - completed the current run
      (complete-run! result))))
@@ -111,7 +111,7 @@
   passing control to parent run if necessary.
 
   Returns:
-  Either a stack-continuation (if processing must continue)
+  Either a stack-fn (if processing must continue)
   or the result if processing was complete."
   [result]
   {:pre [(not (suspend-signal? result))]}

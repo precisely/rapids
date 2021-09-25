@@ -4,7 +4,7 @@
 
 ;; Address identifies a point in a flow.
 ;; While addresses can be generated for any point in the tree,
-;; not every point is a valid location for a continuation.
+;; not every point is a valid location for a partition.
 ;; Addresses are meant to be human readable for debugging purposes
 ;; E.g., in
 ;; (deflow foo []       ; flow = myns/foo
@@ -44,7 +44,7 @@
 
 (defn to-string
   [a]
-  (str (.getName (:flow a)) "__" (string/join "_" (:point a))))
+  (str (.getName (:flow a)) "$" (string/join "_" (:point a))))
 
 (defn child
   [address & point]
@@ -81,7 +81,7 @@
     :otherwise x))
 
 
-(defmethod print-method Address
+#_(defmethod print-method Address
   [o w]
   (print-simple
     (str "#<Address " (to-string o) ">")

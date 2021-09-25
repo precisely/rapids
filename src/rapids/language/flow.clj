@@ -1,7 +1,7 @@
 (ns rapids.language.flow
   (:require rapids.runtime.core
             [rapids.objects.address :refer [->address]]
-            [rapids.partitioner.core :refer [continuation-set-def partition-flow-body]]
+            [rapids.partitioner.core :refer [partition-fn-set-def partition-flow-body]]
             [rapids.objects.flow :refer [->Flow with-flow-definitions in-flow-definition-context?]]
             [rapids.support.util :refer [qualify-symbol]]))
 
@@ -10,21 +10,21 @@
   {:arglists '([name doc-string? attr-map? [params*] prepost-map? body]
                [name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
   [name docstring? & fdecl]
-  (if-not (string? docstring?)
-    (with-meta `(deflow ~name "" ~docstring? ~@fdecl) (meta &form))
-    (with-flow-definitions name
+  (with-flow-definitions name
+    (if-not (string? docstring?)
+      (with-meta `(deflow ~name "" ~docstring? ~@fdecl) (meta &form))
       (let [qualified-name (qualify-symbol name)
             address (->address qualified-name)
             [entry-fn-def, pset] (partition-flow-body (meta &form) address fdecl)
-            flow-form `(let [cset# ~(continuation-set-def pset)]
-                         (->Flow '~qualified-name, ~entry-fn-def, cset#, ~pset))]
+            flow-form `(let [pfn-set# ~(partition-fn-set-def pset)]
+                         (->Flow '~qualified-name, ~entry-fn-def, pfn-set#, ~pset))]
         `(def ^{:doc ~docstring?} ~name ~flow-form)))))
 
 (defmacro flow
   "Special form for constructing anonymous flows. May only be invoked inside of deflow. Returns a Closure."
   [name? & fdecl]
-  (if (in-flow-definition-context?)
-    &form                                                   ; let the partitioner handle it
+  (if (in-flow-definition-context?)                         ; let the partitioner handle it
+    &form
     (throw (ex-info "Invalid context: anonymous flow may only be defined inside of deflow."
              {:form &form}))))
 

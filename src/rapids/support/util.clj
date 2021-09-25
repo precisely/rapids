@@ -1,5 +1,6 @@
 (ns rapids.support.util
-  (:require [clojure.java.io :as io])
+  (:require [clojure.java.io :as io]
+            [clojure.pprint :as pprint])
   (:import (java.util UUID Properties)
            (clojure.lang Namespace Cons Atom)))
 

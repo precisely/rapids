@@ -12,9 +12,8 @@
   "Given an expr (fn-form) which constructs a function and lexical parameters available for binding,
   returns:
   [closure-ctor, pset]
-  closure-ctor expression that returns a Closure within a de& body.
-  continuation-def is a definition of a continuation function which returns a closure
-  of the fn defined by expr based on the current lexical bindings."
+  closure-ctor - code for generating the Closure
+  pset - the partition set (this method adds a single partition which generates the closure)"
   [fn-form address env-params]
   {:pre [(s/assert ::params env-params)]}
   (let [[_, fndefs] (extract-fn-defs fn-form)

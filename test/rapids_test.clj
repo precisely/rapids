@@ -1,16 +1,16 @@
 (ns rapids_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [rapids.storage.core :as storage :refer [ensure-cached-connection]]
+            [rapids.storage.core :as storage :refer [ensure-cached-connection cache-proxy?]]
             [test_helpers :refer [flush-cache! with-test-storage proxy-field with-runtime-env get-run get-pool throws-error-output run-in-state?]]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [rapids.partitioner.core :refer [partition-flow-body]]
+            [rapids.support.debug :refer :all]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
                      side-effects]]
-            [rapids.objects.address :as address]
-            [spy.core :as spy])
+            [rapids.objects.address :as address])
   (:import (clojure.lang ExceptionInfo)))
 
 (deftest ^:language DefaultStorageTest
@@ -55,6 +55,16 @@
           (is (run-in-state? run :running))
           (is-log [:before-suspend])
 
+          (testing "Object returned by start! is a CacheProxy"
+            (is (storage/cache-proxy? run)))
+
+          (testing "CacheProxy returned by start provides access to full object"
+            (binding [rapids.storage.globals/*cache* nil]
+              (assert (not (storage/cache-exists?)))
+              (is (map? (.rawData run)))
+              (is (= :running (:state (.rawData run))))
+              (is (= :running (:state run)))))
+
           (testing "send event - with no permit"
             (flush-cache!)
             (let [ev-result (simulate-event! run)]
@@ -71,6 +81,16 @@
 
       (testing "providing a mismatched context throws an exception"
         (is (thrown? Exception (simulate-event! (start! event-value-flow "expecting"), :permit "actual")))))))
+
+(deftest ^:language CacheProxyTopLevelTests
+  (let [run (start! suspending-flow :foo)]
+    (testing "Invoking start! outside of cached connection should produce a CacheProxy with accessible raw data"
+      (assert (not (storage/cache-exists?)))
+      (is (map? (.rawData run))))
+    (testing "Invoking continue! outside of cached connection should produce a CacheProxy with accessible raw data"
+      (let [continued-run (continue! run :bar)]
+        (assert (not (storage/cache-exists?)))
+        (is (map? (.rawData continued-run)))))))
 
 (deflow fl-nest [arg context]
   (* arg (<* :permit context)))
@@ -476,7 +496,7 @@
   (log! (current-run))
   (*> :child-flow-response)
   (<*)
-  (*> :child-flow-after-continuation)
+  (*> :child-flow-after-suspending)
   :child-result)
 
 (deflow parent-flow-will-block []
@@ -543,7 +563,7 @@
                   (is (run-in-state? completed-child :complete))
                   (is (= (:id child-run) (:id completed-child))))
                 (testing "child response should contain only the child response"
-                  (is (= '(:child-flow-after-continuation) (:response completed-child))))
+                  (is (= '(:child-flow-after-suspending) (:response completed-child))))
 
                 (flush-cache!)
 
@@ -558,21 +578,16 @@
                     (is (= :child-result (:result parent-after-block-release)))))))))))))
 
 (deflow level3-suspends [suspend?]
-  #_(println "LEVEL3: " (:id (current-run)))
   (respond! :level3-start)                                  ; this does not get captured by level1 or level2 because the redirect operator is not used
-  #_(println "before level3 suspend")
   (if suspend? (listen!))
-  #_(println "after level3 suspend")
   (respond! :level3-end)
   :level3-result)
 
 (deflow level2-suspends-and-blocks [suspend-blocker?]
-  #_(println "inside level2")
   (respond! :level2-start)
   (listen!)                                                 ;; up to this point is capture by level1-start
   (clear-log!)                                              ;; continue level2-run should start here
   (respond! :level2-after-suspend)
-  #_(println "before level3 start")
   (let [level3 (start! level3-suspends suspend-blocker?)]
     (log! level3)                                           ;; continue level2-run ends here
     #_(println "before level3 block")
@@ -703,3 +718,28 @@
                   "User said 'stop' (2)"
                   :halt]
                 (:take-out-values @pool-test-atom))))))))
+
+
+(deflow call-cc-fn-test [t]
+  (case t
+    :short-circuit (+ 1 (callcc (flow [cc]
+                                        (+ 2
+                                          (fcall cc 3)
+                                          (assert false "This code never executes")))))
+    :recurrence (let [retval (callcc)]
+                  (*> (if (closure? retval)
+                        "callcc returns a closure"
+                        (str "callcc returns a value: " retval)))
+                  (if (closure? retval)
+                    (fcall retval 123)))))
+
+(deftest ^:language CallWithCurrentContinuationTest
+  (testing (str "Short circuiting prevents execution of the form after invokation of the current continuation, "
+             " and provides the given value at the point of callcc")
+    ;; this test shows that the assert expr is never evaluated:
+    ;; (+ 2 (fcall cc 3) (assert false "This code never executes"))
+    (is (= 4 (:result (start! call-cc-fn-test :short-circuit)))))
+  (testing "Recurrence: Calling callcc with no args returns the current continuation, and calling it later returns control to the point where it was created"
+    (is (= ["callcc returns a closure" "callcc returns a value: 123"]
+          (:response (start! call-cc-fn-test :recurrence))))))
+

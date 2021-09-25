@@ -8,7 +8,7 @@
             [potemkin :refer [import-vars]]))
 
 (potemkin/import-vars
-  [rapids.storage.dynamics
+  [rapids.storage.globals
    with-storage set-storage! with-connection ensure-connection current-storage current-connection]
   [rapids.storage.connection-wrapper
    get-records! find-records! update-records! create-records!
