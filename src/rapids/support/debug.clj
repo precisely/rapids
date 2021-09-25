@@ -15,8 +15,8 @@
   ([msg r] (println msg r) r)
   ([msg from to] (println msg from "=>" to) to))
 
-(defn weird-symbol-replacer
-  ([form] (weird-symbol-replacer form "_v" (atom {}) (atom 0)))
+(defn replace-weird-symbols
+  ([form] (replace-weird-symbols form "_v" (atom {}) (atom 0)))
   ([form base symbol-dict counter]
    (letfn [(weird-symbol? [o]
              (and (symbol? o)
@@ -39,7 +39,7 @@
                  k)))
            (nice-record [r]
              (wsr (into {} r)))
-           (wsr [x] (weird-symbol-replacer x base symbol-dict counter))]
+           (wsr [x] (replace-weird-symbols x base symbol-dict counter))]
 
      (walk/postwalk #(cond
                        (keyword? %) (nice-keyword %)
@@ -49,7 +49,7 @@
                        (flow/flow? %) {:d:flow (nice-record %)}
                        (map? %) (nice-map %)
                        (seq? %) (seq %)
-                       (vector? %) (vec (map (fn [elt] (weird-symbol-replacer elt base symbol-dict counter))
+                       (vector? %) (vec (map (fn [elt] (replace-weird-symbols elt base symbol-dict counter))
                                           %))
                        (number? %) %
                        (string? %) %

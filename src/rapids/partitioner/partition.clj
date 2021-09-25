@@ -63,6 +63,7 @@
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
   partition-vector-expr partition-map-expr
   partition-suspend-expr partition-flow-expr partition-callcc-expr
+  partition-case-expr partition-case*-expr
   resume-at)
 
 (defn partition-body
@@ -160,7 +161,7 @@
       (map? mexpr) (partition-map-expr expr partition-addr address params)
       :otherwise [expr, nil, nil])))
 
-(defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur} x))
+(defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur 'case*} x))
 (defn flow-op? [x] (#{'flow 'rapids/flow} x))
 (defn callcc-op? [x] (#{'callcc `rapids/callcc} x))
 
@@ -172,6 +173,8 @@
         ops [op mop]]
     (cond
       ;; attempt to detect operator in expression
+      ;; special handling for case expr.
+      (#{'case `clojure.core/case} op) (partition-case-expr expr mexpr partition-addr address params)
       (some special-form-op? ops) (partition-special-expr mop expr mexpr partition-addr address params)
       ;; note: the following are not special-symbols, though the docs list them as special forms:
       (some callcc-op? ops) (partition-callcc-expr expr mexpr partition-addr address params)
@@ -191,6 +194,8 @@
     let* (partition-let*-expr expr mexpr partition-addr address params)
     fn* (partition-fn*-expr expr mexpr partition-addr address params)
     loop* (partition-loop*-expr expr mexpr address params)
+    case (partition-case-expr  expr mexpr partition-addr address params)
+    case* (partition-case*-expr  expr mexpr partition-addr address params)
     quote [expr, nil, false]
     recur (partition-recur-expr expr mexpr partition-addr address params)
     (throw-partition-error "Special operator not yet available in flows" expr "Operator: %s" op)))
@@ -403,6 +408,12 @@
 ;;
 ;; Partitioning expressions with bindings
 ;;
+(defn constant? [o]
+  (or (number? o) (boolean? o) (string? o) (keyword? o)
+    (and (or (vector? o) (set? o)) (every? constant? o))
+    (and (map? o)
+      (every? constant? (keys o))
+      (every? constant? (vals o)))))
 
 (defn partition-functional-expr
   "Partitions a function-like expression - a list with an operator followed
@@ -443,15 +454,36 @@
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
       #(vec %))))
 
+;; Clojure case* is optimized for constant time look up, but it's a pain to
+;; partition. My strategy is to just convert to a cond expression. This can't
+;; be done with case*, so we just have to throw an error in the unlikely case
+;; that a user actually writes that by hand.
+(defn partition-case-expr [expr, _, partition-addr, address, params]
+  (let [[op e & clauses] expr
+        [clauses, default] (if (odd? (count clauses))
+                             [(butlast clauses), (last clauses)]
+                             [clauses, nil])
+        evar (gensym)
+        cond-clauses (apply concat (map (fn [[left right]] [`(= ~evar ~left) right]) (partition 2 clauses)))
+        let-expr (with-meta `(let [~evar ~e]
+                               (cond ~@cond-clauses ~@(if default `((:otherwise ~default)))))
+                   (meta expr))]
+    (partition-expr let-expr, partition-addr, address, params)))
+
+(defn partition-case*-expr [expr & args]
+  (throw (ex-info "Unable to partition case* expression. Please use case or cond instead"
+           {:type :compiler-error :expr expr})))
+
 (defn partition-callcc-expr
   [exp, _, partition-addr, address, params]
   (let [[op & args] exp
         _ (assert (callcc-op? op))
         [f & _] args
+        f (or f identity)
         faddr (a/child address 'callcc 0)
         [fstart, fpset, _] (partition-expr f, partition-addr, faddr, params)]
-    (if (not= 1 (count args))
-      (throw (ArityException. 2 "rapids/callcc")))
+    (if (-> args count (> 1))
+      (throw (ArityException. (count args) "rapids/callcc")))
     [`(let [stack# (rapids.runtime.runlet/current-run :stack)
             fstart# ~fstart
             continuation# (rapids.language.operators/fcall rapids.language.continuation/make-current-continuation stack#)]
@@ -470,6 +502,8 @@
   (partition-functional-expr op expr mexpr partition-addr address params
     (fn [args] `(~op ~@args))))
 
+;; TODO: avoid binding constants
+;;       this creates generation of variables and unnecessary reassignment
 (defn partition-bindings
   "Partitions the bindings, and executes `body` in that context. Note:
   this function does not partition `body` - it merely pastes the supplied

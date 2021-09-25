@@ -5,6 +5,7 @@
             [test_helpers :refer [flush-cache! with-test-storage proxy-field with-runtime-env get-run get-pool throws-error-output run-in-state?]]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [rapids.partitioner.core :refer [partition-flow-body]]
+            [rapids.support.debug :refer :all]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
@@ -718,12 +719,27 @@
                   :halt]
                 (:take-out-values @pool-test-atom))))))))
 
-(deflow call-cc-fn-test []
-  (+ 1 (callcc (flow [cc]
-                 (+ 2
-                   (fcall cc 3)
-                   (assert false "This code never executes"))))))
+
+(deflow call-cc-fn-test [t]
+  (case t
+    :short-circuit (+ 1 (callcc (flow [cc]
+                                        (+ 2
+                                          (fcall cc 3)
+                                          (assert false "This code never executes")))))
+    :recurrence (let [retval (callcc)]
+                  (*> (if (closure? retval)
+                        "callcc returns a closure"
+                        (str "callcc returns a value: " retval)))
+                  (if (closure? retval)
+                    (fcall retval 123)))))
 
 (deftest ^:language CallWithCurrentContinuationTest
-  (testing "Calling the current continuation abandons the current expression & provides a value to the location where it was generated"
-    (is (= 4 (:result (start! call-cc-fn-test))))))
+  (testing (str "Short circuiting prevents execution of the form after invokation of the current continuation, "
+             " and provides the given value at the point of callcc")
+    ;; this test shows that the assert expr is never evaluated:
+    ;; (+ 2 (fcall cc 3) (assert false "This code never executes"))
+    (is (= 4 (:result (start! call-cc-fn-test :short-circuit)))))
+  (testing "Recurrence: Calling callcc with no args returns the current continuation, and calling it later returns control to the point where it was created"
+    (is (= ["callcc returns a closure" "callcc returns a value: 123"]
+          (:response (start! call-cc-fn-test :recurrence))))))
+

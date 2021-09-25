@@ -72,7 +72,9 @@
     `(hash-map ~@(apply concat cdefs))))
 
 (defn combine
-  [pset & psets]
+  [& psets]
+  (apply merge psets)
+  #_
   (if (> (count psets) 0)
     (let [pset1    pset
           [pset2 & rest-psets] psets
