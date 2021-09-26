@@ -67,8 +67,6 @@
 
 (defn add-responses! [& responses]
   (let [current-response (current-run :response)]
-    (if (not (vector? current-response))
-      (println "Ooops - current-response = " current-response))
     (assert (vector? current-response))
     (update-run! :response (vec (concat current-response responses)))
     responses))

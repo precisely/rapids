@@ -47,6 +47,7 @@
             next-address (address/child address `fl1 1)] ; fl1/0 is arg0, fl1/1 => "(fl1 ~arg0)"
         (is (true? suspend?))
         (testing "the start body should contain a resume-at expression pointing at the next-address, starting with the innermost term"
+          (println "start=" start)
           (is (match [start]
                 [([`rapids.partitioner.partition/resume-at [next-address ['z] _]
                    ([`operators/fcall `fl2 ([`a] :seq)] :seq)] :seq)] true

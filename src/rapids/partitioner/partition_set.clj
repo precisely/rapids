@@ -73,15 +73,4 @@
 
 (defn combine
   [& psets]
-  (apply merge psets)
-  #_
-  (if (> (count psets) 0)
-    (let [pset1    pset
-          [pset2 & rest-psets] psets
-          new-pset (if pset1
-                     (if pset2
-                       (merge pset1 pset2)
-                       pset1)
-                     pset2)]
-      (recur new-pset rest-psets))
-    pset))
+  (apply merge psets))
