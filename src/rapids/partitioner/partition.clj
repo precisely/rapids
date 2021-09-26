@@ -62,7 +62,7 @@
   partition-functional-expr partition-bindings
   partition-if-expr partition-let*-expr partition-fn*-expr
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
-  partition-vector-expr partition-map-expr
+  partition-vector-expr partition-map-expr partition-set-expr
   partition-suspend-expr partition-flow-expr partition-callcc-expr
   partition-case-expr partition-case*-expr
   resume-at)
@@ -157,9 +157,10 @@
   {:pre [(vector? params) (not (some constant? params))]}
   (let [mexpr (macroexpand-keeping-metadata expr)]
     (cond
-      (seq? mexpr) (partition-list-expr expr mexpr partition-addr address params)
       (vector? mexpr) (partition-vector-expr expr partition-addr address params)
       (map? mexpr) (partition-map-expr expr partition-addr address params)
+      (set? mexpr) (partition-set-expr expr partition-addr address params)
+      (seq? mexpr) (partition-list-expr expr mexpr partition-addr address params)
       :otherwise [expr, nil, nil])))
 
 (defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur 'case*} x))
@@ -428,7 +429,6 @@
   {:pre [(vector? params)]}
   (letfn [(call-form [args]
             (with-meta (make-call-form args) (meta expr)))]
-    ;(println "\n\n>>>>>>PARTITIONING FUNCTIONAL:" expr)
     (let [address (a/child address op)
           [_ & args] mexpr
           value-expr (call-form args)
@@ -438,7 +438,7 @@
           (partition-bindings keys args partition-address address params
             pcall-body)]
       (if suspend?
-        [start, pset, true] ; partition bindings has provided the correct result
+        [start, pset, true]                                 ; partition bindings has provided the correct result
         [value-expr, nil, false]))))
 
 (defn add-binding [bindings k v]
@@ -516,18 +516,24 @@
          (a/address? partition-addr)
          (a/address? address)
          (vector? params)]}
-  ;; TODO: this could be simplified...
-  (let [fake-op (symbol "_map_")
+  (let [fake-op (symbol "#map")
         pseudo-expr (cons fake-op (apply concat (map identity expr)))]
     (partition-functional-expr fake-op pseudo-expr pseudo-expr partition-addr address params
       (fn [args] (into {} (map vec (partition 2 args)))))))
 
 (defn partition-vector-expr
   [expr partition-addr address params]
-  (let [fake-op (symbol "_vec_")
+  (let [fake-op (symbol "#vec")
         expr-with-op (with-meta `(~fake-op ~@expr) (meta expr))]
     (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
       #(vec %))))
+
+(defn partition-set-expr
+  [expr partition-addr address params]
+  (let [fake-op (symbol "#set")
+        expr-with-op (with-meta `(~fake-op ~@expr) (meta expr))]
+    (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
+      #(set %))))
 
 ;; Clojure case* is optimized for constant time look up, but it's a pain to
 ;; partition. My strategy is to just convert to a cond expression. This can't
