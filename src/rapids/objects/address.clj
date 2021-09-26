@@ -34,6 +34,7 @@
   (toString [o] (str "<" (to-string o) ">")))
 
 (defn address? [o] (instance? Address o))
+
 (defn ->address
   [symbol & point]
   {:pre [(qualified-symbol? symbol)
@@ -42,9 +43,20 @@
     symbol
     (vec (map simplify-if-symbol point))))
 
+(defn point-to-string [address]
+  (letfn [(two-digit-num? [elt]
+            (or (and (number? elt) (> elt 9))
+              (if-let [str->num (try (Integer/parseInt (str elt)) (catch Exception e))]
+                (> str->num 9))))
+          (stringify-point-elt [elt]
+            (if (two-digit-num? elt)
+              (str "_" elt "_")
+              (str elt)))]
+    (str "$" (apply str (map stringify-point-elt (:point address))))))
+
 (defn to-string
   [a]
-  (str (.getName (:flow a)) "$" (string/join "_" (:point a))))
+  (str "$" (.getName (:flow a)) (point-to-string a)))
 
 (defn child
   [address & point]

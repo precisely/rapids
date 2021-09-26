@@ -1,7 +1,8 @@
 (ns rapids.partitioner.partition-utils
   (:require [rapids.support.util :refer [ifit in? unqualified-symbol?]]
             [clojure.walk :refer [postwalk]]
-            [clojure.set :refer [intersection difference]]))
+            [clojure.set :refer [intersection difference]]
+            [rapids.objects.address :as a]))
 
 ;;
 ;; HELPERS
@@ -16,22 +17,32 @@
 (defn macroexpand-keeping-metadata
   [expr]
   (let [expr-meta (meta expr)
-        mexpr     (macroexpand expr)]
+        mexpr (macroexpand expr)]
     (if expr-meta
       (if mexpr (with-meta mexpr expr-meta))
       mexpr)))
 
-(defn nsymbols
-  ([address n] (nsymbols address n 0))
+(defn constant? [o]
+  (or (number? o) (boolean? o) (string? o) (keyword? o)
+    (and (or (vector? o) (set? o)) (every? constant? o))
+    (and (map? o)
+      (every? constant? (keys o))
+      (every? constant? (vals o)))))
 
-  ([address n start]
-   (let [base (str "p|" (clojure.string/join "-" (:point address)))]
-     (map #(symbol (str base "|" %)) (range start n)))))
+(defn parameter-symbol [address]
+  (symbol (a/point-to-string address)))
+
+(defn make-implicit-parameters [address args]
+  (map-indexed (fn [i v]
+                 (if (or (constant? v) (symbol? v))
+                   v
+                   (parameter-symbol (a/child address i))))
+    args))
 
 (defn throw-partition-error
   ([name expr] (throw-partition-error name expr nil))
   ([name expr msg & args]
-   (let [loc        (ifit (:line (meta expr)) (format " (line %s)" it) "")
+   (let [loc (ifit (:line (meta expr)) (format " (line %s)" it) "")
          extra-info (if msg (str ". " (apply format msg args)) "")]
      (throw (ex-info (format "%s%s%s: %s" name loc extra-info expr)
               (assoc (meta expr)

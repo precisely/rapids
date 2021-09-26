@@ -34,5 +34,10 @@
 
   (testing "print-method"
     (let [a (child (->address `foo) 1 2)]
-      (is (= (with-out-str (prn a) "#<Address rapids.address_test/foo:1/2"))))))
+      (is (= (with-out-str (prn a) "#<Address rapids.address_test/foo:1/2")))))
+
+  (testing "to-string"
+    (let [a (->address `foo 0 0 'a 2 23 'b)]
+      (is (= (to-string a)
+            "$foo$00a2_23_b")))))
 
