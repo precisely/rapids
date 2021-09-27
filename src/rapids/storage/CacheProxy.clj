@@ -5,7 +5,7 @@
   (:require [rapids.storage.cache :refer [cache-exists? ensure-raw-object get-cache-entry set-cache-entry]])
   (:gen-class
     :implements [clojure.lang.ILookup]                      ; for ease of use
-    :constructors {[Class Object Object] []}                       ; mapping of my-constructor -> superclass constuctor
+    :constructors {[Class Object Object] []}                ; mapping of my-constructor -> superclass constuctor
     :init init
     :state state                                            ; name for the var that holds your internal state
     :methods [[update [clojure.lang.IFn] Object]            ; should be CacheProxy, but gen-class generates an error
@@ -43,8 +43,10 @@
   (:id @(.state this)))
 
 (defn -toString [this]
-  (format "(->CacheProxy %s %s)"
-    (-> this (.theClass) (.getName)) (-> this (.theId) str)))
+  (format "(CacheProxy. %s %s %s)"
+    (-> this (.theClass) (.getName))
+    (-> this (.theId) str)
+    (into {} (:recent @(.state this)))))
 
 (defn recent-instance [this]
   (let [state (.state this)]

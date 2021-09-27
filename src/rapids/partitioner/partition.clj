@@ -62,7 +62,7 @@
   partition-functional-expr partition-bindings
   partition-if-expr partition-let*-expr partition-fn*-expr
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
-  partition-vector-expr partition-map-expr partition-set-expr
+  partition-vector-expr partition-map-expr partition-set-expr partition-java-interop-expr
   partition-suspend-expr partition-flow-expr partition-callcc-expr
   partition-case-expr partition-case*-expr
   resume-at)
@@ -166,6 +166,8 @@
 (defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur 'case*} x))
 (defn flow-op? [x] (#{'flow 'rapids/flow} x))
 (defn callcc-op? [x] (#{'callcc `rapids/callcc} x))
+(defn case-op? [x] (#{'case `clojure.core/case} x))
+(defn java-inter-op? [x] (= '. x))
 
 (defn partition-list-expr
   [expr mexpr partition-addr address params]
@@ -176,7 +178,8 @@
     (cond
       ;; attempt to detect operator in expression
       ;; special handling for case expr.
-      (#{'case `clojure.core/case} op) (partition-case-expr expr mexpr partition-addr address params)
+      (case-op? op) (partition-case-expr expr mexpr partition-addr address params)
+      (some java-inter-op? ops) (partition-java-interop-expr expr mexpr partition-addr address params)
       (some special-form-op? ops) (partition-special-expr mop expr mexpr partition-addr address params)
       ;; note: the following are not special-symbols, though the docs list them as special forms:
       (some callcc-op? ops) (partition-callcc-expr expr mexpr partition-addr address params)
@@ -237,6 +240,13 @@
     ;;       pset and start-expr. As a result, anonymous flows produce a little bit of
     ;;       ugly overhead.
     [start-expr, pset, true]))
+
+(defn partition-java-interop-expr [expr mexpr partition-addr address params]
+  (let [[eop & _] expr]
+    (if-not (= eop '.)
+      (partition-functional-expr eop expr expr partition-addr address params
+        #(cons eop (seq %)))
+      (throw-partition-error "Java interop operator not yet supported" expr))))
 
 (defn partition-let*-expr
   [_, mexpr, partition-addr, address, params]
@@ -551,9 +561,8 @@
                    (meta expr))]
     (partition-expr let-expr, partition-addr, address, params)))
 
-(defn partition-case*-expr [expr & args]
-  (throw (ex-info "Unable to partition case* expression. Please use case or cond instead"
-           {:type :compiler-error :expr expr})))
+(defn partition-case*-expr [expr & _]
+  (throw-partition-error  "Unable to partition case* expression. Please use case or cond instead" expr))
 
 (defn partition-callcc-expr
   [exp, _, partition-addr, address, params]

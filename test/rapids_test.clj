@@ -129,6 +129,13 @@
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result) 1111))))))
 
+(deflow java-static-method-test [x]
+  (* (Integer/parseInt (<*)) x))
+
+(deftest ^:language JavaStaticTest
+  (testing "It can use Java static methods"
+    (is (= 990 (:result (continue! (start! java-static-method-test 10) {:data "99"}))))))
+
 (deflow conditional-suspend [test]
   (if test
     (<* :permit "then")
