@@ -151,7 +151,6 @@
     (let [[start, pset, suspend?] (partition-set-expr `#{(fl1) (fl2) 3} partition-address address [])]
       (is (= 2 (-> pset addresses count)))
       (is (true? suspend?))
-      (print start)
       (testing "one of the two suspending expressions is in start"
         (is (match [start]
               [([`rapids.partitioner.partition/resume-at [_ [] _] ([`operators/fcall _] :seq)] :seq)] true

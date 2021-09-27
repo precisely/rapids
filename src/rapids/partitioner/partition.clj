@@ -134,6 +134,9 @@
 ;;
 ;; Expressions
 ;;
+(defn source-form [expr]
+  (if-let [source (-> expr meta :source)]
+    source expr))
 
 (defn partition-expr
   "Breaks an expression down into partitions - blocks of code which are wrapped into
@@ -155,54 +158,62 @@
   ]"
   [expr partition-addr address params]
   {:pre [(vector? params) (not (some constant? params))]}
-  (let [mexpr (macroexpand-keeping-metadata expr)]
-    (cond
-      (vector? mexpr) (partition-vector-expr expr partition-addr address params)
-      (map? mexpr) (partition-map-expr expr partition-addr address params)
-      (set? mexpr) (partition-set-expr expr partition-addr address params)
-      (seq? mexpr) (partition-list-expr expr mexpr partition-addr address params)
-      :otherwise [expr, nil, nil])))
+  (letfn [(attempt []
+            (cond
+              (vector? expr) (partition-vector-expr expr partition-addr address params)
+              (map? expr) (partition-map-expr expr partition-addr address params)
+              (set? expr) (partition-set-expr expr partition-addr address params)
+              (seq? expr) (partition-list-expr expr partition-addr address params)))]
+    (or (attempt)
+      (let [expanded (macroexpand-1 expr)]
+        (if (or (= expanded expr) (nil? expanded))
+          [expr, nil, nil]
+          (let [m (meta expr)
+                expanded-meta (update (or m {}) :source #(or (:source %) expr))
+                expanded-expr-with-meta (with-meta expanded expanded-meta)]
+            (recur expanded-expr-with-meta partition-addr address params)))))))
 
 (defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur 'case*} x))
 (defn flow-op? [x] (#{'flow 'rapids/flow} x))
 (defn callcc-op? [x] (#{'callcc `rapids/callcc} x))
 (defn case-op? [x] (#{'case `clojure.core/case} x))
 (defn java-inter-op? [x] (= '. x))
+(defn fn-op? [x]
+  (and (refers-to? fn? x)
+    (-> x resolve meta :macro (not= true))))
 
 (defn partition-list-expr
-  [expr mexpr partition-addr address params]
+  [expr partition-addr address params]
   {:pre [(vector? params)]}
-  (let [op (first expr)
-        mop (first mexpr)
-        ops [op mop]]
+  (let [op (first expr)]
     (cond
       ;; attempt to detect operator in expression
       ;; special handling for case expr.
-      (case-op? op) (partition-case-expr expr mexpr partition-addr address params)
-      (some java-inter-op? ops) (partition-java-interop-expr expr mexpr partition-addr address params)
-      (some special-form-op? ops) (partition-special-expr mop expr mexpr partition-addr address params)
+      (case-op? op) (partition-case-expr expr partition-addr address params)
+      (java-inter-op? op) (partition-java-interop-expr expr partition-addr address params)
+      (special-form-op? op) (partition-special-expr op expr partition-addr address params)
       ;; note: the following are not special-symbols, though the docs list them as special forms:
-      (some callcc-op? ops) (partition-callcc-expr expr mexpr partition-addr address params)
-      (some suspending-operator? ops) (partition-suspend-expr expr mexpr partition-addr address params)
-      (some flow/flow-symbol? ops) (partition-flow-invokation-expr mop expr mexpr partition-addr address params)
-      (some flow-op? ops) (partition-flow-expr expr mexpr partition-addr address params)
-      :else (partition-fncall-expr mop expr mexpr partition-addr address params))))
+      (callcc-op? op) (partition-callcc-expr expr partition-addr address params)
+      (suspending-operator? op) (partition-suspend-expr expr partition-addr address params)
+      (flow/flow-symbol? op) (partition-flow-invokation-expr op expr partition-addr address params)
+      (flow-op? op) (partition-flow-expr expr partition-addr address params)
+      (fn-op? op) (partition-fncall-expr op expr partition-addr address params))))
 
 ;;
 ;; Special Symbols
 ;;
 (defn partition-special-expr
-  [op expr mexpr partition-addr address params]
+  [op expr partition-addr address params]
   (case op
-    if (partition-if-expr expr mexpr partition-addr address params)
-    do (partition-do-expr expr mexpr partition-addr address params)
-    let* (partition-let*-expr expr mexpr partition-addr address params)
-    fn* (partition-fn*-expr expr mexpr partition-addr address params)
-    loop* (partition-loop*-expr expr mexpr address params)
-    case (partition-case-expr expr mexpr partition-addr address params)
-    case* (partition-case*-expr expr mexpr partition-addr address params)
+    if (partition-if-expr expr partition-addr address params)
+    do (partition-do-expr expr partition-addr address params)
+    let* (partition-let*-expr expr partition-addr address params)
+    fn* (partition-fn*-expr expr partition-addr address params)
+    loop* (partition-loop*-expr expr address params)
+    case (partition-case-expr expr partition-addr address params)
+    case* (partition-case*-expr expr partition-addr address params)
     quote [expr, nil, false]
-    recur (partition-recur-expr expr mexpr partition-addr address params)
+    recur (partition-recur-expr expr partition-addr address params)
     (throw-partition-error "Special operator not yet available in flows" expr "Operator: %s" op)))
 
 (defn partition-fn*-expr
@@ -211,16 +222,16 @@
   This might happen inadvertently if the user uses a macro (like for) which
   expands into a (fn ...) expression. This is a bit of a blunt instrument,
   but not sure what else to do right now."
-  [expr mexpr partition-addr address params]
+  [expr partition-addr address params]
   (letfn [(check-non-suspending [sig]
             (let [body (rest sig)
                   [_, _, suspend?] (partition-body body partition-addr address params)]
               (if suspend?
                 (throw-partition-error "Illegal attempt to suspend in function body" expr))
               suspend?))]
-    (let [[_, sigs] (closure/extract-fn-defs mexpr)
+    (let [[_, sigs] (closure/extract-fn-defs expr)
           _ (doseq [sig sigs] (check-non-suspending sig))
-          [ctor, pset] (closure/closure-constructor mexpr address params)]
+          [ctor, pset] (closure/closure-constructor expr address params)]
 
       [ctor, pset, false])))
 
@@ -229,7 +240,7 @@
   Akin to Clojure's (fn [...] ...), but the body may contain suspending expressions.
   The partitioner partitions the flow body and returns a closure which invokes an
   entry point function for the flow."
-  [expr, mexpr, partition-addr, address params]
+  [expr, partition-addr, address params]
   (let [[entry-fn-def, pset] (partition-flow-body (meta expr) address (rest expr) params)
         entry-address (a/child address 'entry-point)
         pset (pset/add pset entry-address params [entry-fn-def])
@@ -241,19 +252,20 @@
     ;;       ugly overhead.
     [start-expr, pset, true]))
 
-(defn partition-java-interop-expr [expr mexpr partition-addr address params]
-  (let [[eop & _] expr]
-    (if-not (= eop '.)
-      (partition-functional-expr eop expr expr partition-addr address params
-        #(cons eop (seq %)))
-      (throw-partition-error "Java interop operator not yet supported" expr))))
+(defn partition-java-interop-expr [expr partition-addr address params]
+  (let [source (-> expr meta :source)
+        op (first source)]
+    (if source
+      (partition-functional-expr op source partition-addr address params
+        #(cons op (seq %)))
+      (throw-partition-error "Java interop operator not yet supported" source))))
 
 (defn partition-let*-expr
-  [_, mexpr, partition-addr, address, params]
+  [expr, partition-addr, address, params]
   (let [address (a/child address 'let)
         binding-address (a/child address 0)
         body-address (a/child address 1)
-        [_ bindings & body] mexpr
+        [_ bindings & body] expr
         [keys, args] (map vec (reverse-interleave bindings 2))
 
         [body-start, body-pset, body-suspend?]
@@ -266,8 +278,8 @@
     [bind-start, pset, (or bind-suspend? body-suspend?)]))
 
 (defn partition-if-expr
-  [expr mexpr partition-addr address params]
-  (let [[_ test then else] mexpr
+  [expr partition-addr address params]
+  (let [[_ test then else] expr
         address (a/child address 'if)
         [test-addr, then-addr, else-addr] (map #(a/child address %) [0 1 2])
 
@@ -295,8 +307,8 @@
     [start, full-pset, suspend?]))
 
 (defn partition-do-expr
-  [_ mexpr partition address params]
-  (let [[op & body] mexpr
+  [expr partition address params]
+  (let [[op & body] expr
         address (a/child address 'do)
         [bstart, pset, suspend?] (partition-body body partition address params)]
     (assert (= op 'do))
@@ -326,9 +338,9 @@
   ;;                    recur expressions in these partitions are wrappers
   ;;                    around (flow/exec <loop-partition/1> ...) where
   ;;                    the bindings contain the updated loop variables
-  [expr mexpr address params]
+  [expr address params]
   (let [op (first expr)
-        [_ bindings & loop-body] (if (in? '[loop loop*] op) expr mexpr)
+        [_ bindings & loop-body] (if (in? '[loop loop*] op) expr)
         form-address (a/child address 'loop)
         binding-partition (a/child form-address 0)
         loop-partition (a/child form-address 1)
@@ -371,7 +383,7 @@
 (defn partition-recur-expr
   "Returns:
   [start, pset, suspend?]"
-  [expr, mexpr, partition-address, address, params]
+  [expr, partition-address, address, params]
   (letfn [(make-call [args]
             (let [partition-params (:partition-params *recur-binding-point*)
                   loop-params (:loop-params *recur-binding-point*)
@@ -385,15 +397,15 @@
               `(flow/call-partition ~(:address *recur-binding-point*)
                  ~bindings)))]
     (if-not *recur-binding-point*
-      (throw-partition-error "No binding point" expr))
+      (throw-partition-error "No binding point" (source-form expr)))
     (if-not *tail-position*
       (throw-partition-error "Can only recur from tail position" expr))
 
-    (let [[op & args] mexpr
+    (let [[op & args] expr
           loop-address (:address *recur-binding-point*)
 
           [start, pset, suspend?]
-          (partition-functional-expr op, expr, mexpr, partition-address, address, params, make-call)
+          (partition-functional-expr op, expr, partition-address, address, params, make-call)
 
           same-partition (and (false? suspend?) (= partition loop-address))]
       (if same-partition
@@ -408,10 +420,10 @@
 ;;
 ;;
 (defn partition-suspend-expr
-  [expr, mexpr, partition-addr, address, params]
-  (let [op (first mexpr)
+  [expr, partition-addr, address, params]
+  (let [op (first expr)
         [start, pset, _]
-        (partition-functional-expr op expr mexpr partition-addr address params
+        (partition-functional-expr op expr partition-addr address params
           #(cons op %))]
     [start, pset, true]))
 (require '[rapids.support.debug :refer :all])
@@ -435,12 +447,12 @@
   by an arbitrary list of arguments.
   make-call-form - is a function which takes a list of parameters and returns
   a form which represents the functional call"
-  [op, expr, mexpr, partition-address, address, params, make-call-form]
+  [op, expr, partition-address, address, params, make-call-form]
   {:pre [(vector? params)]}
   (letfn [(call-form [args]
             (with-meta (make-call-form args) (meta expr)))]
     (let [address (a/child address op)
-          [_ & args] mexpr
+          [_ & args] expr
           value-expr (call-form args)
           keys (make-implicit-parameters address args)      ;
           pcall-body [(call-form keys)]
@@ -528,28 +540,28 @@
          (vector? params)]}
   (let [fake-op (symbol "#map")
         pseudo-expr (cons fake-op (apply concat (map identity expr)))]
-    (partition-functional-expr fake-op pseudo-expr pseudo-expr partition-addr address params
+    (partition-functional-expr fake-op pseudo-expr partition-addr address params
       (fn [args] (into {} (map vec (partition 2 args)))))))
 
 (defn partition-vector-expr
   [expr partition-addr address params]
   (let [fake-op (symbol "#vec")
         expr-with-op (with-meta `(~fake-op ~@expr) (meta expr))]
-    (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
+    (partition-functional-expr fake-op expr-with-op partition-addr address params
       #(vec %))))
 
 (defn partition-set-expr
   [expr partition-addr address params]
   (let [fake-op (symbol "#set")
         expr-with-op (with-meta `(~fake-op ~@expr) (meta expr))]
-    (partition-functional-expr fake-op expr-with-op expr-with-op partition-addr address params
+    (partition-functional-expr fake-op expr-with-op partition-addr address params
       #(set %))))
 
 ;; Clojure case* is optimized for constant time look up, but it's a pain to
 ;; partition. My strategy is to just convert to a cond expression. This can't
 ;; be done with case*, so we just have to throw an error in the unlikely case
 ;; that a user actually writes that by hand.
-(defn partition-case-expr [expr, _, partition-addr, address, params]
+(defn partition-case-expr [expr, partition-addr, address, params]
   (let [[op e & clauses] expr
         [clauses, default] (if (odd? (count clauses))
                              [(butlast clauses), (last clauses)]
@@ -562,10 +574,10 @@
     (partition-expr let-expr, partition-addr, address, params)))
 
 (defn partition-case*-expr [expr & _]
-  (throw-partition-error  "Unable to partition case* expression. Please use case or cond instead" expr))
+  (throw-partition-error "Unable to partition case* expression. Please use case or cond instead" expr))
 
 (defn partition-callcc-expr
-  [exp, _, partition-addr, address, params]
+  [exp, partition-addr, address, params]
   (let [[op & args] exp
         _ (assert (callcc-op? op))
         [f & _] args
@@ -580,16 +592,16 @@
         (rapids/fcall fstart# continuation#)), fpset, true]))
 
 (defn partition-flow-invokation-expr
-  [op, expr, mexpr, partition-addr, address, params]
-  (let [[start, pset, _] (partition-functional-expr op expr mexpr partition-addr address params
+  [op, expr, partition-addr, address, params]
+  (let [[start, pset, _] (partition-functional-expr op expr partition-addr address params
                            (fn [args]
                              `(rapids.language.operators/fcall ~op ~@args)))]
     [start, pset, true]))
 
 (defn partition-fncall-expr
-  [op, expr, mexpr, partition-addr, address, params]
+  [op, expr, partition-addr, address, params]
   {:pre [(vector? params)]}
-  (partition-functional-expr op expr mexpr partition-addr address params
+  (partition-functional-expr op expr partition-addr address params
     (fn [args] `(~op ~@args))))
 
 
