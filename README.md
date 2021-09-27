@@ -1,10 +1,10 @@
 # Rapids
 
-A DSL for programming long running user interaction flows. Rapids lets you build user interactions using  involving interactions with the real world which may occur over minutes, days, or months. This library is intended to make it easy to write sophisticated user flows. 
+A DSL for programming user interaction flows. 
 
-Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `(listen!)` special form. The system uses a persistent Storage which stores the state of the computation when a `listen!` is encountered. A default in memory runstore is provided, but the system is intended to be used with persistent storage. 
+Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `(listen!)` special form. The system uses a persistent Storage which saves the state of the computation when the `listen!` operator is invoked. An in-memory and Postgres implementation are provided. 
 
-Execution is restarted using `(continue! run-id {context optional-result)`. The result provided to `continue!` becomes the value of the `listen!` expression in the ensuing computation, which continues until complete or another `listen!` is encountered.  
+The control API consists of two main functions, `start!` and `continue!` for starting and continuing flows. 
 
 ## Basic Usage
 Also see `tests/Rapids_test.clj`.
@@ -17,13 +17,15 @@ Also see `tests/Rapids_test.clj`.
         result (* user-num x)]
   (*> (str "Multiplying " x " by " user-num " gives " result))  
 ```
+As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions like `defn`.
 
-### Start the flow
+### Simple example
 ```clojure
-(start! multiply-by-user-input 5)
+(let [run (start! multiply-by-user-input 5)]
+   (continue! (:id run) {:data "100"}) ; this would normally happen as the result of a separate web API call
+   (println (:result run))) ; prints 500
 => 
 ```
-As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions like `defn`.
 
 #### respond! (shorthand: *>)
 
@@ -47,7 +49,7 @@ Suspends execution of the run until a call to `continue!`.
 (listen! :permit permit, :expires expiry-time, :default value)
 ```
 
-A call to `listen!` causes the run to be persisted to storage. Execution is resumed by calling `continue!` and providing the run-id, the permit value (which is nil by default) and a `result` value. When the run resumes, the `(listen!...)` form evaluates to the `result` value. 
+A call to `listen!` causes the run to be persisted to storage. Execution is resumed by calling `continue!` and providing the run-id (available using `(:id run)`, the permit value (which is nil by default) and `data` value. When the run resumes, the `(listen!...)` form evaluates to the `result` value. 
 
 When the expiry time is passed, execution resumes, with the `listen!` operator evaluates to the value of the `default` argument, which is nil if not provided.
 
@@ -61,18 +63,19 @@ Suspends execution of the current run until the given run completes. Returns the
 ```
 
 ### Starting a flow
+
 ```clojure
-;; a call to an API initiates a run, requesting the flow to start
-;; the following code starts the flow and returns a response to the caller
+;; start! creates a run, beginning execution of the given flow
 
 (start! multiply-by-user-input 4)
+  ...
 ```
 
 ### Resume the flow 
 ```clojure
 ;; the caller provides run-id, context and data 
 ;; resume the flow as follows:
-(continue! run-id permit data)
+(continue! run-id {:permit permit :data data})
 ```
 
 ## Setting up a backend
