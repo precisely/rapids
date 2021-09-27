@@ -19,12 +19,11 @@
 
 (deftest ^:unit PoolPersistenceTest
   (testing "A pool when created is added to the storage"
-    (with-test-storage
-      (let [pid (atom nil)]
-        (with-runtime-env [p (->pool)]                      ; this adds the pool to the cache
-          (swap! pid (constantly (pool-id p))))
-        (with-runtime-env []
-          (is (raw-pool? (get-pool @pid)))))))
+    (with-test-env-run [pid (atom nil)
+                        p (->pool)]                         ; this adds the pool to the cache
+      (swap! pid (constantly (pool-id p)))
+      (flush-cache!)
+      (is (raw-pool? (get-pool @pid)))))
   (testing "A run containing a pool can be stored and retrieved"
     (with-test-storage
       (let [pid (atom nil)

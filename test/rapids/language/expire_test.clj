@@ -9,9 +9,8 @@
 
 (deftest ExpireRun
   (testing "It causes a suspended run to continue with the default value"
-    (with-test-storage
-      (s/ensure-cached-connection
-        (let [run (start! expiring-flow)
-              expired (expire-run! (:id run))]
-          (is (run-in-state? expired :complete))
-          (is (= (:result expired) :default-data)))))))
+    (with-test-env
+      (let [run (start! expiring-flow)
+            expired (expire-run! (:id run))]
+        (is (run-in-state? expired :complete))
+        (is (= (:result expired) :default-data))))))

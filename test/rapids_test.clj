@@ -2,10 +2,11 @@
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
             [rapids.storage.core :as storage :refer [ensure-cached-connection cache-proxy?]]
-            [test_helpers :refer [flush-cache! with-test-storage proxy-field with-runtime-env get-run get-pool throws-error-output run-in-state?]]
+            [test_helpers :refer [flush-cache! proxy-field with-test-env-run get-run get-pool throws-error-output run-in-state?]]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [rapids.partitioner.core :refer [partition-flow-body]]
             [rapids.support.debug :refer :all]
+            [test_helpers :refer :all]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally
@@ -47,40 +48,39 @@
   [permit] (<* :permit permit))
 
 (deftest ^:language BasicFlowTests
-  (with-test-storage
-    (ensure-cached-connection
-      (testing "Start and suspend"
-        (clear-log!)
-        (let [run (start! suspending-flow :foo)]
-          (is (run-in-state? run :running))
-          (is-log [:before-suspend])
+  (with-test-env
+    (testing "Start and suspend"
+      (clear-log!)
+      (let [run (start! suspending-flow :foo)]
+        (is (run-in-state? run :running))
+        (is-log [:before-suspend])
 
-          (testing "Object returned by start! is a CacheProxy"
-            (is (storage/cache-proxy? run)))
+        (testing "Object returned by start! is a CacheProxy"
+          (is (storage/cache-proxy? run)))
 
-          (testing "CacheProxy returned by start provides access to full object"
-            (binding [rapids.storage.globals/*cache* nil]
-              (assert (not (storage/cache-exists?)))
-              (is (map? (.rawData run)))
-              (is (= :running (:state (.rawData run))))
-              (is (= :running (:state run)))))
+        (testing "CacheProxy returned by start provides access to full object"
+          (binding [rapids.storage.globals/*cache* nil]
+            (assert (not (storage/cache-exists?)))
+            (is (map? (.rawData run)))
+            (is (= :running (:state (.rawData run))))
+            (is (= :running (:state run)))))
 
-          (testing "send event - with no permit"
-            (flush-cache!)
-            (let [ev-result (simulate-event! run)]
-              (is (run-in-state? ev-result :complete))
-              (is-log [:before-suspend :after-suspend])
+        (testing "send event - with no permit"
+          (flush-cache!)
+          (let [ev-result (simulate-event! run)]
+            (is (run-in-state? ev-result :complete))
+            (is-log [:before-suspend :after-suspend])
 
-              (testing "it returns the correct value"
-                (is (= (proxy-field ev-result :result) :foo)))))))
+            (testing "it returns the correct value"
+              (is (= (proxy-field ev-result :result) :foo)))))))
 
-      (testing "<* event provides a value"
-        (flush-cache!)
-        (let [run (simulate-event! (start! event-value-flow "foo"), :permit "foo", :data "foo-result")]
-          (is (= (proxy-field run :result) "foo-result"))))
+    (testing "<* event provides a value"
+      (flush-cache!)
+      (let [run (simulate-event! (start! event-value-flow "foo"), :permit "foo", :data "foo-result")]
+        (is (= (proxy-field run :result) "foo-result"))))
 
-      (testing "providing a mismatched context throws an exception"
-        (is (thrown? Exception (simulate-event! (start! event-value-flow "expecting"), :permit "actual")))))))
+    (testing "providing a mismatched context throws an exception"
+      (is (thrown? Exception (simulate-event! (start! event-value-flow "expecting"), :permit "actual"))))))
 
 (deftest ^:language CacheProxyTopLevelTests
   (let [run (start! suspending-flow :foo)]
@@ -106,29 +106,28 @@
   (+ a b c (<* :permit "event")))
 
 (deftest ^:language FunctionalExpressionTest
-  (with-test-storage
-    (ensure-cached-connection
-      (testing "nested flow arguments"
-        (let [run (start! nested-flow-args 2)
-              run2 (simulate-event! run, :permit "first", :data 3)
-              run3 (simulate-event! run2, :permit "second", :data 5)
-              run4 (simulate-event! run3, :permit "third", :data 7)]
-          (is (= (proxy-field run4 :result) (* 2 3 5 7)))))
+  (with-test-env
+    (testing "nested flow arguments"
+      (let [run (start! nested-flow-args 2)
+            run2 (simulate-event! run, :permit "first", :data 3)
+            run3 (simulate-event! run2, :permit "second", :data 5)
+            run4 (simulate-event! run3, :permit "third", :data 7)]
+        (is (= (proxy-field run4 :result) (* 2 3 5 7)))))
 
-      (testing "various suspending and non-suspending args"
-        (flush-cache!)
+    (testing "various suspending and non-suspending args"
+      (flush-cache!)
 
-        (let [run (simulate-event!
-                    (simulate-event! (start! fl-alternating), :permit "first-arg", :data 1),
-                    :permit "third", :data 3)]
-          (is (run-in-state? run :complete))
-          (is (= (proxy-field run :result) 321))))
+      (let [run (simulate-event!
+                  (simulate-event! (start! fl-alternating), :permit "first-arg", :data 1),
+                  :permit "third", :data 3)]
+        (is (run-in-state? run :complete))
+        (is (= (proxy-field run :result) 321))))
 
-      (testing "accepts keywords"
-        (let [run (simulate-event! (start! fl-keywords :a 1 :b 10 :c 100),
-                    :permit "event", :data 1000)]
-          (is (run-in-state? run :complete))
-          (is (= (proxy-field run :result) 1111)))))))
+    (testing "accepts keywords"
+      (let [run (simulate-event! (start! fl-keywords :a 1 :b 10 :c 100),
+                  :permit "event", :data 1000)]
+        (is (run-in-state? run :complete))
+        (is (= (proxy-field run :result) 1111))))))
 
 (deflow conditional-suspend [test]
   (if test
@@ -138,24 +137,23 @@
   :final-value)
 
 (deftest ^:language SimpleConditionals
-  (with-test-storage
-    (ensure-cached-connection
-      (testing "conditional suspends in then expr"
-        (clear-log!)
-        (let [run (start! conditional-suspend true)]
-          (testing "before event")
-          (is (run-in-state? run :running))
-          (is-log [])
-          (testing "after event"
-            (let [run (simulate-event! run, :permit "then")]
-              (is (= (proxy-field run :result) :final-value))
-              (is-log [:done])))))
+  (with-test-env
+    (testing "conditional suspends in then expr"
+      (clear-log!)
+      (let [run (start! conditional-suspend true)]
+        (testing "before event")
+        (is (run-in-state? run :running))
+        (is-log [])
+        (testing "after event"
+          (let [run (simulate-event! run, :permit "then")]
+            (is (= (proxy-field run :result) :final-value))
+            (is-log [:done])))))
 
-      (testing "but conditional does not suspend in else expr"
-        (clear-log!)
-        (let [run (start! conditional-suspend false)]
-          (is (= (proxy-field run :result) :final-value))
-          (is-log [:else :done]))))))
+    (testing "but conditional does not suspend in else expr"
+      (clear-log!)
+      (let [run (start! conditional-suspend false)]
+        (is (= (proxy-field run :result) :final-value))
+        (is-log [:else :done])))))
 
 (deflow nested-conditional-suspend [level1 level2]
   (if level1
@@ -168,39 +166,39 @@
   (log! :done))
 
 (deftest ^:language NestedConditionals
-  (with-test-storage
-    (ensure-cached-connection
-      (testing "<* correctly suspends inside nested then"
-        (clear-log!)
-        (let [run (start! nested-conditional-suspend true true)]
+  (with-test-env
 
-          (is (run-in-state? run :running))
-          (let [run-after-event (simulate-event! run, :permit "true-true")]
-            (is (run-in-state? run-after-event :complete))
-            (is-log [:done]))))
+    (testing "<* correctly suspends inside nested then"
+      (clear-log!)
+      (let [run (start! nested-conditional-suspend true true)]
 
-      (testing "non-suspending expression in nested else returns immediately"
-        (flush-cache!)
+        (is (run-in-state? run :running))
+        (let [run-after-event (simulate-event! run, :permit "true-true")]
+          (is (run-in-state? run-after-event :complete))
+          (is-log [:done]))))
 
-        (clear-log!)
-        (let [run (start! nested-conditional-suspend true false)]
-          (is (run-in-state? run :complete))
-          (is-log [:true-false :done])))
+    (testing "non-suspending expression in nested else returns immediately"
+      (flush-cache!)
 
-      (testing "non-suspending expression in nested then returns immediately"
-        (clear-log!)
-        (let [run (start! nested-conditional-suspend false true)]
-          (is (run-in-state? run :complete))
-          (is-log [:false-true :done])))
+      (clear-log!)
+      (let [run (start! nested-conditional-suspend true false)]
+        (is (run-in-state? run :complete))
+        (is-log [:true-false :done])))
 
-      (testing "<* correctly suspends inside nested else"
-        (clear-log!)
-        (let [run (start! nested-conditional-suspend false false)]
+    (testing "non-suspending expression in nested then returns immediately"
+      (clear-log!)
+      (let [run (start! nested-conditional-suspend false true)]
+        (is (run-in-state? run :complete))
+        (is-log [:false-true :done])))
 
-          (is (run-in-state? run :running))
-          (let [run-after-event (simulate-event! run, :permit "false-false")]
-            (is (run-in-state? run-after-event :complete))
-            (is-log [:done])))))))
+    (testing "<* correctly suspends inside nested else"
+      (clear-log!)
+      (let [run (start! nested-conditional-suspend false false)]
+
+        (is (run-in-state? run :running))
+        (let [run-after-event (simulate-event! run, :permit "false-false")]
+          (is (run-in-state? run-after-event :complete))
+          (is-log [:done]))))))
 
 (deflow conditional-with-suspending-test [val]
   (if (suspending-flow val)
@@ -508,74 +506,73 @@
     result))
 
 (deftest ^:language BlockingOperator
-  (with-test-storage
-    (ensure-cached-connection
-      (testing "Before blocking, the parent run is returned by the start operator"
-        (let [returned-run (start! parent-flow-will-block)
-              [parent-run, child-run] @*log*]
-          (is (= (:id returned-run) (:id parent-run)))
-          (is (run-in-state? returned-run :running))
-          (is (-> parent-run :parent-run-id nil?))
-          (is (= '(:parent-before-blocking-call) (proxy-field returned-run :response)))
-          (testing "The child run is created, but is not returned initially"
-            (is child-run)
-            (is (:id child-run))
-            (is (:id parent-run))
-            (is (not (= (:id child-run) (:id parent-run)))))
+  (with-test-env
+   (testing "Before blocking, the parent run is returned by the start operator"
+     (let [returned-run (start! parent-flow-will-block)
+           [parent-run, child-run] @*log*]
+       (is (= (:id returned-run) (:id parent-run)))
+       (is (run-in-state? returned-run :running))
+       (is (-> parent-run :parent-run-id nil?))
+       (is (= '(:parent-before-blocking-call) (proxy-field returned-run :response)))
+       (testing "The child run is created, but is not returned initially"
+         (is child-run)
+         (is (:id child-run))
+         (is (:id parent-run))
+         (is (not (= (:id child-run) (:id parent-run)))))
 
-          (testing "After blocking, the parent run is returned, suspended with a child-run id as permit"
-            (flush-cache!)
-            (let [parent-after-block (get-run (:id parent-run))]
-              (is (= (:state parent-after-block) :running))
-              (is (-> parent-after-block :suspend rapids.objects.signals/suspend-signal?))
+       (testing "After blocking, the parent run is returned, suspended with a child-run id as permit"
+         (flush-cache!)
+         (let [parent-after-block (get-run (:id parent-run))]
+           (is (= (:state parent-after-block) :running))
+           (is (-> parent-after-block :suspend rapids.objects.signals/suspend-signal?))
 
-              (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
+           (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
 
-              (testing "attempting to continue without a valid permit throws"
-                (flush-cache!)
-                (expect (more->
-                          ExceptionInfo type
-                          #"Invalid permit. Unable to continue run." ex-message
-                          :input-error (-> ex-data :type))
-                  (continue! (:id parent-after-block))))
+           (testing "attempting to continue without a valid permit throws"
+             (flush-cache!)
+             (expect (more->
+                       ExceptionInfo type
+                       #"Invalid permit. Unable to continue run." ex-message
+                       :input-error (-> ex-data :type))
+               (continue! (:id parent-after-block))))
 
-              (testing "but the parent run is still suspended"
-                (is (= (-> parent-after-block :id get-run :state) :running)))
+           (testing "but the parent run is still suspended"
+             (is (= (-> parent-after-block :id get-run :state) :running)))
 
-              (testing "the parent response includes only the response from the parent run"
-                (is (= '(:parent-before-blocking-call) (:response parent-after-block)))))
+           (testing "the parent response includes only the response from the parent run"
+             (is (= '(:parent-before-blocking-call) (:response parent-after-block)))))
 
-            (flush-cache!)
+         (flush-cache!)
 
-            (let [child-run-after-block (get-run (:id child-run))]
+         (let [child-run-after-block (get-run (:id child-run))]
 
-              (testing "the child run has a record of its parent id"
-                (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
+           (testing "the child run has a record of its parent id"
+             (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
 
-              (testing "the child response includes only the response from the child run"
-                (is (= '(:child-flow-response) (:response child-run-after-block)))))
+           (testing "the child response includes only the response from the child run"
+             (is (= '(:child-flow-response) (:response child-run-after-block)))))
 
-            (flush-cache!)
+         (flush-cache!)
 
-            (testing "Continuing the child run..."
-              (let [completed-child (simulate-event! child-run)]
-                (testing "returns a completed child run"
-                  (is (run-in-state? completed-child :complete))
-                  (is (= (:id child-run) (:id completed-child))))
-                (testing "child response should contain only the child response"
-                  (is (= '(:child-flow-after-suspending) (:response completed-child))))
+         (testing "Continuing the child run..."
+           (let [completed-child (simulate-event! child-run)]
+             (testing "returns a completed child run"
+               (is (run-in-state? completed-child :complete))
+               (is (= (:id child-run) (:id completed-child))))
+             (testing "child response should contain only the child response"
+               (is (= '(:child-flow-after-suspending) (:response completed-child))))
 
-                (flush-cache!)
+             (flush-cache!)
 
-                (let [parent-after-block-release (get-run (:id parent-run))]
-                  (testing "parent response should contain only the parent response"
-                    (is (= '(:parent-after-blocking-call) (:response parent-after-block-release))))
+             (let [parent-after-block-release (get-run (:id parent-run))]
+               (testing "parent response should contain only the parent response"
+                 (is (= '(:parent-after-blocking-call) (:response parent-after-block-release))))
 
-                  (testing "parent should be in complete state"
-                    (is (run-in-state? parent-after-block-release :complete)))
+               (testing "parent should be in complete state"
+                 (is (run-in-state? parent-after-block-release :complete)))
 
-                  (testing "parent result should be set correctly, which in this case is the result of the blocking call"
-                    (is (= :child-result (:result parent-after-block-release)))))))))))))
+               (testing "parent result should be set correctly, which in this case is the result of the blocking call"
+                 (is (= :child-result (:result parent-after-block-release))))))))))))
 
 (deflow level3-suspends [suspend?]
   (respond! :level3-start)                                  ; this does not get captured by level1 or level2 because the redirect operator is not used
@@ -723,9 +720,9 @@
 (deflow call-cc-fn-test [t]
   (case t
     :short-circuit (+ 1 (callcc (flow [cc]
-                                        (+ 2
-                                          (fcall cc 3)
-                                          (assert false "This code never executes")))))
+                                  (+ 2
+                                    (fcall cc 3)
+                                    (assert false "This code never executes")))))
     :recurrence (let [retval (callcc)]
                   (*> (if (closure? retval)
                         "callcc returns a closure"

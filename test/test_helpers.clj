@@ -54,13 +54,26 @@
   `(s/with-storage (imrs/->in-memory-storage)
      ~@body))
 
-(defmacro with-runtime-env [[& bindings] & body]
-  `(s/ensure-cached-connection
+(defmacro with-test-env
+  "Provides a storage and an active connection"
+  [& body]
+  {:pre [(not (vector? (first body)))]}
+  `(with-test-storage
+     (s/ensure-cached-connection
+       ~@body)))
+
+(defmacro with-test-env-run
+  "Provides a test environment and a run"
+  [bindings & body]
+  {:pre [(vector? bindings)]}
+  `(with-test-env
      (runlet/with-run (s/cache-insert! (r/make-run))
        (let [~@bindings]
          ~@body))))
 
-(defmacro with-continue!-stub [[stub return-value] & body]
+(defmacro with-continue!-stub
+  "Binds a spy/stub to stub which always returns return-value, redefining the continue!"
+  [[stub return-value] & body]
   `(let [~stub (spy/stub ~return-value)]
      (with-redefs [rapids.runtime.run-loop/continue! ~stub]
        ~@body)))

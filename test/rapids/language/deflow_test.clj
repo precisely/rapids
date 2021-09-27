@@ -1,7 +1,7 @@
 (ns rapids.language.deflow_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [rapids.storage.core :as storage]))
+            [test_helpers :refer :all]))
 
 (deflow suspending-flow [] (listen! :permit :a))
 (deflow flow-calling-flow [] (suspending-flow))
@@ -15,7 +15,7 @@
   (* a (<*)))
 
 (deftest deflow-macro
-  (storage/ensure-cached-connection
+  (with-test-env
     (testing "it should create a Flow object"
 
       (testing "when a suspend expression is in the body"
