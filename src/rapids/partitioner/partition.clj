@@ -62,7 +62,8 @@
   partition-functional-expr partition-bindings
   partition-if-expr partition-let*-expr partition-fn*-expr
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
-  partition-vector-expr partition-map-expr partition-set-expr partition-java-interop-expr
+  partition-vector-expr partition-map-expr partition-set-expr
+  partition-java-interop-expr partition-java-new-expr
   partition-suspend-expr partition-flow-expr partition-callcc-expr
   partition-case-expr partition-case*-expr
   resume-at)
@@ -134,9 +135,7 @@
 ;;
 ;; Expressions
 ;;
-(defn source-form [expr]
-  (if-let [source (-> expr meta :source)]
-    source expr))
+(def non-partitioning? (some-fn constant? symbol? nil? fn?))
 
 (defn partition-expr
   "Breaks an expression down into partitions - blocks of code which are wrapped into
@@ -160,18 +159,23 @@
   {:pre [(vector? params) (not (some constant? params))]}
   (letfn [(attempt []
             (cond
+              (non-partitioning? expr) [expr nil nil]
               (vector? expr) (partition-vector-expr expr partition-addr address params)
               (map? expr) (partition-map-expr expr partition-addr address params)
               (set? expr) (partition-set-expr expr partition-addr address params)
               (seq? expr) (partition-list-expr expr partition-addr address params)))]
-    (or (attempt)
-      (let [expanded (macroexpand-1 expr)]
-        (if (or (= expanded expr) (nil? expanded))
-          [expr, nil, nil]
-          (let [m (meta expr)
-                expanded-meta (update (or m {}) :source #(or (:source %) expr))
-                expanded-expr-with-meta (with-meta expanded expanded-meta)]
-            (recur expanded-expr-with-meta partition-addr address params)))))))
+    (binding [*partitioning-expr* (if (-> expr meta :line) expr *partitioning-expr*)]
+      (or (attempt)
+        (let [expanded (macroexpand-1 expr)]
+          (cond
+            (non-partitioning? expanded) [expr, nil, nil]
+            (= expanded expr)
+            (throw-partition-error "Unhandled expression: %s" expr)
+            :otherwise
+            (let [m (meta expr)
+                  expanded-meta (update (or m {}) :source #(or (:source %) expr))
+                  expanded-expr-with-meta (with-meta expanded expanded-meta)]
+              (partition-expr expanded-expr-with-meta partition-addr address params))))))))
 
 (defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur 'case*} x))
 (defn flow-op? [x] (#{'flow 'rapids/flow} x))
@@ -181,6 +185,8 @@
 (defn fn-op? [x]
   (and (refers-to? fn? x)
     (-> x resolve meta :macro (not= true))))
+(defn fn-like? [x] (#{'throw} x))
+(defn java-new-op? [x] (= 'new x))
 
 (defn partition-list-expr
   [expr partition-addr address params]
@@ -191,13 +197,14 @@
       ;; special handling for case expr.
       (case-op? op) (partition-case-expr expr partition-addr address params)
       (java-inter-op? op) (partition-java-interop-expr expr partition-addr address params)
+      (java-new-op? op) (partition-java-new-expr expr partition-addr address params)
       (special-form-op? op) (partition-special-expr op expr partition-addr address params)
       ;; note: the following are not special-symbols, though the docs list them as special forms:
       (callcc-op? op) (partition-callcc-expr expr partition-addr address params)
       (suspending-operator? op) (partition-suspend-expr expr partition-addr address params)
       (flow/flow-symbol? op) (partition-flow-invokation-expr op expr partition-addr address params)
       (flow-op? op) (partition-flow-expr expr partition-addr address params)
-      (fn-op? op) (partition-fncall-expr op expr partition-addr address params))))
+      (or (fn-like? op) (fn-op? op)) (partition-fncall-expr op expr partition-addr address params))))
 
 ;;
 ;; Special Symbols
@@ -214,7 +221,7 @@
     case* (partition-case*-expr expr partition-addr address params)
     quote [expr, nil, false]
     recur (partition-recur-expr expr partition-addr address params)
-    (throw-partition-error "Special operator not yet available in flows" expr "Operator: %s" op)))
+    (throw-partition-error "Special operator not yet available in flows %s" op)))
 
 (defn partition-fn*-expr
   "Throws if fn* contain suspending ops - this partitioner acts as a guard
@@ -227,7 +234,7 @@
             (let [body (rest sig)
                   [_, _, suspend?] (partition-body body partition-addr address params)]
               (if suspend?
-                (throw-partition-error "Illegal attempt to suspend in function body" expr))
+                (throw-partition-error "Illegal attempt to suspend in function body"))
               suspend?))]
     (let [[_, sigs] (closure/extract-fn-defs expr)
           _ (doseq [sig sigs] (check-non-suspending sig))
@@ -258,7 +265,13 @@
     (if source
       (partition-functional-expr op source partition-addr address params
         #(cons op (seq %)))
-      (throw-partition-error "Java interop operator not yet supported" source))))
+      (throw-partition-error "Java interop operator not yet supported"))))
+
+(defn partition-java-new-expr [expr partition-addr address params]
+  (let [[_ cls] expr
+        op (symbol (str cls "."))]
+    (partition-functional-expr op expr partition-addr address params
+      #(list* 'new %))))
 
 (defn partition-let*-expr
   [expr, partition-addr, address, params]
@@ -392,14 +405,14 @@
                               ~(bindings-expr-from-params partition-params) ;; ensure all the partition params are represented
                               ~(bindings-expr-from-params loop-params args))]
               (if-not (= (count args) recur-arity)
-                (throw-partition-error "Mismatched argument count to recur" expr "expected: %s args, got: %s"
+                (throw-partition-error "Mismatched argument count to recur. Expected: %s args, got: %s"
                   (count args) recur-arity))
               `(flow/call-partition ~(:address *recur-binding-point*)
                  ~bindings)))]
     (if-not *recur-binding-point*
-      (throw-partition-error "No binding point" (source-form expr)))
+      (throw-partition-error "No binding point"))
     (if-not *tail-position*
-      (throw-partition-error "Can only recur from tail position" expr))
+      (throw-partition-error "Can only recur from tail position"))
 
     (let [[op & args] expr
           loop-address (:address *recur-binding-point*)
@@ -445,6 +458,8 @@
 (defn partition-functional-expr
   "Partitions a function-like expression - a list with an operator followed
   by an arbitrary list of arguments.
+
+  Note: op is only used to generate an address
   make-call-form - is a function which takes a list of parameters and returns
   a form which represents the functional call"
   [op, expr, partition-address, address, params, make-call-form]
@@ -468,8 +483,6 @@
    :post [(vector? bindings) (every? vector? bindings)]}
   (if (or (constant? k) (= k v)) bindings (conj bindings [k v])))
 
-;; TODO: avoid binding constants
-;;       this creates generation of variables and unnecessary reassignment
 (defn partition-bindings
   "Partitions the bindings, and executes `body` in that context. Note:
   this function does not partition `body` - it merely pastes the supplied
@@ -485,7 +498,6 @@
          (a/address? address)
          (vector? params)
          (vector? body)]}
-  ;(println "\n\n(partition-bindings " (zipmap keys args) ")")
   (with-tail-position [false]
     (let [dirty-address partition-address]
       (loop
@@ -581,7 +593,7 @@
   (let [[op & args] exp
         _ (assert (callcc-op? op))
         [f & _] args
-        f (or f identity)
+        f (or f `clojure.core/identity)
         faddr (a/child address 'callcc 0)
         [fstart, fpset, _] (partition-expr f, partition-addr, faddr, params)]
     (if (-> args count (> 1))

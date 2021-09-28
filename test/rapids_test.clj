@@ -367,7 +367,7 @@
                   {}
                   (address/->address `foo)
                   '([]
-                    (<* :permit "foo")
+                    (rapids/<* :permit "foo")
                     (loop [a 1]
                       (recur 2 :extra)))))))
         (testing "loop has more bindings"
@@ -377,7 +377,7 @@
                   {}
                   (address/->address `foo)
                   '([]
-                    (<* :permit "foo")
+                    (rapids/<* :permit "foo")
                     (loop [a 1 b 2]
                       ;; recur has extra argument
                       (recur 2))))))))
@@ -389,7 +389,7 @@
                   {}
                   (address/->address `foo)
                   '([]
-                    (<* :permit "a")
+                    (rapids/<* :permit "a")
                     (loop [a 1]
                       (recur 2)
                       (println "I'm in the tail pos")))))))
@@ -400,7 +400,7 @@
                   {}
                   (address/->address `foo)
                   '([] (loop [a 1]
-                         (<* :permit "a")
+                         (rapids/<* :permit "a")
                          (recur 2)
                          (println "I'm in the tail pos")))))))))
 
@@ -722,7 +722,6 @@
                   "User said 'stop' (2)"
                   :halt]
                 (:take-out-values @pool-test-atom))))))))
-
 
 (deflow call-cc-fn-test [t]
   (case t
