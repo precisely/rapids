@@ -39,13 +39,16 @@
                    (parameter-symbol (a/child address i))))
     args))
 
+(def ^:dynamic *partitioning-expr* nil)
 (defn throw-partition-error
-  ([name expr] (throw-partition-error name expr nil))
-  ([name expr msg & args]
-   (let [loc (ifit (:line (meta expr)) (format " (line %s)" it) "")
-         extra-info (if msg (str ". " (apply format msg args)) "")]
-     (throw (ex-info (format "%s%s%s: %s" name loc extra-info expr)
-              (assoc (meta expr)
+  ([msg & args]
+   (let [m (meta *partitioning-expr*)
+         line (:line m)
+         loc (if line (format " at line %s" line) "")
+         title (format "Failed while partitioning %s%s. " *partitioning-expr* loc)
+         detail (if msg (apply format msg args) "")]
+     (throw (ex-info (str title detail)
+              (assoc m
                 :type :compiler-error))))))
 
 (defn unqualified-symbols-in [form]
