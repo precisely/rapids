@@ -750,10 +750,16 @@
 (def ^:dynamic *test-binding*)
 (declare dynamic-binding-test2)
 
-(deflow dynamic-binding-child-flow [pos]
-  (*> {:child [pos *test-binding*]}))
+(deflow dynamic-binding-child-flow
+  ([pos] (dynamic-binding-child-flow pos false))
+  ([pos set-binding?]
+   (*> {:child [pos *test-binding*]})
+   (when set-binding?
+     (println "setting *test-binding*")
+     (set! *test-binding* :set-value)
+     (*> {:child-after-set [pos *test-binding*]}))))
 
-(deflow dynamic-binding-parent-flow []
+(deflow dynamic-binding-parent-flow [set-inner-value?]
   (binding [*test-binding* :outer-value]
     (*> {:parent [:p1 *test-binding*]})
     (dynamic-binding-child-flow :p1)
@@ -771,7 +777,11 @@
 
     (binding [*test-binding* :inner-value]
       (*> {:parent [:p3 *test-binding*]})
-      (dynamic-binding-child-flow :p3)
+
+      ;;
+      ;; IF set-inner-value? is true, the child flow will set *test-binding* to :set-value
+      ;;
+      (dynamic-binding-child-flow :p3 set-inner-value?)
       (<*)
 
       ;;
@@ -795,39 +805,80 @@
     (dynamic-binding-child-flow :p5)))
 
 (deftest ^:language DynamicBindingTest
-  (with-test-env
-    (testing ""
-      (let [run (start! dynamic-binding-parent-flow)]
-        (testing "Binding works normally in the first partition"
-          (is (= (:response run) [{:parent [:p1 :outer-value]}
-                                  {:child [:p1 :outer-value]}])))
+  (testing "Using the binding form to generate dynamic bindings"
+    (with-test-env
+      (testing ""
+        (let [run (start! dynamic-binding-parent-flow false)]
+          (testing "Binding works normally in the first partition"
+            (is (= (:response run) [{:parent [:p1 :outer-value]}
+                                    {:child [:p1 :outer-value]}])))
 
-        ;; :p2
-        (flush-cache!)
-        (continue! run)
-        (testing "The binding holds in a subsequent partition"
-          (is (= (:response run) [{:parent [:p2 :outer-value]}
-                                  {:child [:p2 :outer-value]}])))
+          ;; :p2
+          (flush-cache!)
+          (continue! run)
+          (testing "The binding holds in a subsequent partition"
+            (is (= (:response run) [{:parent [:p2 :outer-value]}
+                                    {:child [:p2 :outer-value]}])))
 
-        ;; :p3
-        (flush-cache!)
-        (continue! run)
-        (testing "The binding can be overridden"
-          (is (= (:response run) [{:parent [:p3 :inner-value]}
-                                  {:child [:p3 :inner-value]}])))
+          ;; :p3
+          (flush-cache!)
+          (continue! run)
+          (testing "The binding can be overridden"
+            (is (= (:response run) [{:parent [:p3 :inner-value]}
+                                    {:child [:p3 :inner-value]}])))
 
-        ;; :p4
-        (flush-cache!)
-        (continue! run)
-        (testing "The overriding binding holds in a subsequent partition, and can be released"
-          (is (= (:response run) [{:parent [:p4-inner :inner-value]}
-                                  {:child [:p4-inner :inner-value]}
-                                  {:parent [:p4-outer :outer-value]}
-                                  {:child [:p4-outer :outer-value]}])))
+          ;; :p4
+          (flush-cache!)
+          (continue! run)
+          (testing "The overriding binding holds in a subsequent partition, and can be released"
+            (is (= (:response run) [{:parent [:p4-inner :inner-value]}
+                                    {:child [:p4-inner :inner-value]}
+                                    {:parent [:p4-outer :outer-value]}
+                                    {:child [:p4-outer :outer-value]}])))
 
-        ;; :p5
-        (flush-cache!)
-        (continue! run)
-        (testing "Once released the binding remains at its original value in subsequent partitions"
-          (is (= (:response run) [{:parent [:p5 :outer-value]}
-                                  {:child [:p5 :outer-value]}])))))))
+          ;; :p5
+          (flush-cache!)
+          (continue! run)
+          (testing "Once released the binding remains at its original value in subsequent partitions"
+            (is (= (:response run) [{:parent [:p5 :outer-value]}
+                                    {:child [:p5 :outer-value]}]))))))))
+
+(deftest ^:language DynamicSetTest
+  (testing "Using set! to directly set a value"
+    (with-test-env
+      (testing ""
+        (let [run (start! dynamic-binding-parent-flow true)]
+          (testing "Binding works normally in the first partition"
+            (is (= (:response run) [{:parent [:p1 :outer-value]}
+                                    {:child [:p1 :outer-value]}])))
+
+          ;; :p2
+          (flush-cache!)
+          (continue! run)
+          (testing "The binding holds in a subsequent partition"
+            (is (= (:response run) [{:parent [:p2 :outer-value]}
+                                    {:child [:p2 :outer-value]}])))
+
+          ;; :p3
+          (flush-cache!)
+          (continue! run)
+          (testing "The inner binding is overriden with set!"
+            (is (= (:response run) [{:parent [:p3 :inner-value]}
+                                    {:child [:p3 :inner-value]}
+                                    {:child-after-set [:p3 :set-value]}])))
+
+          ;; :p4
+          (flush-cache!)
+          (continue! run)
+          (testing "The set! binding holds in a subsequent partition, and is lost after the binding goes out of scope"
+            (is (= (:response run) [{:parent [:p4-inner :set-value]} ; <<== these lines show set! has carried beyond the initial partition
+                                    {:child [:p4-inner :set-value]} ; <<==
+                                    {:parent [:p4-outer :outer-value]}
+                                    {:child [:p4-outer :outer-value]}])))
+
+          ;; :p5
+          (flush-cache!)
+          (continue! run)
+          (testing "Once released the binding remains at its original value in subsequent partitions"
+            (is (= (:response run) [{:parent [:p5 :outer-value]}
+                                    {:child [:p5 :outer-value]}]))))))))

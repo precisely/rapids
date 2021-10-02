@@ -93,7 +93,7 @@
                  (if (suspend-signal? result)
                    (suspend-run! result)
                    (let [nextfn (next-stack-fn!)
-                         [action binding] (next-move thread-dynamics new-run-dynamics)]
+                         [action] (next-move thread-dynamics new-run-dynamics)]
                      (if (= action :call)
                        (recur nextfn result)
                        (->BindingChangeSignal (= action :pop)
@@ -111,7 +111,7 @@
      (let [val (build-dynamics)]
        (if (binding-change-signal? val)
          (if (:pop? val)
-           (assoc val :pop? nil)                            ; pop the stack once
+           (assoc val :pop? nil)                            ; clear pop? flag: next time through, we do the call.
            (recur (:stack-fn val) (:result val) thread-dynamics (:dynamics val)))
          val)))))
 

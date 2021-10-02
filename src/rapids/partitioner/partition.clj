@@ -64,7 +64,7 @@
   partition-vector-expr partition-map-expr partition-set-expr
   partition-java-interop-expr partition-java-new-expr
   partition-suspend-expr partition-flow-expr partition-callcc-expr
-  partition-case-expr partition-case*-expr partition-binding-expr
+  partition-case-expr partition-case*-expr partition-binding-expr partition-set!-expr
   resume-at)
 
 (defn default-partition-modifier [p _ _] p)
@@ -185,7 +185,7 @@
                   expanded-expr-with-meta (with-meta expanded expanded-meta)]
               (partition-expr expanded-expr-with-meta partition-addr address params))))))))
 
-(defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur 'case*} x))
+(defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur 'case* 'set!} x))
 (defn flow-op? [x] (#{'flow 'rapids/flow} x))
 (defn callcc-op? [x] (#{'callcc `rapids/callcc} x))
 (defn case-op? [x] (#{'case `clojure.core/case} x))
@@ -231,6 +231,7 @@
     case (partition-case-expr expr partition-addr address params)
     case* (partition-case*-expr expr partition-addr address params)
     quote [expr, nil, false]
+    set! (partition-set!-expr expr partition-addr address params)
     recur (partition-recur-expr expr partition-addr address params)
     (throw-partition-error "Special operator not yet available in flows %s" op)))
 
@@ -322,7 +323,6 @@
 ;;              dynamic environment
 ;;        3. code is added to the end of the last partition that pops the RDB hash-map pushed in step 1a
 ;;
-
 (defn make-dynamic-binding-body-modifier
   "Bindings should be a vector of two-typles of the form [[*dynvar* val] ...]"
   [bindings]
@@ -383,11 +383,18 @@
         (partition-bindings keys, args, partition-addr, binding-address, params, body-start)
 
         pset (pset/combine body-pset bind-pset)]
-    ;(println "\n\nbind-start")
-    ;(clojure.pprint/pprint bind-start)
-    ;(println "\n\npset")
-    ;(clojure.pprint/pprint pset)
     [bind-start, pset, (or bind-suspend? body-suspend?)]))
+
+(defn partition-set!-expr [expr partition-addr address params]
+  (let [[op lhs rhs & disallowed] expr
+        isvar? (fn [o] (and (symbol? o) (var? (resolve o))))]
+    (if-not (empty? disallowed) (throw (ArityException. 2 'set!)))
+    (partition-functional-expr op `(set! :lhs ~rhs) partition-addr address params
+      (fn [[_ rhs-param]]
+        `(do
+           ~@(if (isvar? lhs)
+               `((rapids.runtime.runlet/set-run-dynamic-var (var ~lhs) ~rhs-param)))
+           (set! ~lhs ~rhs-param))))))
 
 (defn partition-if-expr
   [expr partition-addr address params]
