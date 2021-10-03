@@ -169,6 +169,15 @@ Besides the usual Clojure program errors, this package throws `ExceptionInfo` ob
 * `:syntax-error` - problem while compiling a flow
 * `:input-error` - invalid data was provided to the system
 
+## Coverage
+
+There's currently a problem in using cloverage with deflow. It seems that cloverage instruments the keys in `:partition-fns`, which are addresses, by associng new keys. This results in call-partition failing because the internal addresses differ from the requested addresses (which aren't instrumented). 
+
+The current solution is just ot exclude the file(s) which have deflow. As of time of writing, this is only rapids.language.cc. Obviously, we need a better solution for the future - maybe by implementing a custom class of Address which cannot be instrumented.
+```shell
+lein cloverage --lcov --exclude-call rapids.language.cc/make-current-continuation --ns-exclude-regex 'rapids\.language\.cc'
+```
+
 ## Deployment
 
 ### S3 Deployment

@@ -61,7 +61,7 @@
                              [philoskim/debux "0.8.1"]
                              [tortue/spy "2.9.0"]
                              [org.clojure/tools.namespace "1.1.0"]]
-              :plugins      [[lein-cloverage "1.1.2"]
+              :plugins      [[lein-cloverage "1.2.2"]
                              [migratus-lein "0.7.3"]
                              [lein-localrepo "0.5.4"]]
               }
