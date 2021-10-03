@@ -1,4 +1,6 @@
 # Rapids
+![dev](https://github.com/precisely/rapids/actions/workflows/coverage/badge.svg?branch=dev)
+![master](https://github.com/precisely/rapids/actions/workflows/coverage/badge.svg?branch=master)
 
 A DSL for programming user interaction flows. 
 
