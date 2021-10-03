@@ -755,7 +755,6 @@
   ([pos set-binding?]
    (*> {:child [pos *test-binding*]})
    (when set-binding?
-     (println "setting *test-binding*")
      (set! *test-binding* :set-value)
      (*> {:child-after-set [pos *test-binding*]}))))
 
@@ -888,9 +887,8 @@
 (deflow callcc-with-dynamics-child []
   (binding [*cc-dynamic* :inner]
     ;; second response after continue!
-    (println "\n\nInside callcc-with-dynamics-child")
     (*> {:child {:*cc-dynamic* *cc-dynamic*}})
-    (println "\n\nJust before fcall *cc*")
+
     (fcall *cc* :interruption)
 
     (*> :this-does-not-execute)))
@@ -901,11 +899,9 @@
   []
   (binding [*cc-dynamic* :outer
             *cc* (callcc)]
-    (println "\n\nPartition 1")
     (*> {:first-partition {:*cc-dynamic* *cc-dynamic*}})
     (<*)                                                    ; force a partition
     ;; AFTER continue!
-    (println "\n\nAfter continue")
     (if (closure? *cc*)
       ;; first response:
       (do (*> {:then-branch {:*cc* :closure, :*cc-dynamic* *cc-dynamic*}})
