@@ -50,7 +50,7 @@
                  [danlentz/clj-uuid "0.1.9"]
                  [migratus "1.3.5"]
                  [hikari-cp "2.13.0"]]
-  :aot [rapids.storage.CacheProxy]
+  :aot [rapids.storage.CacheProxy rapids.runtime.CurrentContinuationChange]
   :clean-targets ^{:protect false} ["target"]
   :plugins [[s3-wagon-private "1.3.4"]]
   :profiles {:dev
@@ -58,9 +58,10 @@
               :source-paths ["src"]
               :dependencies [[expectations/clojure-test "1.2.1"]
                              [org.clojure/core.match "1.0.0"]
+                             [philoskim/debux "0.8.1"]
                              [tortue/spy "2.9.0"]
                              [org.clojure/tools.namespace "1.1.0"]]
-              :plugins      [[lein-cloverage "1.1.2"]
+              :plugins      [[lein-cloverage "1.2.2"]
                              [migratus-lein "0.7.3"]
                              [lein-localrepo "0.5.4"]]
               }

@@ -81,7 +81,6 @@
          nsname (join "." (butlast name-parts))
          name (last name-parts)
          ctor-symbol (symbol nsname (str "map->" name))]
-
      (freeze-record obj ctor-symbol)))
   ([obj ctor-symbol]
    (let [data (into {} obj)]
@@ -89,7 +88,7 @@
 
 (defn thaw-record [blob]
   (let [[ctor-symbol data] (thaw blob)
-        ctor  (resolve ctor-symbol)]
+        ctor (resolve ctor-symbol)]
     (if-not ctor
       (throw (ex-info "Failed to thaw record. Constructor cannot be resolved."
                {:ctor-symbol ctor-symbol :data data})))

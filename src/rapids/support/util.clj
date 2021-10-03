@@ -105,11 +105,3 @@
   Similar behavior to swap!, but for bindings instead of atoms."
   [var f & args]
   `(set! ~var (~f ~var ~@args)))
-
-(defn dereference
-  "Resolves symbols or vars recursively"
-  [o]
-  (cond
-    (symbol? o) (recur (resolve o))
-    (var? o) (recur (var-get o))
-    :else o))

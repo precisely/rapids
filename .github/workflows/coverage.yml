@@ -20,7 +20,7 @@ jobs:
 #      uses: mxschmitt/action-tmate@v3
 
     - name: Run Coverage
-      run: lein cloverage --lcov
+      run: lein cloverage --lcov --ns-exclude-regex 'rapids\.language\.cc'
 
     - name: Checkout ${{ github.base_ref }} branch
       uses: actions/checkout@v2
@@ -36,7 +36,7 @@ jobs:
     - name: Run Coverage for ${{ github.base_ref }} branch
       run: |
         cd base_branch
-        lein cloverage --lcov
+        lein cloverage --lcov --ns-exclude-regex 'rapids\.language\.cc'
 
     - name: Partial LCOV Code Coverage Report
       uses: risetechnologies/lcov-reporter-action@1.0.4

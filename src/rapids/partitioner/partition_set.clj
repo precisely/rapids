@@ -17,17 +17,17 @@
 (defn partition? [o] (instance? Partition o))
 
 #_(defmethod print-method Partition
-  [o w]
-  (print-simple
-    (str "#<Partition " (:params o) "\n\t" (clojure.string/join "\n\t" (:body o)) ">")
-    w))
+    [o w]
+    (print-simple
+      (str "#<Partition " (:params o) "\n\t" (clojure.string/join "\n\t" (:body o)) ">")
+      w))
 
 (defn partition? [o] (instance? Partition o))
 (defn partition-set? [o] (map? o))
 
 (defn create []
-  {:unforced #{}}) ;; unforced partitions may be dropped by partitioning functions
-                   ;; closure partitions are always FORCED
+  {:unforced #{}})                                          ;; unforced partitions may be dropped by partitioning functions
+;; closure partitions are always FORCED
 
 (defn remove-unforced [pset]
   "Returns a partition-set contiaining only the forced partitions"
@@ -56,13 +56,23 @@
 (defn addresses [pset]
   (dissoc pset :unforced))
 
+(defn dynamic? [o]
+  (and (symbol? o)
+    (resolve o)
+    (-> o meta :dynamic)))
+
 (defn partition-fn-def
   "Returns the code which defines the partition fn at address"
   [pset address]
   (let [cdef (get pset address)
         addr-name (a/to-string address)
-        name (symbol addr-name)]
-    `(fn ~name [{:keys ~(:params cdef)}] ~@(:body cdef))))
+        name (symbol addr-name)
+        params (:params cdef)
+        dynamics (filter dynamic? params)                   ; TODO: disallow binding system dynamic vars - security issue
+        dynamic-bindings (vec (flatten (map #(vector % %) dynamics)))]
+    `(fn ~name [{:keys ~params}]
+       (binding ~dynamic-bindings
+         ~@(:body cdef)))))
 
 (defn partition-fn-set-def
   "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"

@@ -27,6 +27,14 @@
 ;;      :b              ; point = invalid
 ;;         (b)}))       ; point = [1,baz,0,map,2]
 (declare to-string valid-point? simplify-if-symbol)
+
+;; TODO: change Address to a custom class?
+;;
+;; cloverage instruments addresses in deflow bodies with extra keys, which causes
+;; call-partition to fail. One solution may be to dissallow instrumenting Address
+;; perhaps by changing it to a custom record which doesn't support IPersistentMap,
+;; or by providing an implementation which prevents associng.
+;;
 (defrecord Address
   [flow                                                     ; Symbol
    point]                                                   ; Vector
@@ -92,8 +100,7 @@
     (qualified-symbol? x) (symbol (str (.getName x)))
     :otherwise x))
 
-
-#_(defmethod print-method Address
+(defmethod print-method Address
   [o w]
   (print-simple
     (str "#<Address " (to-string o) ">")

@@ -7,11 +7,13 @@
             rapids.objects.flow
             rapids.objects.pool
             [clojure.main :as main]
+            [clojure.string :as str]
+            [rapids.support.util :refer :all]
             [rapids.storage.core :as s])
   (:import (rapids.objects.flow Flow)
            (rapids.objects.run Run)
            (rapids.objects.pool Pool)
-           (clojure.lang AFunction)
+           (clojure.lang AFunction Var)
            (rapids.storage CacheProxy)))
 
 (defn debug-result [msg & args]
@@ -19,6 +21,16 @@
     (apply println msg args)
     result))
 
+(defn persistence-error
+  ([obj op] (persistence-error obj op nil))
+  ([obj op msg & args]
+   {:pre [(#{:freeze :thaw} op)]}
+   (let [title (format "Error while %s object %s: " (if (= op :freeze) "freezing" "thawing") obj)
+         subtitle (if msg (apply format msg args) "")]
+     (throw (ex-info (str title subtitle)
+              {:type   :runtime-error
+               :object obj
+               :op     op})))))
 ;;
 ;; Flow - flows contain functions which aren't defined at top level
 ;;        so they won't freeze without special handling
@@ -43,6 +55,26 @@
 (s/extend-thaw ::class
   [data-input]
   (-> data-input .readUTF Class/forName))
+
+;;
+;; Var
+;;
+;; This protocol extension solves a problem with thawing Vars.
+;;   see https://github.com/ptaoussanis/nippy/issues/143
+;;
+(extend-protocol taoensso.nippy/IFreezable2
+    Var
+    (taoensso.nippy/-freeze-with-meta! [x data-output]
+      (taoensso.nippy/-freeze-without-meta! x data-output)))
+
+(s/extend-freeze Var ::var
+  [x data-output]
+  (s/freeze-to-out! data-output (.toSymbol x)))
+
+(s/extend-thaw ::var
+  [data-input]
+  (let [sym (s/thaw-from-in! data-input)]
+    (resolve sym)))
 
 ;;
 ;; AFunction
@@ -75,14 +107,10 @@
 ;;
 (s/extend-freeze Run ::run
   [run data-output]
-  (throw (ex-info "Refusing to freeze raw Run record."
-           {:type :runtime-error
-            :object run})))
+  (persistence-error run :freeze))
 ;;
 ;; Pool - always acquired from the storage, when the cache is available
 ;;
 (s/extend-freeze Pool ::pool
   [pool data-output]
-  (throw (ex-info "Refusing to freeze raw Pool record."
-           {:type :runtime-error
-            :object pool})))
+  (persistence-error pool :freeze))

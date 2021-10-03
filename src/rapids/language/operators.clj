@@ -11,7 +11,7 @@
 ;;
 ;; Callable methods
 ;;
-;; TODO: remove need to fcall dynamically bound flows
+;; TODO: remove need to fcall dynamically bound flows and switch from Startable to universally using IFn
 ;;       it would be nice to get rid of this cruft and just implement the IFn
 ;;       protocol on Flows which would auto-detect if a run is present.
 ;;

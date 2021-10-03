@@ -3,10 +3,11 @@
             [rapids.support.util :refer :all]
             [clojure.core.match :refer [match]]
             [rapids.partitioner.core :refer :all]
-            [rapids.partitioner.partition :refer [partition-vector-expr partition-set-expr]]
+            [rapids.partitioner.partition :refer [partition-vector-expr partition-set-expr partition-binding-expr]]
             [rapids.partitioner.partition-set :refer [addresses]]
             [rapids.objects.address :as address]
-            [rapids.language.operators :as operators])
+            [rapids.language.operators :as operators]
+            [rapids.objects.address :as a])
   (:import (rapids.objects.flow Flow)))
 
 (declare PARTITION-ADDRESS MAIN)                            ; get rid of symbol resolution warnings
@@ -155,4 +156,3 @@
         (is (match [start]
               [([`rapids.partitioner.partition/resume-at [_ [] _] ([`operators/fcall _] :seq)] :seq)] true
               [_] false))))))
-
