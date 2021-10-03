@@ -11,9 +11,7 @@
     (pprint/pprint (macroexpand form))))
 
 (defn print-result
-  ([r] (println r) r)
-  ([msg r] (println msg r) r)
-  ([msg from to] (println msg from "=>" to) to))
+  ([& args] (apply println args) (last args)))
 
 (defn replace-weird-symbols
   ([form] (replace-weird-symbols form "_v" (atom {}) (atom 0)))

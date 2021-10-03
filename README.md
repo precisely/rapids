@@ -1,6 +1,5 @@
 # Rapids
-![dev](https://github.com/precisely/rapids/actions/workflows/coverage/badge.svg?branch=dev)
-![master](https://github.com/precisely/rapids/actions/workflows/coverage/badge.svg?branch=master)
+[![dev](https://github.com/precisely/rapids/actions/workflows/tests.yml/badge.svg?branch=dev&label=dev&text=dev%20tests&title=dev%20tests)](https://github.com/precisely/rapids/actions/workflows/tests.yml)
 
 A DSL for programming user interaction flows. 
 
@@ -170,6 +169,15 @@ Besides the usual Clojure program errors, this package throws `ExceptionInfo` ob
 * `:system-error` - a severe error usually indicating a bug in the system or inconsistency of the stack
 * `:syntax-error` - problem while compiling a flow
 * `:input-error` - invalid data was provided to the system
+
+## Coverage
+
+There's currently a problem in using cloverage with deflow. It seems that cloverage instruments the keys in `:partition-fns`, which are addresses, by associng new keys. This results in call-partition failing because the internal addresses differ from the requested addresses (which aren't instrumented). 
+
+The current solution is just ot exclude the file(s) which have deflow. As of time of writing, this is only rapids.language.cc. Obviously, we need a better solution for the future - maybe by implementing a custom class of Address which cannot be instrumented.
+```shell
+lein cloverage --lcov --exclude-call rapids.language.cc/make-current-continuation --ns-exclude-regex 'rapids\.language\.cc'
+```
 
 ## Deployment
 

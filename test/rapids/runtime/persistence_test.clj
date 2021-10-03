@@ -67,3 +67,10 @@
               (is (not (empty? *cache*)))
               (let [recursive-run (get-in retrieved [:stack 0 :bindings :recursive-ref])]
                 (= run-id (:id recursive-run))))))))))
+
+;(def ^:dynamic *test-var*)
+;(deftest ^:unit VarPersistenceTest
+;  (testing "can freeze Var"
+;    (is (frozen? (s/freeze #'*test-var*))))
+;  (testing "can thaw frozen Var"
+;    (is (var? (s/thaw (s/freeze #'*test-var*))))))
