@@ -7,6 +7,7 @@
 ;;
 (ns rapids.language.cc
   (:require [rapids.runtime.runlet :refer [current-run update-run!]]
+            [rapids.runtime.run-loop :refer [->CurrentContinuationChange]]
             [rapids.language.flow :refer [flow deflow]]
             [rapids.language.operators :refer [fcall]]))
 
@@ -25,7 +26,6 @@
   "
  [& args] `(throw (ex-info "Attempt to invoke callcc outside of deflow" {:form `(callcc ~~@args)})))
 
-(deflow make-current-continuation [stack]
+(deflow make-current-continuation [stack dynamics]
   (flow [retval]
-    (rapids.runtime.runlet/update-run! :stack stack)
-    retval))
+    (throw (->CurrentContinuationChange stack dynamics retval))))

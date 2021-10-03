@@ -882,3 +882,71 @@
           (testing "Once released the binding remains at its original value in subsequent partitions"
             (is (= (:response run) [{:parent [:p5 :outer-value]}
                                     {:child [:p5 :outer-value]}]))))))))
+
+(def ^:dynamic *cc-dynamic*)
+(def ^:dynamic *cc*)
+(deflow callcc-with-dynamics-child []
+  (binding [*cc-dynamic* :inner]
+    ;; second response after continue!
+    (println "\n\nInside callcc-with-dynamics-child")
+    (*> {:child {:*cc-dynamic* *cc-dynamic*}})
+    (println "\n\nJust before fcall *cc*")
+    (fcall *cc* :interruption)
+
+    (*> :this-does-not-execute)))
+
+(deflow callcc-with-dynamics
+  "Tests the interaction of callcc with dynamic bindings. With a toy interruption
+  handling example."
+  []
+  (binding [*cc-dynamic* :outer
+            *cc* (callcc)]
+    (println "\n\nPartition 1")
+    (*> {:first-partition {:*cc-dynamic* *cc-dynamic*}})
+    (<*)                                                    ; force a partition
+    ;; AFTER continue!
+    (println "\n\nAfter continue")
+    (if (closure? *cc*)
+      ;; first response:
+      (do (*> {:then-branch {:*cc* :closure, :*cc-dynamic* *cc-dynamic*}})
+          (callcc-with-dynamics-child))
+
+      (*> {:else-branch {:*cc* *cc*, :*cc-dynamic* *cc-dynamic*}}))))
+
+(deftest ^:language CallCCWithDynamics
+  (with-test-env
+    (testing ""
+      (let [run (start! callcc-with-dynamics)]
+        (testing "Sanity test that *cc-dynamic* is bound properly initially"
+          (is (= (:response run) [{:first-partition {:*cc-dynamic* :outer}}])))
+
+        ;;
+        ;; FIRST TRIP THROUGH
+        ;;
+        (flush-cache!)
+        (continue! run)
+        (let [response (:response run)]
+          (testing "The current continuation can be captured in a trans-partition dynamic"
+            (is (= (first response) {:then-branch {:*cc* :closure, :*cc-dynamic* :outer}})))
+
+          (testing "Sanity checking that an inner dynamic binding is applied before calling the current continuation"
+            (is (= (second response) {:child {:*cc-dynamic* :inner}})))
+
+          (testing "The current continuation does indeed interrupt the child flow"
+            (is (not-any? #(= :this-does-not-execute %) response)))
+
+          (testing "The current continuation restores state at the parent flow WITH the original dynamic binding"
+            (is (= (nth response 2) {:first-partition {:*cc-dynamic* :outer}})))
+
+          (testing "Execution halts as expected at the end of the first parent partition"
+            (is (= (count response) 3))
+            (is (= (:state run) :running)))
+
+          ;;
+          ;; SECOND TRIP THROUGH
+          ;;
+          (flush-cache!)
+          (continue! run)
+
+          (testing "The second time through, the continuation call returns the value provided inside the child flow"
+            (is (= {:else-branch {:*cc* :interrupt, :*cc-dynamic* :outer}}))))))))

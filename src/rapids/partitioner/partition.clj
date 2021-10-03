@@ -261,9 +261,10 @@
   entry point function for the flow."
   [expr, partition-addr, address params]
   (let [[entry-fn-def, pset] (partition-flow-body (meta expr) address (rest expr) params)
+        m (meta expr)
         entry-address (a/child address 'entry-point)
         pset (pset/add pset entry-address params [entry-fn-def])
-        start-expr `(->Closure ~entry-address ~(bindings-expr-from-params params) true)]
+        start-expr (with-meta `(->Closure ~entry-address ~(bindings-expr-from-params params) true) m)]
     ;; TODO: fix the suspend? return value
     ;;       The third return value `suspend?` should be false since the (->Closure ...) form doesn't suspend
     ;;       However, if we do this, the rest of the partitioner code will ignore
@@ -708,8 +709,9 @@
     (if (-> args count (> 1))
       (throw (ArityException. (count args) "rapids/callcc")))
     [`(let [stack# (rapids.runtime.runlet/current-run :stack)
+            dynamics# (rapids.runtime.runlet/current-run :dynamics)
             fstart# ~fstart
-            continuation# (rapids.language.operators/fcall rapids.language.cc/make-current-continuation stack#)]
+            continuation# (rapids.language.operators/fcall rapids.language.cc/make-current-continuation stack# dynamics#)]
         (rapids/fcall fstart# continuation#)), fpset, true]))
 
 (defn partition-flow-invokation-expr

@@ -9,10 +9,11 @@
     [rapids.objects.signals :refer [suspend-signal?]]
     [rapids.objects.stack-frame :as sf]
     [rapids.objects.run :as r])
-  (:import (rapids.objects.run Run)))
+  (:import (rapids.objects.run Run)
+           (rapids.runtime CurrentContinuationChange)))
 
 (declare start! continue!)
-(declare eval-loop! next-stack-fn!)
+(declare start-eval-loop! next-stack-fn!)
 
 (defn start!
   "Starts a run with the flow and given arguments.
@@ -24,7 +25,7 @@
     (ensure-cached-connection
       (with-run (cache-insert! (r/make-run {:state :running, :start-form start-form}))
         ;; create the initial stack-fn to kick of the process
-        (eval-loop! (fn [_] (startable/call-entry-point startable args)))
+        (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
         (current-run)))))
 
 (defn continue!
@@ -52,16 +53,33 @@
                      :received permit
                      :run-id   run-id})))
          (initialize-run-for-runlet)                        ;; ensure response and suspend are empty
-         (eval-loop! (next-stack-fn!) data)
+         (start-eval-loop! (next-stack-fn!) data)
          (current-run))))))
 
 ;;
 ;; Helpers
 ;;
-(declare complete-run! stack-processor! next-stack-fn! next-move)
+(declare eval-loop! complete-run! stack-processor! next-stack-fn! next-move)
+
+(defn ->CurrentContinuationChange [stack, dynamics, data]
+  {:pre [(seq? stack), (vector? dynamics)]}
+  (CurrentContinuationChange. stack, dynamics, data))
 
 (defrecord BindingChangeSignal [pop? stack-fn result dynamics])
 (defn binding-change-signal? [o] (and o (instance? BindingChangeSignal o)))
+
+(defn- start-eval-loop!
+  "Provides a trampoline that catches CurrentContinuationChange events and
+  restarts the eval-loop! with the new run environment."
+  ([stack-fn] (start-eval-loop! stack-fn nil))
+  ([stack-fn data]
+   (letfn [(doloop [stack-fn data]
+             (try (eval-loop! stack-fn data)
+                  (catch CurrentContinuationChange ccc
+                    (update-run! :stack (.stack ccc) :dynamics (.dynamics ccc))
+                    ;; recur so we can catch the next ccc throwable
+                    #(doloop (next-stack-fn!) (.data ccc)))))]
+     (trampoline doloop stack-fn data))))
 
 (defn- eval-loop!
   "Executes stack-fn (a unary fn) with the bindings present in the run. Because Clojure requires a new frame
@@ -83,9 +101,8 @@
              (try (eval-loop! stack-fn data (conj thread-dynamics binding) run-dynamics)
                   (finally (pop-thread-bindings))))
            ;; Calls the stack-fn with data successively passing the result
-           ;; to the next fn retrieved from the stack until stack-fn is nil
-           ;; or the run dynamic environment has changed from the current thread
-           ;; dynamic bindings
+           ;; to the next fn retrieved from the stack until the stack is empty
+           ;; or the run dynamic environment has changed
            (call-stack! [stack-fn data]
              (if stack-fn
                (let [result (stack-fn data)                 ; stack-fn may have altered dynamics

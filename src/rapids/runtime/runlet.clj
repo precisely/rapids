@@ -113,7 +113,7 @@
             (loop [[bindings & dynamics] (reverse (current-run :dynamics))
                    new-dynamics []]                         ; concat
               (if (contains? bindings dynvar)
-                (vec (reverse (concat (conj new-dynamics (assoc bindings dynvar val)) dynamics)))
+                (vec (doall (reverse (concat (conj new-dynamics (assoc bindings dynvar val)) dynamics))))
                 (if (empty? dynamics)
                   (throw (ex-info "Attempt to set! run dynamic which has not been bound"
                            {:var dynvar :value val}))
@@ -130,10 +130,12 @@
                          (finally (pop-thread-bindings)))]
 
     ;; if this is also the final partition, pop the run bindings
-    (if end? (pop-run-bindings!))
+    (when end?
+      (pop-run-bindings!))
     try-result#))
 
 (defn continue-binding-body [f, end?]
   (let [result (f)]
-    (if end? (pop-run-bindings!))
+    (when end?
+      (pop-run-bindings!))
     result))
