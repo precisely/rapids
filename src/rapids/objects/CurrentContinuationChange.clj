@@ -1,7 +1,7 @@
 ;;
 ;; The CacheProxy class
 ;;
-(ns rapids.runtime.CurrentContinuationChange
+(ns rapids.objects.CurrentContinuationChange
    (:gen-class
     :extends java.lang.Throwable
     :constructors {[clojure.lang.ISeq clojure.lang.PersistentVector Object] []}                ; mapping of my-constructor -> superclass constuctor

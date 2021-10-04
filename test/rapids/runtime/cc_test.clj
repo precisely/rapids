@@ -1,8 +1,8 @@
-(ns rapids.language.cc-test
+(ns rapids.runtime.cc-test
   (:require [clojure.test :refer :all]
             [rapids :refer [start!]]
             [rapids.objects.closure :refer [closure?]]
-            [rapids.language.cc :refer :all]))
+            [rapids.runtime.cc :refer :all]))
 
 (deftest ^:unit CurrentContinuationTest
   (testing "Cannot call callcc outside of deflow"

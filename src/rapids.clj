@@ -9,18 +9,19 @@
   [rapids.language.core
    deflow flow letflow
    ->pool take-out! put-in! pool?
-   fcall, fapply
    ;; operators. longform, shortform:
    listen!, <*,
-   respond!, *>,
+   respond!, >*,
    block!, <<!,
    ;; start operator:
    !
-   expire-run! callcc]
-  [rapids.runtime.core current-run start! continue! run?]
+   expire-run! callcc
+   attempt restartable restart handle]
+  [rapids.runtime.core current-run start! continue! interrupt! run? fcall, fapply raise]
   [rapids.language.time years months weeks days hours minutes seconds weeks now from-now]
   [rapids.objects.flow flow?]
   [rapids.objects.closure closure?]
+  [rapids.objects.interruptions ->interruption interruption?]
   [rapids.storage.core set-storage! with-storage])
 
 ;; the in memory storage is used by default

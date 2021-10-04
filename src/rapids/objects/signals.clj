@@ -33,3 +33,6 @@
   {:post [(valid-suspend? %)]}
   (Suspend. permit expires default))
 
+(defrecord BindingChangeSignal [pop? stack-fn result dynamics])
+
+(defn binding-change-signal? [o] (and o (instance? BindingChangeSignal o)))

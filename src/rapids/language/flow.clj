@@ -1,6 +1,5 @@
 (ns rapids.language.flow
-  (:require rapids.runtime.core
-            [rapids.objects.address :refer [->address]]
+  (:require [rapids.objects.address :refer [->address]]
             [rapids.partitioner.core :refer [partition-fn-set-def partition-flow-body]]
             [rapids.objects.flow :refer [->Flow with-flow-definitions in-flow-definition-context?]]
             [rapids.support.util :refer [qualify-symbol]]))
