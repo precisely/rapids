@@ -947,12 +947,12 @@
           (testing "The second time through, the continuation call returns the value provided inside the child flow"
             (is (= {:else-branch {:*cc* :interrupt, :*cc-dynamic* :outer}}))))))))
 
-(deflow interruptable-child []
+(deflow interruptible-child []
   (<*))
 
-(deflow interruptable-flow []
+(deflow interruptible-flow []
   (let [attempt-val (attempt
-                      (let [result (restartable (interruptable-child)
+                      (let [result (restartable (interruptible-child)
                                      (:redo [o] {:redo-value o}))]
                         (>* :body-called)
                         [result :uninterrupted-result])
@@ -978,7 +978,7 @@
   (testing "A flow with an attempt handler calling a child flow which gets interrupted while it listens"
     (with-test-env
       (testing "without interruptions, the attempt block should return normally"
-        (let [run (start! interruptable-flow)
+        (let [run (start! interruptible-flow)
               _ (flush-cache!)
               run (continue! run {:data :child-data})]
           (is (= :running (:state run)))
@@ -991,7 +991,7 @@
                   :final-listen   :final} (:result run)))))
 
       (testing "interrupting a run and handling the interruption"
-        (let [run (start! interruptable-flow)
+        (let [run (start! interruptible-flow)
               _ (flush-cache!)
               i (->interruption :foo)
               run (interrupt! run i)]
@@ -1013,12 +1013,12 @@
 
     (with-test-env
       (testing "interrupting a run which doesn't handle the provided interruptions throws an error"
-        (let [run (start! interruptable-flow)]
+        (let [run (start! interruptible-flow)]
           (is (throws-error-output #"Unhandled interruption" (interrupt! run (->interruption :no-handler-for-this)))))))
 
     (with-test-env
       (testing "testing the :bar interruption handler which uses listen!"
-        (let [run (start! interruptable-flow)
+        (let [run (start! interruptible-flow)
               _ (flush-cache!)
               i (->interruption :bar)
               run (interrupt! run i)]
@@ -1051,12 +1051,15 @@
 
     (with-test-env
       (testing "Restarting an interrupted flow"
-        (let [run (start! interruptable-flow)
+        (let [run (start! interruptible-flow)
               _ (flush-cache!)
               i (->interruption :baz :data :baz-data)
               run (interrupt! run i)]
           (is (= :running (:state run)))
           (continue! run {:data :final})
           (is (= :complete (:state run)))
-          (is (= [{:attempt-result {:redo-value :baz-data}
-                   :final-listen :final}])))))))
+          (is (= {:attempt-result [{:redo-value :baz-data} :uninterrupted-result]
+                  :final-listen   :final}
+                (:result run)))
+          (testing "the response indicates revisiting the point where flow was interrupted"
+            (is (= [:body-called :finally-called]))))))))
