@@ -976,14 +976,14 @@
     (testing "without interruptions, the attempt block should return normally"
       (let [run (start! interruptable-flow)
             _ (flush-cache!)
-            run (continue! run {:data :cdata})]
+            run (continue! run {:data :child-data})]
         (is (= :running (:state run)))
         (testing "the finally block should execute after the body"
           (is (= [:body-called :finally-called] (:response run))))
         (continue! run {:data :final})
         (flush-cache!)
         (is (= :complete (:state run)))
-        (is (= {:attempt-result [:cdata :uninterrupted-result]
+        (is (= {:attempt-result [:child-data :uninterrupted-result]
                 :final-listen   :final} (:result run)))))
 
     (testing "interrupting a run and handling the interruption"
@@ -1005,8 +1005,41 @@
           (continue! run {:data :continue-value})
           (is (= {:attempt-result :foo-interruption
                   :final-listen   :continue-value}
-                (:result run))))
+                (:result run)))))))
 
-        #_#_(is (= [:cdata :uninterrupted-result] (:result run)))
-            (testing "the finally block should execute after the body"
-              (is (= [:body-called :finally-called] (:response run))))))))
+  (with-test-env
+    (testing "interrupting a run which doesn't handle the provided interruptions throws an error"
+      (let [run (start! interruptable-flow)]
+        (is (throws-error-output #"Unhandled interruption" (interrupt! run (->interruption :no-handler-for-this)))))))
+
+  (with-test-env
+    (testing "testing the :bar interruption handler which uses listen!"
+      (let [run (start! interruptable-flow)
+            _ (flush-cache!)
+            i (->interruption :bar)
+            run (interrupt! run i)]
+
+        (testing "the run goes into :interrupted mode as the handler waits for input"
+          (is (uuid? (:interrupt run))))
+
+        (testing "attempting to continue without providing the interrupt results in an exception"
+          (is (throws-error-output #"Attempt to continue interrupted run"
+                (continue! run {:data :hello}))))
+
+        (testing "attempting to continue with an invalid interrupt results in an exception"
+          (is (throws-error-output #"Attempt to continue interrupted run"
+                (continue! run {:data :hello :interrupt :invalid}))))
+
+        (testing "Providing the interrupt value to continue allows us to continue"
+          (flush-cache!)
+          (continue! run {:data :interruption-data
+                          :interrupt (:interrupt run)})
+
+          (is (= :running (:state run))))
+
+        (testing "The continued data is captured within the handler"
+          (continue! run {:data :final})
+
+          (is (= :complete (:state run)))
+          (is (= [{:attempt-result [:interruption-data :bar-handled]
+                   :final-listen :final}])))))))

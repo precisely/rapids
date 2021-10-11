@@ -7,7 +7,7 @@
     [rapids.runtime.raise :refer [raise-partition-fn-address]]
     [rapids.support.util :refer :all]
     [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run!
-                                   update-run! run? push-stack!]]
+                                   update-run! run? push-stack! interrupt-run!]]
     [rapids.objects.signals :refer [suspend-signal? binding-change-signal? ->BindingChangeSignal]]
     [rapids.objects.stack-frame :as sf]
     [rapids.objects.run :as r])
@@ -50,9 +50,8 @@
      (let [run-id (if (run? run-id) (:id run-id) run-id)
            true-run (cache-get! Run run-id)]
        (with-run true-run
-         (if (and (-> true-run :state (= :interrupted))
-               (-> true-run :interrupt (not= interrupt)))
-           (throw (ex-info "Invalid interrupt provided. Unable to continue run."
+         (if (-> true-run :interrupt (not= interrupt))
+           (throw (ex-info "Attempt to continue interrupted run. Valid interrupt must be provided."
                     {:type     :input-error
                      :expected (-> true-run :interrupt)
                      :received interrupt
@@ -75,6 +74,7 @@
          (not (nil? run-id))]}
   (ensure-cached-connection
     (with-run run-id
+      (interrupt-run!)
       (push-stack! raise-partition-fn-address {} 'interrupt)
       (start-eval-loop! (next-stack-fn!) interruption)
       (current-run))))
