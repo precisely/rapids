@@ -14,15 +14,13 @@
   (restarts [this] (:restarts this)))
 
 (defn ->interruption
-  ([name message data]
-   {:pre [(keyword? name) (string? message)]}
-   (->Interruption name message data {}))
-  ([name message] (->interruption name message nil))
-  ([name] (->interruption name "" nil)))
+  ([name & {:keys [message data]}]
+   {:pre [(keyword? name) ((some-fn nil? string?) message)]}
+   (->Interruption name message data {})))
 
 (defn interruption? [o] (instance? IInterruption o))
 
-(def StopInterruption (->interruption :stop "The run was stopped"))
+(def StopInterruption (->interruption :stop :message "The run was stopped"))
 
 (defrecord InterruptionHandler [name flow])
 
