@@ -83,7 +83,6 @@ Suspends execution of the current run until the given run completes. Returns the
 
 Rapids works by persisting state of flows in non-volatile storage. This capability can be provided by implementing the protocols, in rapids.storage.protocol: Storage and StorageConnection. The library contains implementations of an in memory implementation (used for testing) and a Postgres-based implementation.
 
-
 ### Setup a PostgresStorage Backend
 ```clojure
 (ns mynamespace
