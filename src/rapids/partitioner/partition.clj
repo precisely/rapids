@@ -9,7 +9,7 @@
             [rapids.partitioner.recur :refer [with-tail-position with-binding-point *recur-binding-point* *tail-position*]]
             [rapids.support.util :refer :all]
             [rapids.support.debug :refer :all])
-  (:import (clojure.lang ArityException)))
+  (:import (clojure.lang ArityException LazySeq)))
 (use 'debux.core)
 ;;;; Partitioner
 
@@ -174,25 +174,28 @@
               (seq? expr) (partition-list-expr expr partition-addr address params)))]
     (binding [*partitioning-expr* (if (-> expr meta :line) expr *partitioning-expr*)]
       (or (attempt-partitioning)
-        (let [expanded (macroexpand-1 expr)]
+        (let [expanded (macroexpand-1 expr)
+              expanded (if (= (seq? expanded) (instance? LazySeq expanded))
+                         (seq expanded) expanded)]
           (cond
             (non-partitioning? expanded) [expr, nil, nil]
-            (= expanded expr)
+            (identical? expanded expr)
             (throw-partition-error "Unhandled expression: %s" expr)
-            :otherwise
-            (let [m (meta expr)
-                  expanded-meta (update (or m {}) :source #(or (:source %) expr))
-                  expanded-expr-with-meta (with-meta expanded expanded-meta)]
-              (partition-expr expanded-expr-with-meta partition-addr address params))))))))
+            :otherwise (let [m (meta expr)
+                             expanded-meta (update (or m {}) :source #(or (:source %) expr))
+                             expanded-expr-with-meta (with-meta expanded expanded-meta)]
+                         (partition-expr expanded-expr-with-meta partition-addr address params))))))))
 
 (defn special-form-op? [x] (#{'if 'do 'let* 'fn* 'loop* 'quote 'recur 'case* 'set!} x))
-(defn flow-op? [x] (#{'flow 'rapids/flow} x))
-(defn callcc-op? [x] (#{'callcc `rapids/callcc} x))
+(defn flow-op? [x] (#{'flow 'rapids/flow 'rapids.language.flow/flow} x))
+(defn callcc-op? [x] (#{'callcc 'rapids/callcc 'rapids.runtime.cc/callcc} x))
 (defn case-op? [x] (#{'case `clojure.core/case} x))
 (defn java-inter-op? [x] (= '. x))
 (defn fn-op? [x]
-  (and (refers-to? fn? x)
-    (-> x resolve meta :macro (not= true))))
+  (and (refers-to? (some-fn ifn? fn?) x)
+    (if (symbol? x)
+      (-> x resolve meta :macro (not= true))
+      true)))
 (defn fn-like? [x] (#{'throw} x))
 (defn java-new-op? [x] (= 'new x))
 (defn binding-op? [x] (#{'binding `clojure.core/binding} x))
@@ -259,7 +262,7 @@
   Akin to Clojure's (fn [...] ...), but the body may contain suspending expressions.
   The partitioner partitions the flow body and returns a closure which invokes an
   entry point function for the flow."
-  [expr, partition-addr, address params]
+  [expr, _, address params]
   (let [[entry-fn-def, pset] (partition-flow-body (meta expr) address (rest expr) params)
         m (meta expr)
         entry-address (a/child address 'entry-point)
@@ -326,25 +329,19 @@
 ;;
 (defn make-dynamic-binding-body-modifier
   "Bindings should be a vector of two-typles of the form [[*dynvar* val] ...]"
-  [bindings]
-  (fn [body start? end?]
+  [var-map]
+  (fn [body start? _]
     {:pre [(vector? body)]}
-    (let [var-map (into {} (map (fn [[lhs rhs]] `[(var ~lhs) ~rhs]) bindings))
-          ;; we cannot store vars in the run because nippy serialization doesn't handle Vars well
-          ;; see https://github.com/ptaoussanis/nippy/issues/143
-          ;; so, we store vars instead:
-          #_#_symbol-map (into {} (map (fn [[lhs rhs]] `[(quote ~(qualify-symbol lhs)) ~rhs]) bindings))]
-      (if (-> bindings count (= 0))
-        body
-        (if start?
-          ;; first partition: we need to add dynamic bindings to the run
-          ;; and establish the thread bindings.
-          `[(rapids.runtime.runlet/enter-binding-body (fn [] ~@body), ~var-map, ~end?)]
+    (if (-> var-map count (= 0))
+      body
+      (if start?
+        ;; first partition: we need to establish the thread bindings.
+        `[(rapids.runtime.runlet/enter-binding-body (fn [] ~@body), ~var-map, false)]
 
-          ;; subsequent partitions: run dynamic bindings have been established, so the runtime
-          ;; creates thread bindings automatically. All we need to do is undo the RDBs in
-          ;; the final partition.
-          `[(rapids.runtime.runlet/continue-binding-body (fn [] ~@body), ~end?)])))))
+        ;; subsequent partitions: run dynamic bindings have been established, so the runtime
+        ;; creates thread bindings automatically. All we need to do is undo the RDBs in
+        ;; the final partition.
+        body))))
 
 
 (defn partition-binding-expr
@@ -372,10 +369,15 @@
         body-address (a/child address 1)
         [_ bindings & body] expr
         [dynvars, args] (map vec (reverse-interleave bindings 2))
-        keys (map gensym dynvars)
+        keys (map (comp gensym name) dynvars)               ; binding allows qualified syms; let does not!
         body-bindings (map #(vector %1 %2) dynvars keys)
-        modifier (make-dynamic-binding-body-modifier body-bindings)
-
+        bindings-map (into {} (map (fn [[lhs rhs]] `[(var ~lhs) ~rhs]) body-bindings))
+        modifier (make-dynamic-binding-body-modifier bindings-map)
+        body `[(rapids.runtime.runlet/push-run-bindings! ~bindings-map)
+               (let [result# (do ~@body)]
+                 (rapids.runtime.runlet/pop-run-bindings!)
+                 result#)]
+        ;_ (println "bindings body= " body)
         [body-start, body-pset, body-suspend?]
         (partition-body body, partition-addr, body-address, (vec (concat params keys))
           modifier)
@@ -684,7 +686,7 @@
 ;; be done with case*, so we just have to throw an error in the unlikely case
 ;; that a user actually writes that by hand.
 (defn partition-case-expr [expr, partition-addr, address, params]
-  (let [[op e & clauses] expr
+  (let [[_ e & clauses] expr
         [clauses, default] (if (odd? (count clauses))
                              [(butlast clauses), (last clauses)]
                              [clauses, nil])
@@ -711,14 +713,14 @@
     [`(let [stack# (rapids.runtime.runlet/current-run :stack)
             dynamics# (rapids.runtime.runlet/current-run :dynamics)
             fstart# ~fstart
-            continuation# (rapids.language.operators/fcall rapids.language.cc/make-current-continuation stack# dynamics#)]
+            continuation# (rapids/fcall rapids.runtime.cc/make-current-continuation stack# dynamics#)]
         (rapids/fcall fstart# continuation#)), fpset, true]))
 
 (defn partition-flow-invokation-expr
   [op, expr, partition-addr, address, params]
   (let [[start, pset, _] (partition-functional-expr op expr partition-addr address params
                            (fn [args]
-                             `(rapids.language.operators/fcall ~op ~@args)))]
+                             `(rapids/fcall ~op ~@args)))]
     [start, pset, true]))
 
 (defn partition-fncall-expr
@@ -726,7 +728,6 @@
   {:pre [(vector? params)]}
   (partition-functional-expr op expr partition-addr address params
     (fn [args] `(~op ~@args))))
-
 
 ;;;
 ;;; Partition flow body

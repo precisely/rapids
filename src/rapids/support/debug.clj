@@ -13,6 +13,9 @@
 (defn print-result
   ([& args] (apply println args) (last args)))
 
+(defn macroexpand-n [f n]
+  (if (zero? n) f (macroexpand-n (macroexpand-1 f) (dec n))))
+
 (defn replace-weird-symbols
   ([form] (replace-weird-symbols form "_v" (atom {}) (atom 0)))
   ([form base symbol-dict counter]

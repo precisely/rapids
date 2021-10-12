@@ -45,8 +45,7 @@
 
 (defn ->address
   [symbol & point]
-  {:pre [(qualified-symbol? symbol)
-         (valid-point? point)]}
+  {:pre [(qualified-symbol? symbol) (valid-point? point)]}
   (Address.
     symbol
     (vec (map simplify-if-symbol point))))
@@ -92,7 +91,9 @@
 
 (defn valid-point?
   [elts]
-  (and (every? #(or (keyword? %) (symbol? %) (number? %)) elts)))
+  (if (and (every? #(or (keyword? %) (symbol? %) (number? %)) elts))
+    true
+    (println "Invalid point" elts)))
 
 (defn simplify-if-symbol [x]
   (cond

@@ -423,16 +423,16 @@
             (is (= (proxy-field run :result) :end))))))))
 
 (deflow responding-flow []
-  (*> :r1)
+  (>* :r1)
   (<* :permit "s1")
-  (*> :r2)
-  (*> :r3)
+  (>* :r2)
+  (>* :r3)
   (<* :permit "s2")
-  (*> :r4 :r5))
+  (>* :r4 :r5))
 
 (deftest ^:language Respond
   (storage/ensure-cached-connection
-    (testing "*> adds to an element to the current run's response"
+    (testing ">* adds to an element to the current run's response"
       (let [run (start! responding-flow)]
         (testing "responds during start flow"
           (is (= (proxy-field run :response) [:r1])))
@@ -440,7 +440,7 @@
         (testing "Each run starts a new response, and responses accumulate during a runlet"
           (is (= (proxy-field run :response) [:r2 :r3])))
         (simulate-event! run, :permit "s2")
-        (testing "*> treats multiple arguments as separate responses")
+        (testing ">* treats multiple arguments as separate responses")
         (is (= (proxy-field run :response) [:r4 :r5]))))))
 
 (deflow datastructures []
@@ -499,17 +499,17 @@
 
 (deflow simple-child-flow []
   (log! (current-run))
-  (*> :child-flow-response)
+  (>* :child-flow-response)
   (<*)
-  (*> :child-flow-after-suspending)
+  (>* :child-flow-after-suspending)
   :child-result)
 
 (deflow parent-flow-will-block []
   (clear-log!)
   (log! (current-run))
-  (*> :parent-before-blocking-call)
+  (>* :parent-before-blocking-call)
   (let [result (<<! (! simple-child-flow))]
-    (*> :parent-after-blocking-call)
+    (>* :parent-after-blocking-call)
     result))
 
 (deftest ^:language BlockingOperator
@@ -731,7 +731,7 @@
                                     (fcall cc 3)
                                     (assert false "This code never executes")))))
     :recurrence (let [retval (callcc)]
-                  (*> (if (closure? retval)
+                  (>* (if (closure? retval)
                         "callcc returns a closure"
                         (str "callcc returns a value: " retval)))
                   (if (closure? retval)
@@ -753,20 +753,20 @@
 (deflow dynamic-binding-child-flow
   ([pos] (dynamic-binding-child-flow pos false))
   ([pos set-binding?]
-   (*> {:child [pos *test-binding*]})
+   (>* {:child [pos *test-binding*]})
    (when set-binding?
      (set! *test-binding* :set-value)
-     (*> {:child-after-set [pos *test-binding*]}))))
+     (>* {:child-after-set [pos *test-binding*]}))))
 
 (deflow dynamic-binding-parent-flow [set-inner-value?]
   (binding [*test-binding* :outer-value]
-    (*> {:parent [:p1 *test-binding*]})
+    (>* {:parent [:p1 *test-binding*]})
     (dynamic-binding-child-flow :p1)
     (<*)
     ;;
     ;; :p2
     ;;
-    (*> {:parent [:p2 *test-binding*]})
+    (>* {:parent [:p2 *test-binding*]})
     (dynamic-binding-child-flow :p2)
     (<*)
 
@@ -775,7 +775,7 @@
     ;;
 
     (binding [*test-binding* :inner-value]
-      (*> {:parent [:p3 *test-binding*]})
+      (>* {:parent [:p3 *test-binding*]})
 
       ;;
       ;; IF set-inner-value? is true, the child flow will set *test-binding* to :set-value
@@ -786,21 +786,21 @@
       ;;
       ;; :p4
       ;;
-      (*> {:parent [:p4-inner *test-binding*]})
+      (>* {:parent [:p4-inner *test-binding*]})
       (dynamic-binding-child-flow :p4-inner))
 
 
     ;;
     ;; binding is undone
     ;;
-    (*> {:parent [:p4-outer *test-binding*]})
+    (>* {:parent [:p4-outer *test-binding*]})
     (dynamic-binding-child-flow :p4-outer)
     (<*)
 
     ;;
     ;; :p5
     ;;
-    (*> {:parent [:p5 *test-binding*]})
+    (>* {:parent [:p5 *test-binding*]})
     (dynamic-binding-child-flow :p5)))
 
 (deftest ^:language DynamicBindingTest
@@ -887,11 +887,11 @@
 (deflow callcc-with-dynamics-child []
   (binding [*cc-dynamic* :inner]
     ;; second response after continue!
-    (*> {:child {:*cc-dynamic* *cc-dynamic*}})
+    (>* {:child {:*cc-dynamic* *cc-dynamic*}})
 
     (fcall *cc* :interruption)
 
-    (*> :this-does-not-execute)))
+    (>* :this-does-not-execute)))
 
 (deflow callcc-with-dynamics
   "Tests the interaction of callcc with dynamic bindings. With a toy interruption
@@ -899,15 +899,15 @@
   []
   (binding [*cc-dynamic* :outer
             *cc* (callcc)]
-    (*> {:first-partition {:*cc-dynamic* *cc-dynamic*}})
+    (>* {:first-partition {:*cc-dynamic* *cc-dynamic*}})
     (<*)                                                    ; force a partition
     ;; AFTER continue!
     (if (closure? *cc*)
       ;; first response:
-      (do (*> {:then-branch {:*cc* :closure, :*cc-dynamic* *cc-dynamic*}})
+      (do (>* {:then-branch {:*cc* :closure, :*cc-dynamic* *cc-dynamic*}})
           (callcc-with-dynamics-child))
 
-      (*> {:else-branch {:*cc* *cc*, :*cc-dynamic* *cc-dynamic*}}))))
+      (>* {:else-branch {:*cc* *cc*, :*cc-dynamic* *cc-dynamic*}}))))
 
 (deftest ^:language CallCCWithDynamics
   (with-test-env
@@ -946,3 +946,4 @@
 
           (testing "The second time through, the continuation call returns the value provided inside the child flow"
             (is (= {:else-branch {:*cc* :interrupt, :*cc-dynamic* :outer}}))))))))
+

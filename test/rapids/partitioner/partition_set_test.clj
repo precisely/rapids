@@ -1,5 +1,6 @@
 (ns rapids.partitioner.partition_set_test
   (:require [clojure.test :refer :all]
+            [matchure.core :refer :all]
             [rapids.partitioner.partition-set :refer :all]
             [rapids.objects.address :as address]))
 
@@ -33,16 +34,20 @@
                 (set [addr1 addr2 addr3]))))))
 
     (testing "partition-fn-def"
-      (is (= (partition-fn-def {addr1 (->Partition '[a b] '[(* a b)])} addr1)
-            '(clojure.core/fn $main$1 [{:keys [a b]}]
-               (clojure.core/binding [] (* a b))))))
+      (is (if-match [['clojure.core/fn _ [{:keys ['a 'b]}]
+                      ['clojure.core/binding [] ['* 'a 'b]]]
+
+                     (partition-fn-def {addr1 (->Partition '[a b] '[(* a b)])} addr1)]
+            true)))
 
     (testing "partition-fn-set-def"
-      (is (= (partition-fn-set-def {addr1 (->Partition '[a b] '[(* a b)])
-                                    addr2 (->Partition '[a c] '[(+ c a)])})
-            `(clojure.core/hash-map
-               ~addr1 ~'(clojure.core/fn $main$1 [{:keys [a b]}] (clojure.core/binding [] (* a b)))
-               ~addr2 ~'(clojure.core/fn $main$2 [{:keys [a c]}] (clojure.core/binding [] (+ c a)))))))
+      (is (if-match [['clojure.core/hash-map
+                      ?a1 ['clojure.core/fn _ [{:keys ['a 'b]}] ['clojure.core/binding [] ['* 'a 'b]]]
+                      ?a2 ['clojure.core/fn _ [{:keys ['a 'c]}] ['clojure.core/binding [] ['+ 'c 'a]]]]
+                     (partition-fn-set-def {addr1 (->Partition '[a b] '[(* a b)])
+                                            addr2 (->Partition '[a c] '[(+ c a)])})]
+            (and (= a1 addr1) (= a2 addr2)))))
+
 
     (testing "forced and unforced addresses"
       (let [full-pset (create)
@@ -53,7 +58,3 @@
         (is (contains? full-pset addr2))
         (is (contains? forced-pset addr1))
         (is (not (contains? forced-pset addr2)))))))
-
-
-
-

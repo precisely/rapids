@@ -41,7 +41,7 @@
   (testing "suspending expressions"
     (testing "flow with non-suspending args"
       (is (= (partition-expr `(fl1 3 4) partition-address address [])
-            [`(rapids.language.operators/fcall fl1 3 4), nil, true])))
+            [`(rapids/fcall fl1 3 4), nil, true])))
     (testing "flow with suspending args"
       (let [[start, pset, suspend?]
             (partition-expr `(fl1 (fl2 (a))) partition-address address '[z])
@@ -50,7 +50,7 @@
         (testing "the start body should contain a resume-at expression pointing at the next-address, starting with the innermost term"
           (is (match [start]
                 [([`rapids.partitioner.partition/resume-at [next-address ['z] _]
-                   ([`operators/fcall `fl2 ([`a] :seq)] :seq)] :seq)] true
+                   ([`rapids/fcall `fl2 ([`a] :seq)] :seq)] :seq)] true
                 [_] false)))
         (testing "the partition set should contain a partition which evals the outer flow"
           (is (map? pset))
@@ -62,7 +62,7 @@
               (is (in? params 'z))
               (is (= (count params) 2)))
             (is (match [(:body pdef)]
-                  [[([`operators/fcall `fl1 _] :seq)]] true
+                  [[([`rapids/fcall `fl1 _] :seq)]] true
                   [_] false))))))))
 
 (deftest ^:unit PartitionBody
@@ -82,7 +82,7 @@
   (testing "body with a single suspending form"
     (let [[start, pset, suspend?] (partition-body `[(fl1)] partition-address address [])]
       (is (match [start]
-            [[([`operators/fcall `fl1] :seq)]] true
+            [[([`rapids/fcall `fl1] :seq)]] true
             [_] false))
       (is (= (-> pset addresses count) 0))
       (is (true? suspend?))))
@@ -95,7 +95,7 @@
         (is (match [start]
               [[([`a] :seq)
                 ([`rapids.partitioner.partition/resume-at [part2-address [] _]
-                  ([`operators/fcall `fl1] :seq)] :seq)]] true
+                  ([`rapids/fcall `fl1] :seq)] :seq)]] true
               [_] false))
         (is (true? suspend?)))
 
@@ -131,7 +131,7 @@
       (is (= 2 (-> pset addresses count)))
       (is (true? suspend?))
       (is (match [start]
-            [([`rapids.partitioner.partition/resume-at [_ [] _] ([`operators/fcall `fl1] :seq)] :seq)] true
+            [([`rapids.partitioner.partition/resume-at [_ [] _] ([`rapids/fcall `fl1] :seq)] :seq)] true
             [_] false)))))
 
 
@@ -154,5 +154,5 @@
       (is (true? suspend?))
       (testing "one of the two suspending expressions is in start"
         (is (match [start]
-              [([`rapids.partitioner.partition/resume-at [_ [] _] ([`operators/fcall _] :seq)] :seq)] true
+              [([`rapids.partitioner.partition/resume-at [_ [] _] ([`rapids/fcall _] :seq)] :seq)] true
               [_] false))))))

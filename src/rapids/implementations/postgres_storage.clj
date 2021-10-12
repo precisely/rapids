@@ -10,10 +10,11 @@
             [honey.sql.helpers :as h]
             [migratus.core :as migratus]
             [taoensso.timbre :as log])
-  (:import (java.util UUID)
-           (rapids.objects.run Run)
+  (:import (rapids.objects.run Run)
            (rapids.objects.pool Pool)
-           (com.zaxxer.hikari HikariDataSource)))
+           (com.zaxxer.hikari HikariDataSource)
+           (org.slf4j LoggerFactory)
+           (org.slf4j.event Level)))
 
 (declare from-db-record to-db-record exec-one! exec! class->table table->name check-class)
 
@@ -29,6 +30,13 @@
               [type field])
       (throw (ex-info "Implementation of PostgresStorage is out of date. Index not supported."
                {:type type :field field})))))
+
+(defn disable-hikari-logging []
+  (-> (LoggerFactory/getLogger "com.zaxxer.hikari.pool.PoolBase") (.setLevel Level/ERROR))
+  (-> (LoggerFactory/getLogger "com.zaxxer.hikari.pool.HikariPool") (.setLevel Level/ERROR)) ;
+  (-> (LoggerFactory/getLogger "com.zaxxer.hikari.HikariDataSource") (.setLevel Level/ERROR)) ;
+  (-> (LoggerFactory/getLogger "com.zaxxer.hikari.HikariConfig") (.setLevel Level/ERROR)) ;
+  (-> (LoggerFactory/getLogger "com.zaxxer.hikari.util.DriverDataSource") (.setLevel Level/ERROR)))
 
 (defn postgres-storage? [o] (instance? o PostgresStorage))
 
@@ -151,7 +159,7 @@
   ([]
    (let [storage (rapids.storage.globals/current-storage)]
      (assert (postgres-storage? storage))
-     (postgres-storage-migrate! )))
+     (postgres-storage-migrate!)))
 
   ([^PostgresStorage pg-storage]
    (let [migration-conf {:store         :database
@@ -204,7 +212,6 @@
       (-> db-record field p/thaw-record))))
 
 ;; HELPERS for debugging
-(defn uuid [] (UUID/randomUUID))
 (defmacro log-errors [& body]
   `(try ~@body
         (catch Exception e#

@@ -5,11 +5,11 @@
 ;; The approach is simply to generate a closure which contains a copy
 ;; of the
 ;;
-(ns rapids.language.cc
+(ns rapids.runtime.cc
   (:require [rapids.runtime.runlet :refer [current-run update-run!]]
             [rapids.runtime.run-loop :refer [->CurrentContinuationChange]]
             [rapids.language.flow :refer [flow deflow]]
-            [rapids.language.operators :refer [fcall]]))
+            [rapids.runtime.calling :refer [fcall]]))
 
 (defmacro ^{:arglists '([f] [])} callcc
  "Call with current continuation. Saves the current state of the stack, and calls f

@@ -7,7 +7,7 @@
 (deflow flow-calling-flow [] (suspending-flow))
 (deflow multi-arity
   ([a] (multi-arity a :b))
-  ([a b] (*> a b)))
+  ([a b] (>* a b)))
 
 (deflow prepost-conditions [a]
   {:pre  [(number? a)]

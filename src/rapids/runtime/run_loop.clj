@@ -1,16 +1,18 @@
-(ns rapids.runtime.run-loop
+-0(ns rapids.runtime.run-loop
   (:require
     [rapids.storage.core :refer :all]
     [rapids.objects.startable :as startable]
     [rapids.objects.closure :refer [closure? closure-name]]
+    [rapids.objects.interruptions :refer [interruption?]]
+    [rapids.runtime.raise :refer [raise-partition-fn-address]]
     [rapids.support.util :refer :all]
     [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run!
-                                   update-run! run?]]
-    [rapids.objects.signals :refer [suspend-signal?]]
+                                   update-run! run? push-stack! interrupt-run!]]
+    [rapids.objects.signals :refer [suspend-signal? binding-change-signal? ->BindingChangeSignal]]
     [rapids.objects.stack-frame :as sf]
     [rapids.objects.run :as r])
   (:import (rapids.objects.run Run)
-           (rapids.runtime CurrentContinuationChange)))
+           (rapids.objects CurrentContinuationChange)))
 
 (declare start! continue!)
 (declare start-eval-loop! next-stack-fn!)
@@ -23,7 +25,8 @@
   (let [startable-name (name startable)
         start-form (prn-str `(~startable-name ~@args))]
     (ensure-cached-connection
-      (with-run (cache-insert! (r/make-run {:state :running, :start-form start-form}))
+      (with-run (cache-insert! (r/make-run {:state :running, :start-form start-form
+                                            :dynamics []}))
         ;; create the initial stack-fn to kick of the process
         (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
         (current-run)))))
@@ -35,18 +38,25 @@
     run-id - id the run to continue
     permit - if a Suspend :permit value was provided, it must match
     responses - initial responses (used when resuming the run after redirection)
+    interrupt - uuid which
 
   Returns:
     run - Run instance indicated by run-id"
   ([run-id] (continue! run-id {}))
-  ([run-id {:keys [data permit]}]
+  ([run-id {:keys [data permit interrupt]}]
    {:pre  [(not (nil? run-id))]
     :post [(run? %)]}
    (ensure-cached-connection
      (let [run-id (if (run? run-id) (:id run-id) run-id)
            true-run (cache-get! Run run-id)]
        (with-run true-run
-         (if (not= (current-run :suspend :permit) permit)
+         (if (-> true-run :interrupt (not= interrupt))
+           (throw (ex-info "Attempt to continue interrupted run. Valid interrupt must be provided."
+                    {:type     :input-error
+                     :expected (-> true-run :interrupt)
+                     :received interrupt
+                     :run-id   run-id})))
+         (if-not (-> true-run :suspend :permit (= permit))
            (throw (ex-info "Invalid permit. Unable to continue run."
                     {:type     :input-error
                      :expected (current-run :suspend :permit)
@@ -56,6 +66,19 @@
          (start-eval-loop! (next-stack-fn!) data)
          (current-run))))))
 
+(defn interrupt!
+  "Interrupts the run, passing control to the innermost attempt handler matching
+  the interruption's name."
+  [run-id interruption]
+  {:pre [(interruption? interruption)
+         (not (nil? run-id))]}
+  (ensure-cached-connection
+    (with-run run-id
+      (interrupt-run!)
+      (push-stack! raise-partition-fn-address {} 'interrupt)
+      (start-eval-loop! (next-stack-fn!) interruption)
+      (current-run))))
+
 ;;
 ;; Helpers
 ;;
@@ -64,9 +87,6 @@
 (defn ->CurrentContinuationChange [stack, dynamics, data]
   {:pre [(seq? stack), (vector? dynamics)]}
   (CurrentContinuationChange. stack, dynamics, data))
-
-(defrecord BindingChangeSignal [pop? stack-fn result dynamics])
-(defn binding-change-signal? [o] (and o (instance? BindingChangeSignal o)))
 
 (defn- start-eval-loop!
   "Provides a trampoline that catches CurrentContinuationChange events and

@@ -20,7 +20,7 @@ jobs:
 #      uses: mxschmitt/action-tmate@v3
 
     - name: Run Coverage
-      run: lein cloverage --lcov --ns-exclude-regex 'rapids\.language\.cc'
+      run: lein with-profile +cloverage,+dev cloverage --lcov
 
     - name: Checkout ${{ github.base_ref }} branch
       uses: actions/checkout@v2
