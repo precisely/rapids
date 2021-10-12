@@ -57,13 +57,8 @@
 (defn call-partition
   "Executes the partition function at address with the given bindings"
   [address bindings]
-  {:pre [#_(if-not (a/address? address)
-           (println "call-partition" address)
-           true)
+  {:pre [(a/address? address)
          (map? bindings)]}
-  (if-not (a/address? address)
-           (println "call-partition" address)
-           true)
   (let [flow (a/resolved-flow address)
         pfn (get-in flow [:partition-fns address])]
     (if-not (fn? pfn)

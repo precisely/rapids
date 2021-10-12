@@ -65,8 +65,7 @@
   "Returns the code which defines the partition fn at address"
   [pset address]
   (let [cdef (get pset address)
-        addr-name (a/to-string address)
-        name (symbol addr-name)
+        name (gensym (name (:flow address)))
         params (:params cdef)
         dynamics (filter dynamic? params)                   ; TODO: disallow binding system dynamic vars - security issue
         dynamic-bindings (vec (flatten (map #(vector % %) dynamics)))]
