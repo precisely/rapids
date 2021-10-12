@@ -36,7 +36,7 @@ jobs:
     - name: Run Coverage for ${{ github.base_ref }} branch
       run: |
         cd base_branch
-        lein cloverage --lcov --ns-exclude-regex 'rapids\.language\.cc'
+        lein with-profile +cloverage,+dev cloverage --lcov
 
     - name: Partial LCOV Code Coverage Report
       uses: risetechnologies/lcov-reporter-action@1.0.4
