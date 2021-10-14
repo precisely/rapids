@@ -1,6 +1,7 @@
 (ns rapids-interruptions-test
   (:require [clojure.test :refer :all]
             [test_helpers :refer :all]
+            [matchure.core :refer :all]
             [rapids :refer :all]))
 (deflow interruptible-child []
   (<*))
@@ -118,4 +119,15 @@
                   :final-listen   :final}
                 (:result run)))
           (testing "the response indicates revisiting the point where flow was interrupted"
-            (is (= [:body-called :finally-called]))))))))
+            (is (= [:body-called :finally-called]))))))
+
+    (with-test-env
+      (testing "testing calling interrupt! with interrupt parameters instead of interrupt object"
+        (let [run (start! interruptible-flow)
+              _ (flush-cache!)
+              run (interrupt! run :foo :message "hello" :data {:a 123})]
+
+          (testing "the expected interruption is handled"
+            (println (:response run))
+            (is (= [[:foo-handled (->interruption :foo :message "hello" :data {:a 123})] :finally-called]
+                  (:response run)))))))))

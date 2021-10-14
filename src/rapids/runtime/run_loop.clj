@@ -1,18 +1,20 @@
--0(ns rapids.runtime.run-loop
-  (:require
-    [rapids.storage.core :refer :all]
-    [rapids.objects.startable :as startable]
-    [rapids.objects.closure :refer [closure? closure-name]]
-    [rapids.objects.interruptions :refer [interruption?]]
-    [rapids.runtime.raise :refer [raise-partition-fn-address]]
-    [rapids.support.util :refer :all]
-    [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run!
-                                   update-run! run? push-stack! interrupt-run!]]
-    [rapids.objects.signals :refer [suspend-signal? binding-change-signal? ->BindingChangeSignal]]
-    [rapids.objects.stack-frame :as sf]
-    [rapids.objects.run :as r])
-  (:import (rapids.objects.run Run)
-           (rapids.objects CurrentContinuationChange)))
+-0 (ns rapids.runtime.run-loop
+     (:require
+       [rapids.storage.core :refer :all]
+       [rapids.objects.startable :as startable]
+       [rapids.objects.closure :refer [closure? closure-name]]
+       [rapids.objects.interruptions :refer [interruption? ->interruption]]
+       [rapids.runtime.raise :refer [raise-partition-fn-address]]
+       [rapids.support.util :refer :all]
+       [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run!
+                                      update-run! run? push-stack! interrupt-run!]]
+       [rapids.objects.signals :refer [suspend-signal? binding-change-signal? ->BindingChangeSignal]]
+       [rapids.objects.stack-frame :as sf]
+       [rapids.objects.run :as r])
+     (:import (rapids.objects.run Run)
+              (rapids.objects CurrentContinuationChange)
+              (clojure.lang Keyword)
+              (rapids.objects.interruptions Interruption)))
 
 (declare start! continue!)
 (declare start-eval-loop! next-stack-fn!)
@@ -25,7 +27,7 @@
   (let [startable-name (name startable)
         start-form (prn-str `(~startable-name ~@args))]
     (ensure-cached-connection
-      (with-run (cache-insert! (r/make-run {:state :running, :start-form start-form
+      (with-run (cache-insert! (r/make-run {:state    :running, :start-form start-form
                                             :dynamics []}))
         ;; create the initial stack-fn to kick of the process
         (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
@@ -66,17 +68,28 @@
         (current-run)))))
 
 (defn interrupt!
-  "Interrupts the run, passing control to the innermost attempt handler matching
-  the interruption's name."
-  [run-id interruption]
-  {:pre [(interruption? interruption)
-         (not (nil? run-id))]}
-  (ensure-cached-connection
-    (with-run run-id
-      (interrupt-run!)
-      (push-stack! raise-partition-fn-address {} 'interrupt)
-      (start-eval-loop! (next-stack-fn!) interruption)
-      (current-run))))
+  "Interrupts the run, passing control to the innermost attempt handler matching the interruption's name.
+
+  Usage:
+  (interrupt! run-id (->interruption :foo :data {:a 123} :message \"hello\"))
+  OR
+  (interrupt! run-id :foo :data {:a 123} :message \"hello\")"
+  ([run-id i & {:keys [message data] :as keys}]
+   {:pre [(not (nil? run-id))]}
+   (cond
+     (keyword? i) (interrupt! run-id (->interruption i :message message :data data))
+     (interruption? i) (if keys
+                         (throw (ex-info "Unexpected arguments provided to interrupt! with Interruption argument"
+                                  {:args [i :message message :data data]}))
+                         (ensure-cached-connection
+                           (with-run run-id
+                             (interrupt-run!)
+                             (push-stack! raise-partition-fn-address {} 'interrupt)
+                             (start-eval-loop! (next-stack-fn!) i)
+                             (current-run))))
+     :otherwise (throw (ex-info "Unexpected argument type to interrupt!. Expecting Keyword or Interruption"
+                         {:type (type i)
+                          :args [i :message message :data data]})))))
 
 ;;
 ;; Helpers
