@@ -42,7 +42,7 @@
       ; THEN: some runs are waiting for a value
       (let [run-id (pool-pop! p :sinks)]
         ; continue the next run, passing it the put-in value
-        (continue! run-id {:data v :permit (pool-id p)})
+        (continue! run-id :data v :permit (pool-id p))
         nil)
 
       ;; ELSE: no runs are available to receive the value
@@ -72,7 +72,7 @@
          ;; then: a run is blocked waiting to put a value into the pool
          (let [{value :value, run-id :run-id} (pool-pop! p :sources)]
            ;; retrieve the value and allow the blocked run to continue..
-           (continue! run-id {:permit (pool-id p)})
+           (continue! run-id :permit (pool-id p))
            ;; push the value into the buffer - note it may not be immediately
            ;; taken out if other values precede it
            (pool-push! p :buffer value)))
