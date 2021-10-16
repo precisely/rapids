@@ -6,11 +6,17 @@ Rapids lets you build workflows using functional programming techniques. Unlike 
 (defn [name docstring? & sigs] ...)
 (deflow [name docstring? & sigs] ...)
 ```
-The code bodies inside `deflow` can even include most Clojure code, including all the special operators, macros and Java interop. For example:
+The code bodies inside `deflow` can include most Clojure expressions, such as function calls, literals of all kinds, special operators, macros and Java interop. `deflow` bodies can also use some special operators which allow programs to work over arbitrarily long time scales. Suspending for input, handling interruptions while suspended, and sending data to the outside world as  
 
 ```clojure
-(defn timesn [
+(defn multiply [x y]
+  (* x y))
+  
+(deflow multiply [x y]
+  (* x y))
 ```
+
+So far so good. But running flows 
 
 
 What `deflow` adds are a few key operators which permit the workflow code to operate over very long time scales without consuming volatile memory or compute resources while waiting for input. 

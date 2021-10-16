@@ -3,8 +3,6 @@
   (:import (clojure.lang PersistentQueue)
            (java.util UUID)))
 
-(defrecord PutIn [run-id value])
-
 (defrecord Pool
   [^UUID id,
    ^Long size,
@@ -67,6 +65,7 @@
 
   Returns: updated-pool"
   [p field val]
-  {:pre [(is-pool-queue? field)]}
+  {:pre [(is-pool-queue? field)
+         (not (nil? p))]}
   (let [queue (field p)]
     (dirty (assoc p field (conj queue val)))))

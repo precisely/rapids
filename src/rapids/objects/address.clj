@@ -91,9 +91,7 @@
 
 (defn valid-point?
   [elts]
-  (if (and (every? #(or (keyword? %) (symbol? %) (number? %)) elts))
-    true
-    (println "Invalid point" elts)))
+  (and (every? #(or (keyword? %) (symbol? %) (number? %)) elts)))
 
 (defn simplify-if-symbol [x]
   (cond
