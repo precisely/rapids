@@ -31,7 +31,7 @@
               (is (= (take-out! p) :foo)))
             (testing "calling continue! once with the suspended run id, no data and the pool-id as permit"
               (is (spy/called-once-with? stub               ; NB: called-once-with? requires exact argument match
-                    run-id {:permit (pool-id p)}))))))))    ; i.e., no :data key provided
+                    run-id :permit (pool-id p)))))))))      ; i.e., no :data key provided
   (testing "An empty unbuffered pool, when taking out"
     (with-test-env-run [p (->pool)
                         run-id (current-run :id)]
@@ -47,8 +47,9 @@
             (is (= (put-in! p :foo) nil)))
           (testing "calling continue! once with the suspended run id, and the put-in value, using the pool-id as permit"
             (is (spy/called-once-with? stub
-                  run-id {:permit (pool-id p)
-                          :data   :foo}))))))))
+                  run-id
+                  :data :foo
+                  :permit (pool-id p)))))))))
 
 (deftest ^:unit BufferedPoolTests
   (testing "An empty pool with a buffer of size 2, when putting in"
@@ -76,11 +77,11 @@
         (testing "Taking out from a buffered pool should return buffered values first and continue first suspended runs first"
           (with-continue!-stub [stub :unused]
             (is (= (take-out! p) 1))
-            (is (spy/called-once-with? stub (:id run3) {:permit (pool-id p)}))))
+            (is (spy/called-once-with? stub (:id run3) :permit (pool-id p)))))
         (testing "A subsequent take-out will continue the next suspended run (run4) and return the second value put-in (2)"
           (with-continue!-stub [stub :unused]
             (is (= (take-out! p) 2))
-            (is (spy/called-once-with? stub (:id run4) {:permit (pool-id p)}))))
+            (is (spy/called-once-with? stub (:id run4) :permit (pool-id p)))))
         (testing "After the sources queue is clear, further take-outs return values without calling continue!"
           (is (= (pool-count p :sources) 0))
           (with-continue!-stub [stub nil]
@@ -108,8 +109,8 @@
             (is (nil? (put-in! p 1)))
             (is (nil? (put-in! p 2))))
           (is (= (spy/calls stub)
-                [(list (:id run1) {:data 1 :permit (pool-id p)})
-                 (list (:id run2) {:data 2 :permit (pool-id p)})]))))
+                [(list (:id run1) :data 1 :permit (pool-id p))
+                 (list (:id run2) :data 2 :permit (pool-id p))]))))
       (testing "Once the sinks are exhausted, a subsequent put-in should fill the buffer without calling continue!"
         (with-continue!-stub [stub :unused]
           (is (= (pool-count p :sinks) 0))

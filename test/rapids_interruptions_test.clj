@@ -1,7 +1,8 @@
 (ns rapids-interruptions-test
   (:require [clojure.test :refer :all]
-           [test_helpers :refer :all]
-           [rapids :refer :all]))
+            [test_helpers :refer :all]
+            [matchure.core :refer :all]
+            [rapids :refer :all]))
 (deflow interruptible-child []
   (<*))
 
@@ -35,11 +36,11 @@
       (testing "without interruptions, the attempt block should return normally"
         (let [run (start! interruptible-flow)
               _ (flush-cache!)
-              run (continue! run {:data :child-data})]
+              run (continue! run :data :child-data)]
           (is (= :running (:state run)))
           (testing "the finally block should execute after the body"
             (is (= [:body-called :finally-called] (:response run))))
-          (continue! run {:data :final})
+          (continue! run :data :final)
           (flush-cache!)
           (is (= :complete (:state run)))
           (is (= {:attempt-result [:child-data :uninterrupted-result]
@@ -61,7 +62,7 @@
 
           (testing "the handler return value is returned by the attempt form"
             (flush-cache!)
-            (continue! run {:data :continue-value})
+            (continue! run :data :continue-value)
             (is (= {:attempt-result :foo-interruption
                     :final-listen   :continue-value}
                   (:result run)))))))
@@ -83,21 +84,22 @@
 
           (testing "attempting to continue without providing the interrupt results in an exception"
             (is (throws-error-output #"Attempt to continue interrupted run"
-                  (continue! run {:data :hello}))))
+                  (continue! run :data :hello))))
 
           (testing "attempting to continue with an invalid interrupt results in an exception"
             (is (throws-error-output #"Attempt to continue interrupted run"
-                  (continue! run {:data :hello :interrupt :invalid}))))
+                  (continue! run :data :hello :interrupt :invalid))))
 
           (testing "Providing the interrupt value to continue allows us to continue"
             (flush-cache!)
-            (continue! run {:data      :interruption-data
-                            :interrupt (:interrupt run)})
+            (continue! run
+              :data :interruption-data
+              :interrupt (:interrupt run))
 
             (is (= :running (:state run))))
 
           (testing "The continued data is captured within the handler"
-            (continue! run {:data :final})
+            (continue! run :data :final)
 
             (is (= :complete (:state run)))
             (is (= [{:attempt-result [:interruption-data :bar-handled]
@@ -111,10 +113,21 @@
               i (->interruption :baz :data :baz-data)
               run (interrupt! run i)]
           (is (= :running (:state run)))
-          (continue! run {:data :final})
+          (continue! run :data :final)
           (is (= :complete (:state run)))
           (is (= {:attempt-result [{:redo-value :baz-data} :uninterrupted-result]
                   :final-listen   :final}
                 (:result run)))
           (testing "the response indicates revisiting the point where flow was interrupted"
-            (is (= [:body-called :finally-called]))))))))
+            (is (= [:body-called :finally-called]))))))
+
+    (with-test-env
+      (testing "testing calling interrupt! with interrupt parameters instead of interrupt object"
+        (let [run (start! interruptible-flow)
+              _ (flush-cache!)
+              run (interrupt! run :foo :message "hello" :data {:a 123})]
+
+          (testing "the expected interruption is handled"
+            (println (:response run))
+            (is (= [[:foo-handled (->interruption :foo :message "hello" :data {:a 123})] :finally-called]
+                  (:response run)))))))))

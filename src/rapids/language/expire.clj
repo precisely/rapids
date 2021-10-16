@@ -7,5 +7,5 @@
   (ensure-cached-connection
     (with-run (cache-get! Run run-id)
       (let [{{permit :permit, default :default} :suspend} (current-run)]
-        (continue! run-id {:permit permit :data default})))))
+        (continue! run-id :permit permit :data default)))))
 
