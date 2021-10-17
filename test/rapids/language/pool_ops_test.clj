@@ -8,8 +8,7 @@
             [rapids.storage.core :as s]
             [rapids.language.pool-ops :refer :all]
             [test_helpers :refer :all]
-            [spy.core :as spy])
-  (:import (rapids.objects.pool PutIn)))
+            [spy.core :as spy]))
 
 (deftest ^:unit UnbufferedPoolTests
   (testing "An empty unbuffered pool, when putting in"
@@ -18,12 +17,12 @@
       (testing "it should suspend"
         (is (suspend-signal? (put-in! p :foo))))
       (testing "after suspending, a single entry should be in :sources."
-        (let [put-in-data (-> (:sources p) peek)]
-          (is (instance? PutIn put-in-data))
+        (let [source (-> p :sources peek)]
+          (is (uuid? source))
           (testing "The entry should contain the current run id "
-            (is (= (:run-id put-in-data) run-id)))
-          (testing "The entry should contain the value the put in"
-            (is (= (:value put-in-data) :foo)))))
+            (is (= source run-id)))
+          (testing "The buffer should contain the value put in"
+            (is (= (-> p :buffer peek) :foo)))))
       (testing "take-out! should unblock the run which was suspended by put-in! by"
         (with-continue!-stub [stub :unused]
           (with-run (s/cache-insert! (r/make-run))          ; simulate takeout happening in a different run
@@ -71,7 +70,7 @@
           (is (suspend-signal? (put-in! p 4)))))
       (testing "The queues should be as we expect"
         (is (= (pool-count p :sources) 2))
-        (is (= (pool-count p :buffer) 2))
+        (is (= (pool-count p :buffer) 4))
         (is (= (pool-count p :sinks) 0)))
       (with-run take-out-run
         (testing "Taking out from a buffered pool should return buffered values first and continue first suspended runs first"

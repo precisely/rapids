@@ -124,10 +124,13 @@
    {:pre  [(not (nil? inst))]
     :post [(get-in *cache* [(class inst) (:id inst)])]}
    (let [cls (class inst)
-         id (:id inst)]
+         id (:id inst)
+         cache-entry {:object inst
+                    :op     op}]
      (setf! *cache* update-in [cls id]
-       (constantly {:object inst
-                    :op     op})))))
+       (constantly cache-entry))
+     cache-entry)))
+
 (defn ensure-raw-object
   "Ensures the raw object is in the cache and returns it. If it doesn't exist, throws an error."
   [cls id]

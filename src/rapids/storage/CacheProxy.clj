@@ -93,12 +93,13 @@
 (defn -update [this f]
   (let [id (.theId this)
         cls (.theClass this)
-        {existing :object existing-change :op} (get-cache-entry cls id)
-        new-object (f existing)
+        {existing :object existing-change :op} (or (get-cache-entry cls id)
+                                                 (set-cache-entry (recent-instance this)))
         cache-change (if existing
                        (or existing-change :update)
-                       (throw (ex-info "Attempt to update cache object doesn't exist"
-                                {:object new-object})))]
+                       (throw (ex-info "Attempt to update cache object which can't be found"
+                                {:class cls :id id})))
+        new-object (f existing)]
     (if-not (instance? cls new-object)
       (throw (ex-info "Attempt to update object with object of different type"
                {:cache-proxy this
