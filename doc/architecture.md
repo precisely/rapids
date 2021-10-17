@@ -3,9 +3,9 @@
 ## Intro
   The `deflow` macro enables writing procedures, called flows, which await events in the real world, and which may occur over long periods of time. They’re conceptually similar to asynchronous processes in Javascript and other languages, however, while async functions and threads execute within the context of a single continuously running computer, the execution of a rapids flow may pass between different CPUs, as the program pauses for external events for arbitrarily long time periods.
 
-  The macro implements a compiler which analyzes a body of code, determining places where execution suspends for an external event, partitioning it into functions (continuations) which execute instructions before or after a point where execution suspends. The compiler associates each continuation with a unique address.
+  The macro implements a compiler which analyzes a body of code, determining places where execution suspends for an external event, partitioning it into functions (partition functions) which execute instructions before or after a point where execution suspends. The compiler associates each partition function with a unique address.
 
-  A runtime environment maintains a stack which contains records called stack frames which identify the next continuation to be executed (by storing its address), as well as other values, which will be discussed below. As execution proceeds, code inside continuations push new stack frames onto the stack, which act as pointers to other continuations to be executed next. A runtime loop pops frames from the stack, executing continuations until a special Suspend signal is received. We'll get into details in a moment.
+  A runtime environment maintains a stack which contains records called stack frames which identify the next partition function to be executed (by storing its address), as well as other values, which will be discussed below. As execution proceeds, code inside partition functions push new stack frames onto the stack, which act as pointers to other partition functions to be executed next. A runtime loop pops frames from the stack, executing partition functions until a special Suspend signal is received. We'll get into details in a moment.
 
   First, consider this extremely simple flow which asks the user for their name and greets them, either enthusiastically or not:
 
@@ -30,7 +30,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 #Flow {
  :name greeting
  :entry-point (fn [excited?] (flow/call [greeting 0] {:excited? excited?}))
- :continuations
+ :partition-fns
  { #address[greeting 0]            (fn [{:keys [excited?]}]
                                      (respond! "Hi. What is your name?")
                                      (resume-at [#address[greeting 1 let 0 1],
@@ -44,7 +44,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
                                      name)}}
 ```
 
-  The deflow macro produces a Flow record which contains a map with two functions (continuations). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second continuation (explained below), providing both the symbols of the lexical context up to that point (`[excited?]`) and the symbol for the data (called the "data key") which will eventually be received by `listen!` (in this case, `name`). Also notice that the second continuation takes a parameter list comprised of the previous continuation's lexical symbols and the data key.
+  The deflow macro produces a Flow record which contains a map with two functions (partition functions). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second partition function (explained below), providing both the symbols of the lexical context up to that point (`[excited?]`) and the symbol for the data (called the "data key") which will eventually be received by `listen!` (in this case, `name`). Also notice that the second partition function takes a parameter list comprised of the previous partition function's lexical symbols and the data key.
 
   We'll discuss how the infrastructure produces this code and uses it to implement long running processes in the next section. For now, just imagine that the execution of these two functions can be separated by an arbitrarily long period of time and executed on different CPUs. This gives you a flavor for how rapids models complex user interactions as functions and allows them to be delivered using traditional scalable web architecture.
 
@@ -54,9 +54,9 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 ### Compiler and Runtime
 
-1. Breaking of code into continuations.
+1. Breaking of code into partition functions.
 
-   It includes a compiler which partitions code bodies into separate functions, referred to here as continuations, which carry out pieces of the computation.
+   It includes a compiler which partitions code bodies into separate functions, referred to here as partition functions, which carry out pieces of the computation.
 
 2. Definition of suspending operations.
 
@@ -66,23 +66,23 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 3. Where code is partitioned.
 
-  Sequences of expressions are split (partitioned) immediately following suspending expressions, and nested expressions containing suspending expressions are decomposed to evaluation order to allow invokation of suspending expressions in a separate partition. The partitioner guarantees that each suspending expression appears as a terminal expression within a partition.  Suspending expressions return a special value, called the Suspend Signal, indicating that a runlet has completed. Since suspending expressions are always the final expressions in continuations, it follows that continuations return Suspend Signals when suspending expressions are executed.
+  Sequences of expressions are split (partitioned) immediately following suspending expressions, and nested expressions containing suspending expressions are decomposed to evaluation order to allow invokation of suspending expressions in a separate partition. The partitioner guarantees that each suspending expression appears as a terminal expression within a partition.  Suspending expressions return a special value, called the Suspend Signal, indicating that a runlet has completed. Since suspending expressions are always the final expressions in partition functions, it follows that partition functions return Suspend Signals when suspending expressions are executed.
 
 4. Symbolic addresses.
 
   The compiler generates unique symbolic addresses for code locations
 
-5. A map of continuations.
+5. A map of partition functions.
 
-  The compiler stores continuations in a data structure, called a `Flow`, where they can be looked up at runtime using a symbolic address
+  The compiler stores partition functions in a data structure, called a `Flow`, where they can be looked up at runtime using a symbolic address
 
 6. The Runtime Environment.
 
-  The architecture includes a runtime environment that manages a FILO stack. At runtime, continuations add stack frames to the stack.
+  The architecture includes a runtime environment that manages a FILO stack. At runtime, partition functions add stack frames to the stack.
 
 7. Contents of Stack Frames.
 
-  A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a continuation where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `data-key`. That variable will be bound as an argument to the continuation referenced by the symbolic address (a).
+  A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a partition function where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `data-key`. That variable will be bound as an argument to the partition function referenced by the symbolic address (a).
 
 ```clojure
 ;; simplified way of creating a stackframe record in Clojure
@@ -91,7 +91,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 8. Rule for pushing stack frames.
 
-  The compiler always adds a stack push operation before non-terminal suspending expressions, arranging for the data described in (7) to be incorporated into a new stack frame. The stack frame provides the data necessary to resume execution at the next continuation. Note that a stack push is not required when a suspending expression appears in a terminal position. This is explained in more detail in discussion of the main loop.
+  The compiler always adds a stack push operation before non-terminal suspending expressions, arranging for the data described in (7) to be incorporated into a new stack frame. The stack frame provides the data necessary to resume execution at the next partition function. Note that a stack push is not required when a suspending expression appears in a terminal position. This is explained in more detail in discussion of the main loop.
 
   Example of terminal versus non-terminal positions:
 ```clojure
@@ -111,7 +111,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
  (y)
  (suspending-expression)) ; terminal - stack frame push not required
 ```
-  Suspend operations (like `listen!`, described below) return a special `Suspend` signal which is recognized by the runtime environment. As stated earlier, the compiler arranges for these expressions to be the last expression in each continuation, thus continuations which suspend will return `Suspend` signals. The importance of this is developed in discussion of the main loop.
+  Suspend operations (like `listen!`, described below) return a special `Suspend` signal which is recognized by the runtime environment. As stated earlier, the compiler arranges for these expressions to be the last expression in each partition function, thus partition functions which suspend will return `Suspend` signals. The importance of this is developed in discussion of the main loop.
 
 9. The start! function.
 
@@ -123,7 +123,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 10. Starting.
 
-  The `start!` function generates a StackFrame where the address is the continuation which identifies the beginning of the flow. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `(StackFrame. #address<greeting/0>, {:excited? true}, nil)`.
+  The `start!` function generates a StackFrame where the address is the partition function which identifies the beginning of the flow. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `(StackFrame. #address<greeting/0>, {:excited? true}, nil)`.
 
   Remember, these values are the address, the bindings and the data-key. The `start!`  function allocates an empty array for the stack, the initial frame is pushed onto the stack, and the main loop is invoked with a `nil` argument. The result of the main loop is processed as described below, saving the state of computation to durable storage, and an object which allows resuming the computation is returned.
 
@@ -135,9 +135,9 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
   b. If the data-key of the top frame is non nil, add the `data` to the bindings, associating it with the `data-key`. E.g., `(assoc bindings data-key data)` in Clojure. The bindings thus prepared are called "the continue bindings".
 
-  c. Retrieve the continuation identified by the address of the top frame and call it with the continue bindings.
+  c. Retrieve the partition function identified by the address of the top frame and call it with the continue bindings.
 
-  d. The continuation will return either a `Suspend` signal or some other value, if the return value is not a `Suspend` signal, recursively call the main loop (i.e., GOTO step a) passing the return value as the argument. (The return value becomes the `data` of the next iteration of the loop).
+  d. The partition function will return either a `Suspend` signal or some other value, if the return value is not a `Suspend` signal, recursively call the main loop (i.e., GOTO step a) passing the return value as the argument. (The return value becomes the `data` of the next iteration of the loop).
 
   e. If a `Suspend` signal is received, exit the main loop, returning the signal.
 
@@ -203,13 +203,13 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 16. Storing and regenerating closures.
 
-  Closures require special handling by the compiler. Persisting functions at runtime to a durable store is difficult - but also unnecessary. Closures, however, contain data that must be passed between continuations. The compiler includes a partitioner that recognizes local function definitions. In Clojure, this is implemented by recognizing forms that begin with `fn` or `fn*`. When such forms are encountered, the compiler arranges for the function to be included in a vector associated with the flow object itself. The index of the local function in this array is called the _local function index_.
+  Closures require special handling by the compiler. Persisting functions at runtime to a durable store is difficult - but also unnecessary. Closures, however, contain data that must be passed between partition functions. The compiler includes a partitioner that recognizes local function definitions. In Clojure, this is implemented by recognizing forms that begin with `fn` or `fn*`. When such forms are encountered, the compiler arranges for the function to be included in a vector associated with the flow object itself. The index of the local function in this array is called the _local function index_.
 
   The `(fn ...)` form is substituted with a record representing the closure, `Closure`. It is a three tuple containing (1) a reference to the flow, (2) the local function index and (3) the bindings up to that point. By analyzing the function body, it's possible to reduce the size of the object which must be stored in the closure to just the variables captured by the closure, however, since the storage system could also include a compression layer, this may not provide much additional value.
 
-  Note that the `Closure` object contains only persistable data, and contains all of the information required to call the local function with the appropriate local bindings. By making this object callable (a simple matter of implementing the `IFn` interface in Clojure), it can be passed to other continuations within the flow or even to other flows.  A similar technique can be used for implementing local flow definitions and treating them as first class objects.
+  Note that the `Closure` object contains only persistable data, and contains all of the information required to call the local function with the appropriate local bindings. By making this object callable (a simple matter of implementing the `IFn` interface in Clojure), it can be passed to other partition functions within the flow or even to other flows.  A similar technique can be used for implementing local flow definitions and treating them as first class objects.
 
-17. Guarding against invalid continuation.
+17. Guarding against invalid partition function.
 
   By adding a `permit` value to the `Suspend` signal, and storing this value in the Run, a requirement can be created for the caller of `continue!`. This is useful for preventing a client from responding to an earlier part of the flow. The `listen!` function is modified to take an optional argument `:permit` which must be matched with a value provided to the `continue!` function. The simplest version of this would just be to match the values exactly, but more sophisticated matching is possible by including a function. For example, the permit could be a private key. The client could be provided a public key and required to encode some value (e.g., the data) with that key and provide it as the permit.
 
@@ -231,17 +231,17 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 20. Versioning.
 
-  As the flows are expected to change over time, a mechanism for maintaining versions of old flows is required, especially given that flows are intended to be long running and interact with users. One simple approach is to require programmers to maintain old versions of flows in the code base. Flow versions can be identified by computing a hash on the AST of the input to the `deflow` macro. The addressing scheme could be modified to include a reference to the particular version (deflow hash), thus any stack frame will uniquely identify a particular continuation in stored in the flow structure. Repeated invocations of `deflow` would thus add continuations to the continuation map without worry of collisions.  The current flow could be distinguished in some way - explicitly by adding a parameter to the `deflow` macro or including a rule that the first invocation (or last) of `deflow` for a given name sets the entry-point function. Since the entry-point function is unique to a flow, that would ensure that it points at the appropriate continuation in the continuation map.
+  As the flows are expected to change over time, a mechanism for maintaining versions of old flows is required, especially given that flows are intended to be long running and interact with users. One simple approach is to require programmers to maintain old versions of flows in the code base. Flow versions can be identified by computing a hash on the AST of the input to the `deflow` macro. The addressing scheme could be modified to include a reference to the particular version (deflow hash), thus any stack frame will uniquely identify a particular partition function in stored in the flow structure. Repeated invocations of `deflow` would thus add partition functions to the partition function map without worry of collisions.  The current flow could be distinguished in some way - explicitly by adding a parameter to the `deflow` macro or including a rule that the first invocation (or last) of `deflow` for a given name sets the entry-point function. Since the entry-point function is unique to a flow, that would ensure that it points at the appropriate partition function in the partition function map.
 
-  Facilities for checking whether a code base supports existing flows could be implemented by retrieving a unique set of addresses used in stacks of runs which have not completed. Since each address names the flow, the hash and the code point, it would be a simple matter of accessing flows and testing for the existence of a continuation at each address. Other methods might include saving versions to source control and arranging for those code bases to be retrieved dynamically.
+  Facilities for checking whether a code base supports existing flows could be implemented by retrieving a unique set of addresses used in stacks of runs which have not completed. Since each address names the flow, the hash and the code point, it would be a simple matter of accessing flows and testing for the existence of a partition function at each address. Other methods might include saving versions to source control and arranging for those code bases to be retrieved dynamically.
 
 21. Mechanism of partitioning.
 
-  The general principles of the compiler were described earlier. The compiler is composed of partitioning functions ("partitioners") which examine expressions and return values which are used to generate a flow's continuations.
+  The general principles of the compiler were described earlier. The compiler is composed of partitioning functions ("partitioners") which examine expressions and return values which are used to generate a flow's partition functions.
 
   All partitioners take 4 arguments (1) an expression, (2) the address of the expression, (3) the address of the current partition, (4) parameters (variables) defined up to this point in the computation. One partitioning function, `partition-body`, differs from others in that it takes a sequence of expressions rather than a single expression as its first argument.
 
-  Partitioners return a 3-tuple consisting of (1) a `start` expression, (2) a partition set, and (3) a boolean indicating whether the expression is a suspending expression. The `start` is an expression which initiates a suspending computation. Ironically, the start expression always appears at the end of a continuation, according to the rules we outlined earlier. The partition set is a map of addresses to function definitions.
+  Partitioners return a 3-tuple consisting of (1) a `start` expression, (2) a partition set, and (3) a boolean indicating whether the expression is a suspending expression. The `start` is an expression which initiates a suspending computation. Ironically, the start expression always appears at the end of a partition function, according to the rules we outlined earlier. The partition set is a map of addresses to function definitions.
 
   The `deflow` macro takes three arguments: `name`,`params` and a variadic argument, `body`, the code body. It invokes `partition-body` on `body`, a sequence of expressions, which are processed by calling `partition-expr` on each one. On start, `deflow` it passes an address consisting of only the symbol being used to define the function.
 
@@ -259,9 +259,9 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 ```clojure
 (do (resume-at [{B-address} ...])
-   (A)) ;; continuation ends here
+   (A)) ;; partition function ends here
 ```
-  Note in this example, the `start` of `(A)` is just `(A)`, but in other situations, for example a function which takes suspending arguments, the suspending arguments must be evaluated before the actual function evaluation, which would happen in a separate continuation. E.g.,
+  Note in this example, the `start` of `(A)` is just `(A)`, but in other situations, for example a function which takes suspending arguments, the suspending arguments must be evaluated before the actual function evaluation, which would happen in a separate partition function. E.g.,
 
 ```clojure
 (A 100 (suspending-expression))
@@ -274,7 +274,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
     (suspending-expression)))
 ```
 
-  A second continuation is generated that looks like the following:
+  A second partition function is generated that looks like the following:
 ```clojure
 (fn [{:keys [A-arg-0, A-arg-1]}
   (A A-arg-0 A-arg-1)])
@@ -301,17 +301,17 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
   `(b)` is evaluated before `(c)` and then function `a` is called with the results.
 
-  The function partitioner partitions each argument, binding each result to a auto-generated parameter. When suspending operations are generated, a stack push is generated preceding the suspending expression's `start` expression, and the process continues in a second continuation until all arguments have thus been processed. The final expression receives the auto-generated parameters and applies the function (in this case, `a`) to the arguments.
+  The function partitioner partitions each argument, binding each result to a auto-generated parameter. When suspending operations are generated, a stack push is generated preceding the suspending expression's `start` expression, and the process continues in a second partition function until all arguments have thus been processed. The final expression receives the auto-generated parameters and applies the function (in this case, `a`) to the arguments.
 
 23. Partitioning loops.
 
-  It is possible to implement efficient long term looping semantics by checking whether a loop body includes a suspending operation or not. If it does not, the loop may be compiled normally using looping constructs of the underlying language. If it does, then the compiler introduces a new continuation at the start of the loop expression (the "loop continuation"), and replaces the recur expressions with a stack-pus, where the stack frame points to the address of the continuation containing the start of the loop expression. Alternatively, one could simply replace the `recur` expression with a call to the loop continuation. 
+  It is possible to implement efficient long term looping semantics by checking whether a loop body includes a suspending operation or not. If it does not, the loop may be compiled normally using looping constructs of the underlying language. If it does, then the compiler introduces a new partition function at the start of the loop expression (the "loop partition function"), and replaces the recur expressions with a stack-pus, where the stack frame points to the address of the partition function containing the start of the loop expression. Alternatively, one could simply replace the `recur` expression with a call to the loop partition function. 
     
   The former mechanism generates a temporary Stack Frame which is immediately processed by the runtime loop. The latter avoids this so is marginally more performant, however, it consumes system stack which is not released until the loop is complete. In some situations, this could lead to stack overflows if, for example, a loop contains a suspending expression in side a conditional branch which is never encountered. If such a loop continues for a long time, each `recur` will consume more system stack in the latter method. 
 
 24. Partitioning branching logic.
 
-  A branching logic expression consists of `test`, `then` and `else` clauses. A branching logic expression which contains no suspending expressions is incorporated as is by the compiler. If the `test` clause is a suspending expression, then code is partitioned at the test expression. That is, the test expressions ends the current continuation, a stack frame is pushed with a new unique auto-generated variable for the `data-key`. The address will point to a new partition, the "branch partition" or "branch continuation" which contains a conditional expression which takes the data key variable as an argument and the start forms of the `then` and `else` clauses as arguments:
+  A branching logic expression consists of `test`, `then` and `else` clauses. A branching logic expression which contains no suspending expressions is incorporated as is by the compiler. If the `test` clause is a suspending expression, then code is partitioned at the test expression. That is, the test expressions ends the current partition function, a stack frame is pushed with a new unique auto-generated variable for the `data-key`. The address will point to a new partition, the "branch partition" or "branch partition function" which contains a conditional expression which takes the data key variable as an argument and the start forms of the `then` and `else` clauses as arguments:
 
 ```clojure
 ;;; input form
@@ -323,12 +323,12 @@ First let's jump to the output of the compiler to get a flavor of what is going 
   becomes
 
 ```clojure
-;; initial continuation ends with:
+;; initial partition function ends with:
 ...
-(resume-at [address-of-continuation-2 {..bindings} my-flow-test]
+(resume-at [address-of-partition function-2 {..bindings} my-flow-test]
    (my-flow))
 
-;; branch continuation looks like:
+;; branch partition function looks like:
 (fn [{:keys [... my-flow-test-result]}]
    (if my-flow-test-result
        then-start
@@ -337,7 +337,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 25. Basic higher order flows.
 
-  Two functions, `fcall` and `fapply` perform call and apply sematics on flows. The compiler recognizes `(fcall ..)` and `(fapply ...)` expressions as suspending expressions. The functions themselves simply perpare their arguments according to standard `call` and `apply` semantics, respectively, and pass the bindings to the entry point continuation of the flow object.
+  Two functions, `fcall` and `fapply` perform call and apply sematics on flows. The compiler recognizes `(fcall ..)` and `(fapply ...)` expressions as suspending expressions. The functions themselves simply perpare their arguments according to standard `call` and `apply` semantics, respectively, and pass the bindings to the entry point partition function of the flow object.
 
 26. Advanced higher order flows.
     
@@ -355,6 +355,8 @@ E.g.,
 ```
 
 27. Exception handling.
+
+  Note: these ideas have been superceded by interruption handling. The current library does not implement exception handling as described below, but I'm preserving the notes for future reference:
 
   The compiler may provide a means for handling exceptions with a try partitioner. Try blocks might include suspending expressions. If the body inside the try block is non-suspending then the try block is included in the existing partition without modification, and the body inside the catch block is partitioned normally. However, if the try block includes a suspending operation, the compiler takes the following actions:
 
@@ -385,7 +387,7 @@ E.g.,
 
   We'll refer to the start addresses of each as the "catch address" and the "finally address", respectively. These addresses are recorded in the stack frame (the `resume-at` macro is modified to include extra parameters for these values). Alternatively, code is injected at the beginning of the try block to add these values to the current stack frame.
 
-  The runtime implements exception handling as follows: a continuation execution function `execute-continuation` is added which takes four parameters, a set of bindings, a continuation address (code address), and optional catch and finally addresses:
+  The runtime implements exception handling as follows: a partition function execution function `execute-partition function` is added which takes four parameters, a set of bindings, a partition function address (code address), and optional catch and finally addresses:
 
 ```clojure
 (execute-continuation bindings, code-address, catch-address, finally-address)
@@ -480,13 +482,13 @@ E.g.,
 
   B. Suspending operations which return Suspend signals at runtime
 
-  C. Continuations stored at unique addresses
+  C. partition functions stored at unique addresses
 
-  D. Continuations which save new stack frames to the stack at runtime
+  D. partition functions which save new stack frames to the stack at runtime
 
-  E. A stack composed of stack frames, each of which contains the address of a continuation, a map of lexical bindings, and an optional data-key
+  E. A stack composed of stack frames, each of which contains the address of a partition function, a map of lexical bindings, and an optional data-key
 
-  F. A main loop function which continuously pops stack frames and evaluates continuations until a `Suspend` signal is received.
+  F. A main loop function which continuously pops stack frames and evaluates partition functions until a `Suspend` signal is received.
 
   G. A means of saving the stack to persistent storage
 
@@ -500,13 +502,13 @@ E.g.,
 
    * partition - block of code from a (deflow ...) expression
    * address - a Clojure record which identifies a location in a flow
-   * continuation - Clojure function associated with an address that implements the partition. In practice, this also includes code which pushes and pops frames onto/off of the stack
+   * partition function - Clojure function associated with an address that implements the partition. In practice, this also includes code which pushes and pops frames onto/off of the stack
    * listen - stop execution of a run due to encountering the listen! command with a flow. The state of the flow is saved to the stack and can be resumed when an event is received.
    * suspending expression - within a lexical body of code, an expression which represents a point at which execution may pause for an arbitrarily long period of time.
-   * stack frame - a Clojure record which contains information required for resuming a flow. It contains an address which identifies the next continuation, plus any bindings, and an optional data-key, representing a variable name to which a value will be bound when the computation is resumed in the next continuation.
+   * stack frame - a Clojure record which contains information required for resuming a flow. It contains an address which identifies the next partition function, plus any bindings, and an optional data-key, representing a variable name to which a value will be bound when the computation is resumed in the next partition function.
    * stack - a FILO queue of stack frames
    * run - a data structure persisted in durable storage which is identified by a unique ID and stores the stack, but can also be used to refer to a sequence of execution involving multiple runlets and the events that trigger them.
-   * runlet - a sequence of continuations which are invoked while handling an event, representing partitions from potentially many flows. A runlet begins when a flow is started or continued and ends when a listen! operation is encountered.
+   * runlet - the sequence of events following a start! or continue! call during which one or more partition functions are invoked. During a runlet, partition functions from multiple flows may be invoked. A runlet ends either when the run finishes (when the main flow completes and the stack is empty) or when a suspend signal is generated.
    * child run - a run started by another run. Moral equivalent of a subprocess.
    * event - a real world event which causes the run to resume executing after being suspended
    * redirect - relinquish control to a child run. Clients will receive responses from the child run and will continue the child run until it blocks or ends.
@@ -599,7 +601,7 @@ E.g.,
 (defrecord Pool
    id     ; a globally unique identifier  
    size   ; integer, indicating size of the buffer
-   sources  ; FIFO queue holding put-in records
+   sources  ; FIFO queue holding run-ids representing runs waiting to put-in a value
    buffer   ; FIFO queue for buffered values
    sinks)   ; FIFO queue of run-ids representing runs waiting to take-out a value
 ```
