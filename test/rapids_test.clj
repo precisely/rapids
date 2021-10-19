@@ -940,5 +940,6 @@
           (continue! run)
 
           (testing "The second time through, the continuation call returns the value provided inside the child flow"
-            (is (= {:else-branch {:*cc* :interrupt, :*cc-dynamic* :outer}}))))))))
+            (is (= [{:else-branch {:*cc* :interruption, :*cc-dynamic* :outer}}]
+                  (:response run)))))))))
 
