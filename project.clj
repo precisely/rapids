@@ -29,7 +29,7 @@
                       v]))
     (into {})))
 
-(defproject precisely/rapids "0.5.0"
+(defproject precisely/rapids "0.6.0"
   :description "A Clojure DSL for scripting user flows"
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
@@ -68,7 +68,7 @@
 
              :cloverage {:plugins   [[lein-cloverage "1.2.2"]]
                          :cloverage {:ns-exclude-regex [#"rapids\.runtime\.cc"]
-                                     :test-ns-regex [#"^((?!rapids-interruptions-test).)*$"]}}}
+                                     :test-ns-regex    [#"^((?!rapids-interruptions-test).)*$"]}}}
   :repl-options {:init-ns rapids}
 
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"

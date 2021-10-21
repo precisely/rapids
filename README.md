@@ -198,14 +198,13 @@ To push a release:
 
    You need to provide access key id & secret to push to the S3 bucket. You will need write access, obviously. These are stored in .env. The .env.sample file contains the key names: 
    
-   ```
-   cp .env.sample .env
-   ```
+   ```cp .env.sample .env```
    
 5. Deploy the library to S3
-   ```shell script
-    lein deploy precisely
-    ```
+
+  ```shell script
+lein deploy precisely
+  ```
 
 ### Local Deployment
 
