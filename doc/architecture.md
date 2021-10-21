@@ -622,19 +622,20 @@ E.g.,
 
 #### The put-in! Algorithm
 
-  Given a call to `(put-in! pool value)`, we update queues in `pool` as follows: 
+  Given a call to `(put-in! pool new-value)`, we update queues in `pool` as follows: 
 
+    - ADD new-value to BUFFER queue
     - IF the sinks queue is not empty // if so, buffer and sources queues are empty
       THEN
-        - REMOVE a sink (a run id) from the sinks queue
-        - CONTINUE sink with value using (continue! sink value)
+        - REMOVE a run-id from the SINKS queue
+        - REMOVE a value, buff-val from the BUFFER queue
+        - CONTINUE sink with buff-val using (continue! run-id buff-val)
+        - RETURN nil
       ELSE
-        - IF the buffer queue is not full
+        - IF the BUFFER queue is full
           THEN
-            - ADD value to the buffer queue
-          ELSE
-            - ADD PutIn(*current-run-id*, value) to the sources queue
-            - SUSPEND the current run using (listen!)
+            - ADD the current run-id to the SOURCES queue
+            - SUSPEND the current run using (listen! :permit pool-id)
 
   This algorithm assumes the pool object is destructively modified. In Clojure this requires passing the pool inside an atom.  
 
@@ -642,24 +643,24 @@ E.g.,
 
   Given a call `(take-out! pool)`, we update queues in `pool` as follows: 
   
-    - IF sources queue is not empty
+    - IF BUFFER queue is empty
+        THEN
+          - ADD current run-id to SINKS queue
+          - SUSPEND current run
+        ELSE
+          - REMOVE a value from BUFFER, storing as result
+    - IF SOURCES queue is not empty
       THEN
-        - REMOVE a PutIn record, source, from the sources queue
-        - CONTINUE the source run using (continue! (:run-id source))
-        - ADD the source value to the buffer queue
-    - IF buffer queue is not empty
-      THEN
-        - REMOVE a value, v, from the buffer queue
-        - RETURN v
-      ELSE
-        - ADD *current-run-id* to the sinks queue
-        - SUSPEND execution using (listen!)
+        - REMOVE run-id source from SOURCES queue
+        - CONTINUE source
+    - RETURN result
+        
     
   This algorithm assumes the pool object is destructively modified. In Clojure this requires passing the pool inside an atom.
 
 #### Securing Pool flows with a permit
 
-  The `put-in!` and `take-out!` algorithms should guard against invalid continuation of runs. To do this, the above algorithms should be modified to include a `:permit` argument. A simple choice is to use the pool id. So instead of calling `(listen!)` and `(continue! run-id value)`, we would call `(listen! :permit (:id pool))` and `(continue! run-id value :permit (:id pool))`.    
+  The `put-in!` and `take-out!` algorithms should guard against invalid continuation of runs. To do this, the above algorithms should be modified to include a `:permit` argument. A simple choice wis to use the pool id. So instead of calling `(listen!)` and `(continue! run-id value)`, we would call `(listen! :permit (:id pool))` and `(continue! run-id value :permit (:id pool))`.   
 
 #### Storing and regenerating pools
 
