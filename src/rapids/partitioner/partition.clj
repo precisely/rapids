@@ -10,7 +10,7 @@
             [rapids.support.util :refer :all]
             [rapids.support.debug :refer :all])
   (:import (clojure.lang ArityException LazySeq)))
-(use 'debux.core)
+
 ;;;; Partitioner
 
 ;;;
