@@ -126,7 +126,7 @@
    (let [cls (class inst)
          id (:id inst)
          cache-entry {:object inst
-                    :op     op}]
+                      :op     op}]
      (setf! *cache* update-in [cls id]
        (constantly cache-entry))
      cache-entry)))
@@ -139,7 +139,10 @@
   (or (:object (get-cache-entry cls id))
     (if-let [obj (c/get-record! cls id)]
       (do (set-cache-entry obj) obj)
-      (throw (ex-info "Object not found." {:class cls :id id})))))
+      (throw (ex-info "Object not found."
+               {:type  ::not-found
+                :class cls
+                :id    id})))))
 
 (defn ->CacheProxy
   ([cls id] (->CacheProxy cls id nil))
