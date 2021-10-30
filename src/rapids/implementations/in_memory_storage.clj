@@ -3,6 +3,8 @@
 ;;
 (ns rapids.implementations.in-memory-storage
   (:require [rapids.storage.protocol :refer :all]
+            [rapids.storage.in-memory-filter :refer [filter-records]]
+            [java-time :as t]
             [rapids.support.util :refer [new-uuid ifit]]))
 
 (defn conn-records
@@ -27,18 +29,9 @@
     (map #(if-let [rec (conn-records this cls %)]
             (thaw-record rec))
       ids))
-  (find-records! [this type field {:keys [eq gt lt gte lte limit]}]
-    (letfn [(test [rec val op] (op (field rec) val))]
-      (let [records (vals (conn-records this type))
-            filtered (vec (filter #(some-> %
-                                     (test eq =)
-                                     (test gt >)
-                                     (test lt <)
-                                     (test gte >=)
-                                     (test lte <=))
-                            records))
-            limited (subvec filtered 0 (or limit (count filtered)))]
-        limited))))
+  (find-records! [this type field {:keys [eq gt lt gte lte limit order-by] :as keys}]
+    (filter-records (map thaw-record (vals (conn-records this type)))
+      field keys)))
 
 (defrecord InMemoryStorage
   [records]                                                 ; {typeA {id1 inst1, id2 inst2...}, typeB {...}}

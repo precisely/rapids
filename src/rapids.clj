@@ -15,14 +15,15 @@
    block!, <<!,
    ;; start operator:
    !
-   expire-run! callcc
+   callcc
    attempt restartable restart handle]
-  [rapids.runtime.core current-run start! continue! interrupt! run? fcall, fapply raise]
+  [rapids.runtime.core current-run start! continue! interrupt! run? fcall fapply raise
+   get-expired-runs find-and-expire-runs! expire-run!]
   [rapids.language.time years months weeks days hours minutes seconds weeks now from-now]
   [rapids.objects.flow flow?]
   [rapids.objects.closure closure?]
   [rapids.objects.interruptions ->interruption interruption?]
-  [rapids.storage.core set-storage! with-storage])
+  [rapids.storage.core set-storage! with-storage ensure-cached-connection])
 
 ;; the in memory storage is used by default
 (set-storage! (->in-memory-storage))

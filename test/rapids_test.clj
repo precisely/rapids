@@ -1,7 +1,7 @@
 (ns rapids_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [rapids.storage.core :as storage :refer [ensure-cached-connection cache-proxy?]]
+            [rapids.storage.core :as storage :refer [cache-proxy?]]
             [test_helpers :refer [flush-cache! proxy-field with-test-env-run get-run get-pool throws-error-output run-in-state?]]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [rapids.partitioner.core :refer [partition-flow-body]]
@@ -208,7 +208,7 @@
     :else-val))
 
 (deftest ^:language SuspendingTest
-  (storage/ensure-cached-connection
+  (ensure-cached-connection
     (testing "if expression where the test suspends, "
       (testing "when test is truthy"
         (let [run (start! conditional-with-suspending-test true)]

@@ -46,15 +46,15 @@
 
 (defn valid-run-data? [kvs]
   (every? (fn [key]
-            (let [pred ({:id           uuid?,
-                         :state        RunStates,
-                         :stack        seq?
-                         :dynamics     vector?
+            (let [pred ({:id        uuid?,
+                         :state     RunStates,
+                         :stack     seq?
+                         :dynamics  vector?
                          :interrupt (some-fn nil? uuid?)
-                         :parent-id    (some-fn nil? uuid?)
-                         :response     (constantly true)
-                         :result       (constantly true)
-                         :suspend      (some-fn nil? signals/suspend-signal?)} key)
+                         :parent-id (some-fn nil? uuid?)
+                         :response  (constantly true)
+                         :result    (constantly true)
+                         :suspend   (some-fn nil? signals/suspend-signal?)} key)
                   val (get kvs key)]
               (if pred
                 (pred val)
@@ -80,22 +80,6 @@
                 :result       result
                 :dynamics     dynamics
                 :cached-state :created}))))
-
-(defn make-test-run
-  "Returns a run and a record"
-  [& remove-keys]
-  {:post [(not (contains-some? % remove-keys))]}
-  (make-run                                                 ; fill every field of the run
-    (apply dissoc {:state         :running
-                   :start-form    (str '(foo :a 1))
-                   :stack         (list (sf/make-stack-frame (a/->address 'foo 1 2) {:b 2} 'data-key))
-                   :suspend       (signals/make-suspend-signal :foo (t/local-date-time) {:a 1})
-                   :response      [:hello :there]
-                   :result        {:data "some-result"}
-                   :parent-run-id (new-uuid)
-                   :dynamics      [{#'*print-dup* true}]
-                   :error         (Exception. "foo")}
-      remove-keys)))
 
 (defmethod print-method Run
   [o w]

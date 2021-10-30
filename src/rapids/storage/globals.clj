@@ -21,9 +21,14 @@
   [] *storage*)
 
 (defn set-storage!
-  "Sets the default storage. May be overridden with with-storage."
-  [storage]
-  (alter-var-root #'*storage* (constantly storage)))
+  "Sets the default storage. May be overridden with with-storage, optionally establishes a default connection and a top-level cache.
+
+  Example:
+  (set-storage s :connection true :cache true)"
+  [storage & {:keys [connection cache]}]
+  (alter-var-root #'*storage* (constantly storage))
+  (if connection (alter-var-root #'*connection* (constantly (p/get-connection *storage*))))
+  (if cache (alter-var-root #'*cache* (constantly {}))))
 
 (defmacro with-storage
   "Override the existing storage. This may be useful if multiple storages are used."

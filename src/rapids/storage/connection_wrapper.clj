@@ -4,7 +4,8 @@
 (ns rapids.storage.connection-wrapper
   (:require
     [rapids.storage.protocol :as p]
-    [rapids.storage.globals :refer :all]))
+    [rapids.storage.globals :refer :all]
+    [clojure.string :as str]))
 
 (declare instances-of? instances-of-same?)
 (defn transaction-begin! []
@@ -42,13 +43,17 @@
   (first (get-records! cls [id])))
 
 (defn find-records!
-  [type field & {:keys [eq lt gt lte gte eq limit in exclude] :as keys}]
-  {:post [(instances-of? type %)]}
-  (p/find-records! *connection* type field keys))
+  "Looks up records"
+  [type index & {:keys [eq lt gt lte gte eq limit in exclude skip-locked? order-by] :as keys}]
+  {:pre  [(or
+            (keyword? index)
+            (and (sequential? index) (every? keyword? index)))]
+   :post [(instances-of? type %)]}
+  (p/find-records! *connection* type index keys))
 
 (defn find-record!
-  [type field & {:keys [eq lt gt lte gte eq limit in exclude] :as keys}]
-  (first (apply find-records! type field keys)))
+  [type index & {:keys [eq lt gt lte gte eq limit in exclude skip-locked?] :as keys}]
+  (first (apply find-records! type index keys)))
 
 ;; HELPERS
 (defn- instances-of? [cls seq]

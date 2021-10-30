@@ -9,14 +9,16 @@
             [honey.sql :as sql]
             [honey.sql.helpers :as h]
             [migratus.core :as migratus]
-            [taoensso.timbre :as log])
+            [taoensso.timbre :as log]
+            [clojure.string :as str]
+            [rapids.objects.run :as r])
   (:import (rapids.objects.run Run)
            (rapids.objects.pool Pool)
            (com.zaxxer.hikari HikariDataSource)
            (org.slf4j LoggerFactory)
            (org.slf4j.event Level)))
 
-(declare from-db-record to-db-record exec-one! exec! class->table table->name check-class)
+(declare from-db-record to-db-record exec-one! exec! class->table table->name check-class field-caster keys-to-db-field)
 
 (declare ->PostgresStorageConnection)
 
@@ -103,7 +105,8 @@
         (exec! this
           (-> (h/select :*)
             (h/from table-name)
-            (h/where [:in :id ids]))))))
+            (h/where [:in :id ids])
+            (h/for :update))))))
 
   (create-records! [this records]
     (let [cls (-> records first class)
@@ -134,25 +137,46 @@
             (h/upsert (apply h/do-update-set (h/on-conflict :id) set-keys))
             (h/returning :*))))))
 
-  (find-records! [this type field {:keys [gt lt eq gte lte limit exclude]}]
+  (find-records! [this type field {:keys [gt lt eq gte lte limit exclude skip-locked? order-by]}]
     (let [table (class->table type)
           table-name (:name table)
-          to-db-record (:to-db-record table)
-          cast #(field (to-db-record {field %}))            ; not very efficient, but convert the field using the to-db-record fn
+          cast (field-caster table field)
+          db-field (keys-to-db-field field)
+          cmp (fn [op test] [op db-field (cast test)])
           where-clause (cond-> [:and]
-                         gt (conj [:> field (cast gt)])
-                         lt (conj [:< field (cast lt)])
-                         gte (conj [:>= field (cast gte)])
-                         lte (conj [:<= field (cast lte)])
-                         eq (conj [:= field (cast eq)])
+                         gt (conj (cmp :> gt))
+                         lt (conj (cmp :< lt))
+                         gte (conj (cmp :>= gte))
+                         lte (conj (cmp :<= lte))
+                         eq (conj (cmp := eq))
                          exclude (conj [:not-in :id exclude]))]
       (log/debug "Finding " table-name " where " where-clause)
       (map (from-db-record table-name)
         (exec! this
           (cond-> (-> (h/select :*)
-                    (h/from table-name)
-                    (h/where where-clause))
+                    (h/from table-name))
+            (not= where-clause [:and]) (h/where where-clause)
+            skip-locked? (h/for :update :skip-locked)
+            (not skip-locked?) (h/for :update)
+            order-by (h/order-by [db-field order-by])
             limit (h/limit limit)))))))
+
+(defn keys-to-db-field
+  "Converts a vector of keywords to a snake-case keyword
+
+  (keys-to-db-field [:foo :bar]) => :foo_bar"
+  [field]
+  (if (vector? field) (keyword (str/join "_" (map name field))) field))
+
+;; TODO: clean up this ugly casting operation
+(defn field-caster [table field]
+  {:pre [(or (keyword? field) (vector? field))]}
+  (let [to-db-record (:to-db-record table)
+        field (if (vector? field) field [field])
+        db-field (keys-to-db-field field)]
+    #(db-field
+       (to-db-record
+         (update-in {} field (constantly %))))))
 
 (defn postgres-storage-migrate!
   "Creates or updates Rapids tables in a JDBC database (currently only Postgres supported)."
@@ -180,13 +204,15 @@
 
 (declare run-to-record pool-to-record)
 
-(defn- run-to-record [run]
-  {:object          (p/freeze-record run)
-   :start_form      (:start-form run)
-   :suspend_expires (-> run :suspend :expires)
-   :result          (str (:result run))
-   :id              (:id run)
-   :state           (-> run :state name as-other)})
+(defn- run-to-record
+  [run]
+  (letfn [(safename [n] (if n (name n)))]
+    {:object          (p/freeze-record run)
+     :start_form      (:start-form run)
+     :suspend_expires (-> run :suspend :expires)
+     :result          (str (:result run))
+     :id              (:id run)
+     :state           (-> run :state safename as-other)}))
 
 (defn- pool-to-record [pool]
   {:object (p/freeze-record pool)

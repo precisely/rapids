@@ -53,7 +53,7 @@
       return instance - if successful
       throw error - if not found")
 
-  (find-records! [sconn type field {:keys [eq lt gt lte gte in exclude limit exclude]}]
+  (find-records! [sconn type field {:keys [eq lt gt lte gte in exclude limit exclude order-by skip-locked?]}]
     "Retrieves objects using indexed fields.
     type - the class of object to find
     field - the field to test
@@ -71,16 +71,22 @@
 
 (def FrozenClass (class (freeze "foo")))
 (defn frozen? [o] (instance? FrozenClass o))
+
 ;;
 ;; Protocol helper functions
 ;;
+(defn class-map-ctor-symbol
+  "Given a class, returns the map constructor e.g., map->MyRecord"
+  [cls]
+  (let [name-parts (split (.getName cls) #"\.")
+        nsname (join "." (butlast name-parts))
+        name (last name-parts)]
+    (symbol nsname (str "map->" name))))
+
 (defn freeze-record
   ([obj]
    (let [cls (class obj)
-         name-parts (split (.getName cls) #"\.")
-         nsname (join "." (butlast name-parts))
-         name (last name-parts)
-         ctor-symbol (symbol nsname (str "map->" name))]
+         ctor-symbol (class-map-ctor-symbol cls)]
      (freeze-record obj ctor-symbol)))
   ([obj ctor-symbol]
    (let [data (into {} obj)]
