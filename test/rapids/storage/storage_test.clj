@@ -62,7 +62,7 @@
         (let [cp (atom nil)]
           (ensure-cached-connection
             (reset! cp (cache-get! Foo 2)))
-          (is (not (cache-exists?))) ; sanity check
+          (is (not (cache-exists?)))                        ; sanity check
           (is (= (.rawData @cp) {:id 2 :val :initial}))))
       (testing "finally, created objects are saved to the storage"
         (ensure-connection
@@ -106,9 +106,9 @@
                   (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)]))))
           (testing "it should find items up to :limit in the cache"
             (is (= 2 (count (cache-find! Foo :val :gte 1 :limit 2)))))
-          (testing "it should find items in :ascending order in the cache"
-            (is (= (cache-find! Foo :val :lte 3 :order :ascending)
+          (testing "it should find items in ascending order in the cache"
+            (is (= (cache-find! Foo :val :lte 3 :order-by :asc)
                   (list (->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)))))
-          (testing "it should find items in :descending order in the cache"
-            (is (= (cache-find! Foo :val :lte 3 :order :descending)
+          (testing "it should find items in descending order in the cache"
+            (is (= (cache-find! Foo :val :lte 3 :order-by :desc)
                   (list (->CacheProxy Foo :c) (->CacheProxy Foo :b) (->CacheProxy Foo :a))))))))))

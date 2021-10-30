@@ -5,12 +5,15 @@
             [rapids.storage.core :as s]))
 
 (deflow expiring-flow []
-  (listen! :permit "foo" :expires (-> 3 days from-now) :default :default-data))
+  (listen! :permit "foo" :expires (now) :default :default-data))
 
-(deftest ExpireRun
+(deftest ^:integration ExpireRuns
   (testing "It causes a suspended run to continue with the default value"
     (with-test-env
-      (let [run (start! expiring-flow)
-            expired (expire-run! (:id run))]
-        (is (run-in-state? expired :complete))
-        (is (= (:result expired) :default-data))))))
+      (let [run (start! expiring-flow)]
+        (is (= (:state run) :running))
+        (flush-cache!)
+        (let [num-expired (find-and-expire-runs! 10)]
+          (flush-cache!)
+          (is (= (:state run) :complete))
+          (is (= 1 num-expired)))))))

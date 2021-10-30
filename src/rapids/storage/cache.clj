@@ -14,6 +14,7 @@
 (ns rapids.storage.cache
   (:require [rapids.storage.globals :refer [ensure-connection *cache*]]
             [rapids.storage.connection-wrapper :as c]
+            [rapids.storage.in-memory-filter :refer [filter-records]]
             [rapids.support.util :refer :all])
   (:import (rapids.storage CacheProxy)))
 
@@ -62,22 +63,17 @@
   "Finds objects matching criteria on a single field, loading them from storage as necessary.
 
   Returns - list of CacheProxy objects"
-  [type field & {:keys [eq lt gt lte gte eq in limit order] :as keys}]
+  [type field & {:keys [eq lt gt lte gte eq in limit order-by] :as keys}]
   (let [tests (dissoc keys :limit)
-        existing (find-in-cache type field tests)
+        existing (filter-records (map :object (vals (get *cache* type)))
+                   field (dissoc keys :limit :order-by))
         excluded-ids (filter :id existing)
         test-args (seq (apply concat (map vec tests)))
         new-objects (apply c/find-records! type field :exclude excluded-ids test-args)
         result (concat existing new-objects)
-        ordered-result (case order
-                         :ascending (sort-by field < result)
-                         :descending (sort-by field > result)
-                         nil result
-                         (throw (ex-info "cache-find! :order must be :ascending :descending or nil"
-                                  {:order order})))
-        limited-result (if limit (take limit ordered-result) ordered-result)]
+        filtered-result (filter-records result field {:limit limit :order-by order-by})]
     (map set-cache-entry new-objects)
-    (map #(->CacheProxy (class %) (:id %) %) limited-result)))
+    (map #(->CacheProxy (class %) (:id %) %) filtered-result)))
 
 (defmacro ensure-cached-connection
   "Ensures a transactional cache and connection exists then executes body in the context
@@ -139,7 +135,10 @@
   (or (:object (get-cache-entry cls id))
     (if-let [obj (c/get-record! cls id)]
       (do (set-cache-entry obj) obj)
-      (throw (ex-info "Object not found." {:class cls :id id})))))
+      (throw (ex-info "Object not found."
+               {:type ::not-found
+                :class cls
+                :id id})))))
 
 (defn ->CacheProxy
   ([cls id] (->CacheProxy cls id nil))
@@ -148,8 +147,3 @@
 
 (defn cache-proxy? [o]
   (and o (instance? CacheProxy o)))
-;
-;(defmethod print-method CacheProxy
-;  [o w]
-;  (.write w (format "(->CacheProxy %s %s)"
-;              (-> o (.theClass) (.getName)) (-> o (.theId) str))))

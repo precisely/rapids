@@ -128,6 +128,5 @@
               run (interrupt! run :foo :message "hello" :data {:a 123})]
 
           (testing "the expected interruption is handled"
-            (println (:response run))
             (is (= [[:foo-handled (->interruption :foo :message "hello" :data {:a 123})] :finally-called]
                   (:response run)))))))))
