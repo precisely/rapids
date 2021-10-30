@@ -7,6 +7,10 @@
 (def ^:dynamic *storage* nil)
 (def ^:dynamic *connection* nil)
 (def ^:dynamic *cache* nil)
+(def ^:dynamic *strict-proxy*
+  "Determines whether the CacheProxy object functions in strict mode (useful for production) or a more developer friendly mode.
+  In non-strict mode the "
+  false)
 
 (defn current-connection
   "Returns the current connection to the current-storage or nil; typically set by with-connection or ensure-connection."

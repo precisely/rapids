@@ -2,7 +2,8 @@
 ;; The CacheProxy class
 ;;
 (ns rapids.storage.CacheProxy
-  (:require [rapids.storage.cache :refer [cache-exists? ensure-raw-object get-cache-entry set-cache-entry]])
+  (:require [rapids.storage.cache :refer [cache-exists? ensure-raw-object get-cache-entry set-cache-entry ensure-cached-connection]]
+            [rapids.storage.globals :refer [*strict-proxy*]])
   (:gen-class
     :implements [clojure.lang.ILookup]                      ; for ease of use
     :constructors {[Class Object Object] []}                ; mapping of my-constructor -> superclass constuctor
@@ -14,7 +15,8 @@
               [index [] clojure.lang.PersistentVector]
               [theId [] Object]
               [rawData [] Object]]
-    :main false))
+    :main false)
+  (:import (clojure.lang ExceptionInfo)))
 
 (defn -init
   ;; We store the class, id and a recent copy of the object.
@@ -57,14 +59,23 @@
         (if (or (not= (.theClass this) (class fresh))
               (not= (.theId this) (:id fresh)))
           (throw (ex-info "CacheProxy detected cache corruption while attempt to retrieve instance"
-                   {:class    (.theClass this)
+                   {:type     ::cache-corruption
+                    :class    (.theClass this)
                     :id       (.theId this)
                     :instance fresh})))
         (swap! state assoc :recent fresh)
         fresh)
 
-      ;; else, return recent copy
-      (:recent @state))))
+      (if *strict-proxy*
+        (:recent @state)
+
+        ;; else, attempt again with a cached-connection
+        (try (ensure-cached-connection (recent-instance this))
+             (catch ExceptionInfo e
+               ;; if we still can't find it, return the most recently retrieved object
+               (if (= :rapids.storage.cache/not-found (-> e ex-data :type))
+                 (:recent @state)
+                 (throw e))))))))
 
 (defn -rawData
   "Attempts to get the object from the cache, if the cache exists, otherwise returns the most recent copy.
