@@ -92,6 +92,14 @@
                           :args [i :message message :data data]})))))
 
 ;;
+;; Not really part of the run loop, but this little utility function is part o the top level API,
+;; so putting it here.
+(defn get-run!
+  "Get a Run, storing it in the cache. Returns a CacheProxy object."
+  [run-id]
+  (ensure-cached-connection (cache-get! Run run-id)))
+
+;;
 ;; Helpers
 ;;
 (declare eval-loop! complete-run! stack-processor! next-stack-fn! next-move)

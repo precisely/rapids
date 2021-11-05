@@ -25,10 +25,10 @@
 (defn save-cache! []
   (doseq [[cls entries] *cache*]
     (let [synced-entries (reduce-kv #(assoc %1 %2 (dissoc %3 :op)) {} entries)
-          cache-entries (vals entries)
-          filter-on (fn [op] (map :object (filter #(-> % :op (= op)) cache-entries)))
-          creates (filter-on :create)
-          updates (filter-on :update)]
+          cache-entries  (vals entries)
+          filter-on      (fn [op] (map :object (filter #(-> % :op (= op)) cache-entries)))
+          creates        (filter-on :create)
+          updates        (filter-on :update)]
       (if (-> creates count (> 0))
         (c/create-records! creates))
       (if (-> updates count (> 0))
@@ -53,7 +53,7 @@
   "Adds inst to cache, returning a CacheProxy"
   [inst]
   {:pre [(cache-exists?)]}
-  (let [id (:id inst)
+  (let [id  (:id inst)
         cls (class inst)]
     (assert (not (get-cache-entry cls id)) (str "Attempt to create object in cache which already exists: " (.getName cls) id))
     (set-cache-entry inst :create)
@@ -64,36 +64,39 @@
 
   Returns - list of CacheProxy objects"
   [type field & {:keys [eq lt gt lte gte eq in limit order-by] :as keys}]
-  (let [tests (dissoc keys :limit)
-        existing (filter-records (map :object (vals (get *cache* type)))
-                   field (dissoc keys :limit :order-by))
-        excluded-ids (filter :id existing)
-        test-args (seq (apply concat (map vec tests)))
-        new-objects (apply c/find-records! type field :exclude excluded-ids test-args)
-        result (concat existing new-objects)
+  (let [tests           (dissoc keys :limit)
+        existing        (filter-records (map :object (vals (get *cache* type)))
+                                        field (dissoc keys :limit :order-by))
+        excluded-ids    (filter :id existing)
+        test-args       (seq (apply concat (map vec tests)))
+        new-objects     (apply c/find-records! type field :exclude excluded-ids test-args)
+        result          (concat existing new-objects)
         filtered-result (filter-records result field {:limit limit :order-by order-by})]
     (map set-cache-entry new-objects)
     (map #(->CacheProxy (class %) (:id %) %) filtered-result)))
+
+(defn call-with-cached-transaction [f]
+  (binding [*cache* {}]
+    (try
+      (c/transaction-begin!)
+      (let [result (f)]
+        (save-cache!)
+        (c/transaction-commit!)
+        result)
+      (catch Exception e
+        (c/transaction-rollback!)
+        (throw e)))))
 
 (defmacro ensure-cached-connection
   "Ensures a transactional cache and connection exists then executes body in the context
   of a transaction. Changes to the cache are committed as a final step or rolled back if
   an exception is detected."
   [& body]
-  `(letfn [(exec# [] ~@body)]
+  `(let [exec# (fn [] ~@body)]
      (ensure-connection
        (if (cache-exists?)
          (exec#)
-         (binding [*cache* {}]
-           (try
-             (c/transaction-begin!)
-             (let [result# (exec#)]
-               (save-cache!)
-               (c/transaction-commit!)
-               result#)
-             (catch Exception e#
-               (c/transaction-rollback!)
-               (throw e#))))))))
+         (call-with-cached-transaction exec#)))))
 
 ;;
 ;; Private Helpers
@@ -119,12 +122,12 @@
   ([inst op]
    {:pre  [(not (nil? inst))]
     :post [(get-in *cache* [(class inst) (:id inst)])]}
-   (let [cls (class inst)
-         id (:id inst)
+   (let [cls         (class inst)
+         id          (:id inst)
          cache-entry {:object inst
                       :op     op}]
      (setf! *cache* update-in [cls id]
-       (constantly cache-entry))
+            (constantly cache-entry))
      cache-entry)))
 
 (defn ensure-raw-object
@@ -133,12 +136,12 @@
   {:pre [(instance? Class cls)
          (not (nil? id))]}
   (or (:object (get-cache-entry cls id))
-    (if-let [obj (c/get-record! cls id)]
-      (do (set-cache-entry obj) obj)
-      (throw (ex-info "Object not found."
-               {:type  ::not-found
-                :class cls
-                :id    id})))))
+      (if-let [obj (c/get-record! cls id)]
+        (do (set-cache-entry obj) obj)
+        (throw (ex-info "Object not found."
+                        {:type  ::not-found
+                         :class cls
+                         :id    id})))))
 
 (defn ->CacheProxy
   ([cls id] (->CacheProxy cls id nil))

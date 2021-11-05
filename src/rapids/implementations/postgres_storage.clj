@@ -29,9 +29,9 @@
   (require-index! [_ type field]
     (if-not (get-in {Run  #{[:suspend :expires] :id}
                      Pool #{:id}}
-              [type field])
+                    [type field])
       (throw (ex-info "Implementation of PostgresStorage is out of date. Index not supported."
-               {:type type :field field})))))
+                      {:type type :field field})))))
 
 (defn disable-hikari-logging []
   (-> (LoggerFactory/getLogger "com.zaxxer.hikari.pool.PoolBase") (.setLevel Level/ERROR))
@@ -40,7 +40,7 @@
   (-> (LoggerFactory/getLogger "com.zaxxer.hikari.HikariConfig") (.setLevel Level/ERROR)) ;
   (-> (LoggerFactory/getLogger "com.zaxxer.hikari.util.DriverDataSource") (.setLevel Level/ERROR)))
 
-(defn postgres-storage? [o] (instance? o PostgresStorage))
+(defn postgres-storage? [o] (instance? PostgresStorage o))
 
 (defn ->postgres-storage
   "Creates a Rapids Postgres Storage.
@@ -75,9 +75,9 @@
          (boolean? register-mbeans)
          (string? classname)]}
   (let [config (dissoc (assoc options :auto-commit false :read-only false) :pool-class)
-        db (if pool
-             (connection/->pool pool (dissoc (assoc options :auto-commit false :read-only false) :pool-class))
-             config)]
+        db     (if pool
+                 (connection/->pool pool (dissoc (assoc options :auto-commit false :read-only false) :pool-class))
+                 config)]
     (PostgresStorage. db)))
 
 (defrecord PostgresStorageConnection [connection]
@@ -98,68 +98,68 @@
     (exec-one! this ["ROLLBACK;"]))
 
   (get-records! [this type ids]
-    (let [table (class->table type)
+    (let [table      (class->table type)
           table-name (:name table)]
       (log/debug "Getting " table-name " " ids)
       (map (from-db-record table-name)
-        (exec! this
-          (-> (h/select :*)
-            (h/from table-name)
-            (h/where [:in :id ids])
-            (h/for :update))))))
+           (exec! this
+                  (-> (h/select :*)
+                      (h/from table-name)
+                      (h/where [:in :id ids])
+                      (h/for :update))))))
 
   (create-records! [this records]
-    (let [cls (-> records first class)
-          table (class->table cls)
+    (let [cls          (-> records first class)
+          table        (class->table cls)
           to-db-record (:to-db-record table)
-          table-name (:name table)]
+          table-name   (:name table)]
       (check-class cls records)
       (log/debug "Creating" table-name (map :id records))
       (let [stmt (-> (h/insert-into table-name)
-                   (h/values (vec (map to-db-record records)))
-                   (h/returning :*))]
+                     (h/values (vec (map to-db-record records)))
+                     (h/returning :*))]
         (map (from-db-record table-name) (exec! this stmt)))))
 
   (update-records! [this records]
-    (let [record (first records)
-          cls (class record)
-          table (class->table cls)
-          table-name (:name table)
+    (let [record       (first records)
+          cls          (class record)
+          table        (class->table cls)
+          table-name   (:name table)
           to-db-record (:to-db-record table)
-          db-records (map to-db-record records)
-          set-keys (disj (set (apply concat (map keys db-records))) :id :created_at)]
+          db-records   (map to-db-record records)
+          set-keys     (disj (set (apply concat (map keys db-records))) :id :created_at)]
       (check-class cls records)
       (log/debug "Updating " table-name (map :id records))
       (map (from-db-record table-name)
-        (exec! this
-          (-> (h/insert-into table-name)
-            (h/values db-records)
-            (h/upsert (apply h/do-update-set (h/on-conflict :id) set-keys))
-            (h/returning :*))))))
+           (exec! this
+                  (-> (h/insert-into table-name)
+                      (h/values db-records)
+                      (h/upsert (apply h/do-update-set (h/on-conflict :id) set-keys))
+                      (h/returning :*))))))
 
   (find-records! [this type field {:keys [gt lt eq gte lte limit exclude skip-locked? order-by]}]
-    (let [table (class->table type)
-          table-name (:name table)
-          cast (field-caster table field)
-          db-field (keys-to-db-field field)
-          cmp (fn [op test] [op db-field (cast test)])
+    (let [table        (class->table type)
+          table-name   (:name table)
+          cast         (field-caster table field)
+          db-field     (keys-to-db-field field)
+          cmp          (fn [op test] [op db-field (cast test)])
           where-clause (cond-> [:and]
-                         gt (conj (cmp :> gt))
-                         lt (conj (cmp :< lt))
-                         gte (conj (cmp :>= gte))
-                         lte (conj (cmp :<= lte))
-                         eq (conj (cmp := eq))
-                         exclude (conj [:not-in :id exclude]))]
+                               gt (conj (cmp :> gt))
+                               lt (conj (cmp :< lt))
+                               gte (conj (cmp :>= gte))
+                               lte (conj (cmp :<= lte))
+                               eq (conj (cmp := eq))
+                               (not (empty? exclude)) (conj [:not-in :id exclude]))]
       (log/debug "Finding " table-name " where " where-clause)
       (map (from-db-record table-name)
-        (exec! this
-          (cond-> (-> (h/select :*)
-                    (h/from table-name))
-            (not= where-clause [:and]) (h/where where-clause)
-            skip-locked? (h/for :update :skip-locked)
-            (not skip-locked?) (h/for :update)
-            order-by (h/order-by [db-field order-by])
-            limit (h/limit limit)))))))
+           (exec! this
+                  (cond-> (-> (h/select :*)
+                              (h/from table-name))
+                          (not= where-clause [:and]) (h/where where-clause)
+                          skip-locked? (h/for :update :skip-locked)
+                          (not skip-locked?) (h/for :update)
+                          order-by (h/order-by [db-field order-by])
+                          limit (h/limit limit)))))))
 
 (defn keys-to-db-field
   "Converts a vector of keywords to a snake-case keyword
@@ -172,8 +172,8 @@
 (defn field-caster [table field]
   {:pre [(or (keyword? field) (vector? field))]}
   (let [to-db-record (:to-db-record table)
-        field (if (vector? field) field [field])
-        db-field (keys-to-db-field field)]
+        field        (if (vector? field) field [field])
+        db-field     (keys-to-db-field field)]
     #(db-field
        (to-db-record
          (update-in {} field (constantly %))))))
@@ -183,7 +183,7 @@
   ([]
    (let [storage (rapids.storage.globals/current-storage)]
      (assert (postgres-storage? storage))
-     (postgres-storage-migrate!)))
+     (postgres-storage-migrate! storage)))
 
   ([^PostgresStorage pg-storage]
    (let [migration-conf {:store         :database
@@ -196,10 +196,11 @@
   (assert (every? #(instance? cls %) records) (str "Expecting records of type " cls)))
 
 (defn- exec! [pconn stmt]
-  (jdbc/execute! (:connection pconn) (sql/format stmt)))
+  (let [formatted-sql (if (map? stmt) (sql/format stmt) stmt)]
+    (jdbc/execute! (:connection pconn) formatted-sql)))
 
 (defn- exec-one! [pconn stmt]
-  (let [formatted-sql (sql/format stmt)]
+  (let [formatted-sql (if (map? stmt) (sql/format stmt) stmt)]
     (jdbc/execute-one! (:connection pconn) formatted-sql)))
 
 (declare run-to-record pool-to-record)

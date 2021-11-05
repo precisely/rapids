@@ -2,7 +2,9 @@
 ;; Dynamics variables used by the storage system
 ;;
 (ns rapids.storage.globals
-  (:require [rapids.storage.protocol :as p]))
+  (:require [rapids.storage.protocol :as p]
+            [rapids.support.debug])
+  (:import (rapids.storage.protocol Storage)))
 
 (def ^:dynamic *storage* nil)
 (def ^:dynamic *connection* nil)
@@ -38,10 +40,15 @@
              *cache* nil]
      ~@body))
 
+(defn get-connection
+  [storage]
+  {:pre [storage (satisfies? p/Storage storage)]}
+  (p/get-connection storage))
+
 (defmacro with-connection
   "Establishes a new connection with the current storage"
   [& body]
-  `(binding [*connection* (p/get-connection *storage*)
+  `(binding [*connection* (get-connection *storage*)
              *cache* nil]
      (try ~@body
           (finally (p/close *connection*)))))
