@@ -34,19 +34,19 @@
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
             :url  "https://precise.ly/rapids"}
-  :dependencies [[org.clojure/clojure "1.10.1"]
-                 [clojure.java-time "0.3.2"]
-                 [org.clojure/tools.macro "0.1.2"]
+  :dependencies [[org.clojure/clojure "1.10.3"]
+                 [clojure.java-time "0.3.3"]
+                 [org.clojure/tools.macro "0.1.5"]
                  [org.clojure/data.codec "0.1.1"]
-                 [com.taoensso/nippy "3.1.0"]
-                 [com.taoensso/timbre "5.1.0"]
+                 [com.taoensso/nippy "3.1.1"]
+                 [com.taoensso/timbre "5.1.2"]
                  [com.fzakaria/slf4j-timbre "0.3.21"]       ; needed by next.jdbc
                  [potemkin "0.4.5"]
 
                  ;; database
-                 [org.postgresql/postgresql "42.2.18"]
-                 [seancorfield/next.jdbc "1.1.613"]
-                 [com.github.seancorfield/honeysql "2.0.783"]
+                 [org.postgresql/postgresql "42.3.1"]
+                 [seancorfield/next.jdbc "1.2.659"]
+                 [com.github.seancorfield/honeysql "2.1.829"]
                  [danlentz/clj-uuid "0.1.9"]
                  [migratus "1.3.5"]
                  [hikari-cp "2.13.0"]]
@@ -62,7 +62,8 @@
                                         [tortue/spy "2.9.0"]
                                         [org.clojars.justiniac/matchure "0.13.1"]
                                         [org.clojure/tools.namespace "1.1.0"]]
-                         :plugins      [[migratus-lein "0.7.3"]
+                         :plugins      [[lein-ancient "1.0.0-RC3"]
+                                        [migratus-lein "0.7.3"]
                                         [lein-localrepo "0.5.4"]]
                          }
 
