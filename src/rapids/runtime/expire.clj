@@ -5,9 +5,11 @@
             [rapids.storage.core :refer [ensure-cached-connection cache-get! cache-find!]])
   (:import (rapids.objects.run Run)))
 
-(defn get-expired-runs [limit]
-  (let [current-time (now)]
-    (cache-find! Run [:suspend :expires] :lte current-time :limit limit :skip-locked? true)))
+(defn get-expired-runs
+  ([] (get-expired-runs nil))
+  ([limit]
+   (let [current-time (now)]
+     (cache-find! Run [:suspend :expires] :lte current-time :limit limit :skip-locked? true))))
 
 (defn expire-run! [run]
   (let [{{permit :permit, default :default} :suspend} run]

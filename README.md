@@ -81,14 +81,20 @@ Suspends execution of the current run until the given run completes. Returns the
 
 ## Setting up a backend
 
-Rapids works by persisting state of flows in non-volatile storage. This capability can be provided by implementing the protocols, in rapids.storage.protocol: Storage and StorageConnection. The library contains implementations of an in memory implementation (used for testing) and a Postgres-based implementation.
+Rapids works by saving the runtime state in non-volatile storage. This capability can be provided by implementing the protocols, in rapids.storage.protocol: Storage and StorageConnection. The library contains implementations of an in memory implementation (used for testing) and a Postgres-based implementation.
 
-### Setup a PostgresStorage Backend
+### Set up a local PostgresStorage Backend
+#### Create a database
+```shell
+createdb rapids_storage # or any name you prefer
+```
+
+#### Add code to your application 
 ```clojure
 (ns mynamespace
   (:require [rapids :refer :all]
             [rapids.implementations.postgres-storage :refer [->postgres-storage postgres-storage-migrate!]])
-(set-storage! (->postgres-storage {:jdbcUrl "jdbc:postgresql://{host}:{port}/{dbname}`}))
+(set-storage! (->postgres-storage {:jdbcUrl "jdbc:postgresql://localhost:5432/rapids_storage`}))
 (postgres-storage-migrate!) ; uses the top-level storage by default          
 ```
 

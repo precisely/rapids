@@ -1,4 +1,4 @@
-(ns rapids_test
+(ns rapids-test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
             [rapids.storage.core :as storage :refer [cache-proxy?]]

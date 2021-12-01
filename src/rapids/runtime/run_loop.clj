@@ -27,7 +27,8 @@
   (let [startable-name (name startable)
         start-form (prn-str `(~startable-name ~@args))]
     (ensure-cached-connection
-      (with-run (cache-insert! (r/make-run {:state    :running, :start-form start-form
+      (with-run (cache-insert! (r/make-run {:state    :running,
+                                            :start-form start-form
                                             :dynamics []}))
         ;; create the initial stack-fn to kick of the process
         (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
@@ -90,6 +91,14 @@
      :otherwise (throw (ex-info "Unexpected argument type to interrupt!. Expecting Keyword or Interruption"
                          {:type (type i)
                           :args [i :message message :data data]})))))
+
+;;
+;; Not really part of the run loop, but this little utility function is part o the top level API,
+;; so putting it here.
+(defn get-run!
+  "Get a Run, storing it in the cache. Returns a CacheProxy object."
+  [run-id]
+  (ensure-cached-connection (cache-get! Run run-id)))
 
 ;;
 ;; Helpers
