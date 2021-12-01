@@ -63,7 +63,7 @@
 
 (defn make-run
   ([] (make-run {}))
-  ([{:keys [id, stack, state, response, result dynamics]
+  ([{:keys [id, stack, state, response, result, dynamics]
      :or   {id       (new-uuid)
             state    :running
             stack    ()

@@ -27,7 +27,8 @@
   (let [startable-name (name startable)
         start-form (prn-str `(~startable-name ~@args))]
     (ensure-cached-connection
-      (with-run (cache-insert! (r/make-run {:state    :running, :start-form start-form
+      (with-run (cache-insert! (r/make-run {:state    :running,
+                                            :start-form start-form
                                             :dynamics []}))
         ;; create the initial stack-fn to kick of the process
         (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
