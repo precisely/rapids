@@ -35,6 +35,7 @@
   :license {:name "All Rights Reserved"
             :url  "https://precise.ly/rapids"}
   :dependencies [[org.clojure/clojure "1.10.3"]
+                 [org.clojure/core.async "1.3.610"]
                  [clojure.java-time "0.3.3"]
                  [org.clojure/tools.macro "0.1.5"]
                  [org.clojure/data.codec "0.1.1"]
