@@ -18,7 +18,7 @@
    callcc
    attempt restartable restart handle]
   [rapids.runtime.core current-run start! continue! interrupt! get-run! run? fcall fapply raise
-   get-expired-runs find-and-expire-runs! expire-run!]
+   get-expired-runs find-and-expire-runs! expire-run! start-expiry-monitor! stop-expiry-monitor!]
   [rapids.language.time years months weeks days hours minutes seconds weeks now from-now]
   [rapids.objects.flow flow?]
   [rapids.objects.closure closure?]
