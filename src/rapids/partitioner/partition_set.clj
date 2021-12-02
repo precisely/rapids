@@ -76,9 +76,9 @@
 (defn partition-fn-set-def
   "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"
   [pset]
-  (let [cdefs (map (fn [[address _]]
-                     [address (partition-fn-def pset address)]) (dissoc pset :unforced))]
-    `(hash-map ~@(apply concat cdefs))))
+  (let [pfdefs (map (fn [[address _]]
+                     [`(quote ~(:point address)) (partition-fn-def pset address)]) (dissoc pset :unforced))]
+    `(hash-map ~@(apply concat pfdefs))))
 
 (defn combine
   [& psets]
