@@ -12,9 +12,7 @@
    ;; Function with arbitrary signature
    entry-point
    ;; A map of address-point strings to functions of the form (fn [{:keys [...]}])
-   partition-fns
-   ;; For debugging purposes:
-   partitions]
+   partition-fns]
 
   :fn (fn [this & _]
         (throw (ex-info (str "Improperly invoked flow: " (:name this) ". Use start!, fcall or fapply when flow is bound dynamically.")

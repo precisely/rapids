@@ -1,6 +1,8 @@
 (ns rapids.objects.address
   (:require [clojure.string :as string]
-            [clojure.test :refer [is]]))
+            [clojure.test :refer [is]])
+  (:import (clojure.lang Symbol)
+           (java.util Vector)))
 
 ;; Address identifies a point in a flow.
 ;; While addresses can be generated for any point in the tree,
@@ -36,10 +38,7 @@
 ;; or by providing an implementation which prevents associng.
 ;;
 (defrecord Address
-  [flow                                                     ; Symbol
-   point]                                                   ; Vector
-  Object
-  (toString [o] (str "<" (to-string o) ">")))
+  [^Symbol flow, ^Vector point])
 
 (defn address? [o] (instance? Address o))
 
@@ -53,8 +52,8 @@
 (defn point-to-string [address]
   (letfn [(two-digit-num? [elt]
             (or (and (number? elt) (> elt 9))
-              (if-let [str->num (try (Integer/parseInt (str elt)) (catch Exception e))]
-                (> str->num 9))))
+                (if-let [str->num (try (Integer/parseInt (str elt)) (catch Exception e))]
+                  (> str->num 9))))
           (stringify-point-elt [elt]
             (if (two-digit-num? elt)
               (str "_" elt "_")
@@ -79,9 +78,9 @@
           (number? step)
           (-> address :point last number?)]}
    (let [point (:point address)
-         last (last point)]
+         last  (last point)]
      (assoc address :point (conj (pop point)
-                             (+ step last))))))
+                                 (+ step last))))))
 
 (defn resolved-flow
   [address]
@@ -102,5 +101,5 @@
 (defmethod print-method Address
   [o w]
   (print-simple
-    (str "#<Address " (to-string o) ">")
+    (str "(->Address '" (:flow o) " '" (:point o) ")")
     w))

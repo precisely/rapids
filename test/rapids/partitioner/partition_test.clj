@@ -12,8 +12,8 @@
 
 (declare PARTITION-ADDRESS MAIN)                            ; get rid of symbol resolution warnings
 
-(def fl1 (Flow. 'fl1 #() {} {}))
-(def fl2 (Flow. 'fl2 #() {} {}))
+(def fl1 (Flow. 'fl1 #() {}))
+(def fl2 (Flow. 'fl2 #() {}))
 (defn a [])
 (defn b [])
 
