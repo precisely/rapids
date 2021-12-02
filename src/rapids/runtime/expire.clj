@@ -23,25 +23,30 @@
 (defn expiry-monitor-delay
   [storage] (get *expiry-monitors* storage))
 
-(defn find-and-expire-runs! [storage]
-  (with-storage storage
-    (try
-      (ensure-cached-connection
-        (doseq [run (get-expired-runs)
-                :let [run-id (:id run)]]
-          (try
-            (log/debug "Expiry monitor: expiring run" run-id)
-            (expire-run! run)
-            (catch Exception e
-              (log/error "Expiry monitor: run " run-id ": " e)
-              (stacktrace/print-stack-trace e)))))
-      (catch Exception e
-        (log/error "Expiry monitor: failed while retrieving expired runs:" e)
-        (stacktrace/print-stack-trace e)))))
+(defn find-and-expire-runs!
+  ([n] (find-and-expire-runs! (current-storage) n))
+  ([storage n]
+   (with-storage storage
+     (let [counter (atom 0)]
+       (try
+         (ensure-cached-connection
+           (doseq [run (get-expired-runs n)
+                   :let [run-id (:id run)]]
+             (try
+               (log/debug "Expiry monitor: expiring run" run-id)
+               (expire-run! run)
+               (swap! counter inc)
+               (catch Exception e
+                 (log/error "Expiry monitor: run " run-id ": " e)
+                 (stacktrace/print-stack-trace e)))))
+         (catch Exception e
+           (log/error "Expiry monitor: failed while retrieving expired runs:" e)
+           (stacktrace/print-stack-trace e)))
+       @counter))))
 
 (defn start-expiry-monitor!
-  "Starts the expiry monitor for a given storage, checking every delay seconds for expired runs and expiring them."
-  [& {:keys [storage delay] :or {storage (current-storage) delay 30}}]
+  "Starts the expiry monitor for a given storage, checking every delay seconds for expired runs and expiring up to n runs."
+  [& {:keys [storage delay n] :or {storage (current-storage), delay 30, n 10}}]
   (let [existing-delay (expiry-monitor-delay storage)]
     (if existing-delay
       (do
@@ -53,7 +58,7 @@
         (go-loop []
           (if-let [delay (expiry-monitor-delay storage)]
             (do
-              (find-and-expire-runs! storage)
+              (find-and-expire-runs! storage n)
               (<! (timeout (* delay 1000)))
               (recur))
             ;; ELSE:
