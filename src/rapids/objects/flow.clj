@@ -12,9 +12,7 @@
    ;; Function with arbitrary signature
    entry-point
    ;; A map of address-point strings to functions of the form (fn [{:keys [...]}])
-   partition-fns
-   ;; For debugging purposes:
-   partitions]
+   partition-fns]
 
   :fn (fn [this & _]
         (throw (ex-info (str "Improperly invoked flow: " (:name this) ". Use start!, fcall or fapply when flow is bound dynamically.")
@@ -60,7 +58,7 @@
   {:pre [(a/address? address)
          (map? bindings)]}
   (let [flow (a/resolved-flow address)
-        pfn (get-in flow [:partition-fns address])]
+        pfn (get-in flow [:partition-fns (:point address)])]
     (if-not (fn? pfn)
       (throw (ex-info (str "Attempt to continue flow at undefined partition " address )
                {:type :system-error

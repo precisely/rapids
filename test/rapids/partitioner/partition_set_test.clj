@@ -46,7 +46,7 @@
                       ?a2 ['clojure.core/fn _ [{:keys ['a 'c]}] ['clojure.core/binding [] ['+ 'c 'a]]]]
                      (partition-fn-set-def {addr1 (->Partition '[a b] '[(* a b)])
                                             addr2 (->Partition '[a c] '[(+ c a)])})]
-            (and (= a1 addr1) (= a2 addr2)))))
+            (and (= a1 `'~(:point addr1)) (= a2 `'~(:point addr2))))))
 
 
     (testing "forced and unforced addresses"

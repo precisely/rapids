@@ -16,7 +16,7 @@
             address (->address qualified-name)
             [entry-fn-def, pset] (partition-flow-body (meta &form) address fdecl)
             flow-form `(let [pfn-set# ~(partition-fn-set-def pset)]
-                         (->Flow '~qualified-name, ~entry-fn-def, pfn-set#, ~pset))]
+                         (->Flow '~qualified-name, ~entry-fn-def, pfn-set#))]
         `(def ^{:doc ~docstring?} ~name ~flow-form)))))
 
 (defmacro flow
