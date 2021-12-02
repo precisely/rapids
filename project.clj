@@ -54,23 +54,18 @@
   :aot [rapids.storage.CacheProxy rapids.objects.CurrentContinuationChange]
   :clean-targets ^{:protect false} ["target"]
   :plugins [[s3-wagon-private "1.3.4"]]
-  :profiles {:dev
-                        {
-                         :source-paths ["src"]
-                         :dependencies [[expectations/clojure-test "1.2.1"]
-                                        [org.clojure/core.match "1.0.0"]
-                                        [philoskim/debux "0.8.1"]
-                                        [tortue/spy "2.9.0"]
-                                        [org.clojars.justiniac/matchure "0.13.1"]
-                                        [org.clojure/tools.namespace "1.1.0"]]
-                         :plugins      [[lein-ancient "1.0.0-RC3"]
-                                        [migratus-lein "0.7.3"]
-                                        [lein-localrepo "0.5.4"]]
-                         }
-
-             :cloverage {:plugins   [[lein-cloverage "1.2.2"]]
-                         :cloverage {:ns-exclude-regex [#"rapids\.runtime\.cc"]
-                                     :test-ns-regex    [#"^((?!rapids-interruptions-test).)*$"]}}}
+  :profiles {:dev {
+                   :source-paths ["src"]
+                   :dependencies [[expectations/clojure-test "1.2.1"]
+                                  [org.clojure/core.match "1.0.0"]
+                                  [philoskim/debux "0.8.1"]
+                                  [tortue/spy "2.9.0"]
+                                  [org.clojars.justiniac/matchure "0.13.1"]
+                                  [org.clojure/tools.namespace "1.1.0"]]
+                   :plugins      [[lein-ancient "1.0.0-RC3"]
+                                  [migratus-lein "0.7.3"]
+                                  [lein-localrepo "0.5.4"]
+                                  [lein-cloverage "1.2.2"]]}}
   :repl-options {:init-ns rapids}
 
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
