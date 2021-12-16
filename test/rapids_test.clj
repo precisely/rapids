@@ -677,7 +677,7 @@
                              (put-in! pool (str "User said '" user-input "' (" counter ")"))
                              (if (= user-input "stop")
                                (put-in! pool :halt)
-                               (recur (listen!) (inc counter))))))]
+                               (recur (<*) (inc counter))))))]
     (pool-test-report :user-run (constantly user-run))
     pool))
 
