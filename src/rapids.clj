@@ -19,7 +19,8 @@
    attempt restartable restart handle
    declare-suspending]
   [rapids.runtime.core current-run start! continue! interrupt! get-run! run? fcall fapply raise
-   get-expired-runs find-and-expire-runs! expire-run! start-expiry-monitor! stop-expiry-monitor!]
+   get-expired-runs find-and-expire-runs! expire-run! start-expiry-monitor! stop-expiry-monitor!
+   set-status!]
   [rapids.language.time years months weeks days hours minutes seconds weeks now from-now]
   [rapids.objects.flow flow?]
   [rapids.objects.closure closure?]

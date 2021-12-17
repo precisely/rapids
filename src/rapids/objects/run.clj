@@ -11,7 +11,7 @@
     [rapids.objects.stack-frame :as sf]
     [rapids.support.util :refer :all])
   (:import (java.util UUID Vector)
-           (clojure.lang Keyword Cons Symbol Var)))
+           (clojure.lang Keyword Cons Symbol Var PersistentHashMap)))
 
 (defrecord Run
   [^UUID id
@@ -20,7 +20,8 @@
    ^Object result
    ^Object response
    ^Vector dynamics
-   ^UUID interruption-id])
+   ^UUID interruption-id
+   ^PersistentHashMap status])
 
 (def ^:const RunStates #{:running :error :complete :interrupted})
 
@@ -34,9 +35,9 @@
                 Var x
                 Symbol (resolve x))]
      (->> (:dynamics run)
-       reverse
-       (filter #(contains? % v))
-       (map #(get % v not-found))))))
+          reverse
+          (filter #(contains? % v))
+          (map #(get % v not-found))))))
 
 (defn get-dynamic-value
   "Gets the current binding for symbol or var s"
@@ -46,43 +47,46 @@
 
 (defn valid-run-data? [kvs]
   (every? (fn [key]
-            (let [pred ({:id        uuid?,
-                         :state     RunStates,
+            (let [pred ({:id        uuid?
+                         :state     RunStates
                          :stack     seq?
+                         :status    map?
                          :dynamics  vector?
                          :interrupt (some-fn nil? uuid?)
                          :parent-id (some-fn nil? uuid?)
                          :response  (constantly true)
                          :result    (constantly true)
                          :suspend   (some-fn nil? signals/suspend-signal?)} key)
-                  val (get kvs key)]
+                  val  (get kvs key)]
               (if pred
                 (pred val)
                 (throw (ex-info "Invalid key for Run" {:key key})))))
-    (keys kvs)))
+          (keys kvs)))
 
 (defn make-run
   ([] (make-run {}))
-  ([{:keys [id, stack, state, response, result, dynamics]
+  ([{:keys [id, stack, state, response, result, dynamics status]
      :or   {id       (new-uuid)
             state    :running
             stack    ()
             response []
-            dynamics []}
+            dynamics []
+            status   {}}
      :as   fields}]
    {:pre  [(RunStates state)]
     :post [(s/assert ::run %)]}
    (map->Run (into (or fields {})
-               {:id           id,
-                :state        state,
-                :stack        stack,
-                :response     response,
-                :result       result
-                :dynamics     dynamics
-                :cached-state :created}))))
+                   {:id           id,
+                    :state        state,
+                    :stack        stack,
+                    :response     response,
+                    :result       result
+                    :dynamics     dynamics
+                    :cached-state :created
+                    :status       status}))))
 
-(defmethod print-method Run
-  [o w]
-  (print-simple
-    (str "#<Run " (:id o) " " (:start-form o) ">")
-    w))
+;(defmethod print-method Run
+;  [o w]
+;  (print-simple
+;    (str "#<Run " (:id o) " " (:start-form o) ">")
+;    w))

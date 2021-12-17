@@ -6,17 +6,22 @@
             [next.jdbc :as jdbc]
             [next.jdbc.types :refer [as-other]]
             [next.jdbc.connection :as connection]
+            [next.jdbc.prepare :refer [SettableParameter]]
             [honey.sql :as sql]
             [honey.sql.helpers :as h]
             [migratus.core :as migratus]
             [taoensso.timbre :as log]
             [clojure.string :as str]
-            [rapids.objects.run :as r])
+            [rapids.implementations.json-converter :refer [->json <-json]]
+            [next.jdbc.result-set :as rs])
   (:import (rapids.objects.run Run)
            (rapids.objects.pool Pool)
            (com.zaxxer.hikari HikariDataSource)
            (org.slf4j LoggerFactory)
-           (org.slf4j.event Level)))
+           (org.slf4j.event Level)
+           (org.postgresql.util PGobject)
+           (clojure.lang IPersistentMap IPersistentVector)
+           (java.sql PreparedStatement)))
 
 (declare from-db-record to-db-record exec-one! exec! class->table table->name check-class field-caster keys-to-db-field)
 
@@ -114,7 +119,7 @@
           to-db-record (:to-db-record table)
           table-name   (:name table)]
       (check-class cls records)
-      (log/debug "Creating" table-name (map :id records))
+      (log/debug "Creating" table-name records)
       (let [stmt (-> (h/insert-into table-name)
                      (h/values (vec (map to-db-record records)))
                      (h/returning :*))]
@@ -204,7 +209,7 @@
     (jdbc/execute-one! (:connection pconn) formatted-sql)))
 
 (declare run-to-record pool-to-record)
-
+(declare ->pgobject)
 (defn- run-to-record
   [run]
   (letfn [(safename [n] (if n (name n)))]
@@ -213,6 +218,7 @@
      :suspend_expires (-> run :suspend :expires)
      :result          (str (:result run))
      :id              (:id run)
+     :status          (-> run :status ->pgobject)
      :state           (-> run :state safename as-other)}))
 
 (defn- pool-to-record [pool]
@@ -243,3 +249,48 @@
   `(try ~@body
         (catch Exception e#
           (log/error "While " '~body ":" e#))))
+
+;; JSON Wrangling
+;; See https://cljdoc.org/d/seancorfield/next.jdbc/1.2.659/doc/getting-started/tips-tricks
+(defn ->pgobject
+  "Transforms Clojure data to a PGobject that contains the data as
+  JSON. PGObject type defaults to `jsonb` but can be changed via
+  metadata key `:pgtype`"
+  [x]
+  (let [pgtype (or (:pgtype (meta x)) "jsonb")]
+    (doto (PGobject.)
+      (.setType pgtype)
+      (.setValue (->json x)))))
+
+(defn <-pgobject
+  "Transform PGobject containing `json` or `jsonb` value to Clojure
+  data."
+  [^PGobject v]
+  (let [type  (.getType v)
+        value (.getValue v)]
+    (if (#{"jsonb" "json"} type)
+      (when value
+        (with-meta (<-json value) {:pgtype type}))
+      value)))
+
+(set! *warn-on-reflection* true)
+
+;; if a SQL parameter is a Clojure hash map or vector, it'll be transformed
+;; to a PGobject for JSON/JSONB:
+(extend-protocol SettableParameter
+  IPersistentMap
+  (set-parameter [m ^PreparedStatement s i]
+    (.setObject s i (->pgobject m)))
+
+  IPersistentVector
+  (set-parameter [v ^PreparedStatement s i]
+    (.setObject s i (->pgobject v))))
+
+;; if a row contains a PGobject then we'll convert them to Clojure data
+;; while reading (if column is either "json" or "jsonb" type):
+(extend-protocol rs/ReadableColumn
+  PGobject
+  (read-column-by-label [^PGobject v _]
+    (<-pgobject v))
+  (read-column-by-index [^PGobject v _2 _3]
+    (<-pgobject v)))
