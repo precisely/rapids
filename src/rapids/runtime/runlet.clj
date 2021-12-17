@@ -64,6 +64,9 @@
     (update-run! :stack (or rest-stack ()))
     frame))
 
+(defn set-status! [& kvs]
+  (update-run! :status (apply assoc (current-run :status) kvs)))
+
 (defn add-responses! [& responses]
   (let [current-response (current-run :response)]
     (assert (vector? current-response))

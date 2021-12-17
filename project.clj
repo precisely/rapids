@@ -29,7 +29,7 @@
                       v]))
     (into {})))
 
-(defproject precisely/rapids "0.6.6"
+(defproject precisely/rapids "0.6.7"
   :description "A Clojure DSL for scripting user flows"
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
@@ -50,7 +50,8 @@
                  [com.github.seancorfield/honeysql "2.1.829"]
                  [danlentz/clj-uuid "0.1.9"]
                  [migratus "1.3.5"]
-                 [hikari-cp "2.13.0"]]
+                 [hikari-cp "2.13.0"]
+                 [metosin/jsonista "0.3.5"]]
   :aot [rapids.storage.CacheProxy rapids.objects.CurrentContinuationChange]
   :clean-targets ^{:protect false} ["target"]
   :plugins [[s3-wagon-private "1.3.4"]]
