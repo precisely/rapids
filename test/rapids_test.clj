@@ -964,3 +964,31 @@
             (is (= [{:else-branch {:*cc* :interruption, :*cc-dynamic* :outer}}]
                    (:response run)))))))))
 
+(deflow exception-flow [start-error continue-error]
+  (if start-error
+    (throw (ex-info "Some error" {:type start-error})))
+  (<*)
+  (if continue-error
+    (throw (ex-info "Some error" {:type continue-error}))))
+
+(deftest ^:language HandleException
+  (testing ":input-error should be thrown"
+    (testing "by start!"
+      (with-test-env
+        (is (thrown? ExceptionInfo (start! exception-flow :input-error nil)))))
+    (testing "by continue!"
+      (with-test-env
+        (let [run (start! exception-flow nil :input-error)]
+          (is (thrown? ExceptionInfo (continue! run)))))))
+  (testing "An error of any other type than :input-error should be returned in the :status :error key"
+    (testing "by start!"
+      (with-test-env
+        (let [run (start! exception-flow :foo-error nil)]
+          (is (= :error (:state run)))
+          (is (instance? ExceptionInfo (-> run :status :error))))))
+    (testing "by continue!"
+      (with-test-env
+        (let [run (start! exception-flow nil :foo-error)
+              run (continue! run)]
+          (is (= :error (:state run)))
+          (is (instance? ExceptionInfo (-> run :status :error))))))))

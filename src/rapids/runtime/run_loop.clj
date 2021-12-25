@@ -7,13 +7,13 @@
        [rapids.runtime.raise :refer [raise-partition-fn-address]]
        [rapids.support.util :refer :all]
        [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run!
-                                      update-run! run? push-stack! interrupt-run!]]
+                                      update-run! run? push-stack! interrupt-run! set-status!]]
        [rapids.objects.signals :refer [suspend-signal? binding-change-signal? ->BindingChangeSignal]]
        [rapids.objects.stack-frame :as sf]
        [rapids.objects.run :as r])
      (:import (rapids.objects.run Run)
               (rapids.objects CurrentContinuationChange)
-              (clojure.lang Keyword)
+              (clojure.lang Keyword ExceptionInfo)
               (rapids.objects.interruptions Interruption)))
 
 (declare start! continue!)
@@ -25,14 +25,14 @@
   [startable & args]
   {:post [(run? %)]}
   (let [startable-name (name startable)
-        start-form (prn-str `(~startable-name ~@args))]
+        start-form     (prn-str `(~startable-name ~@args))]
     (ensure-cached-connection
-      (with-run (cache-insert! (r/make-run {:state    :running,
+      (with-run (cache-insert! (r/make-run {:state      :running,
                                             :start-form start-form
-                                            :dynamics []}))
-        ;; create the initial stack-fn to kick of the process
-        (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
-        (current-run)))))
+                                            :dynamics   []}))
+                ;; create the initial stack-fn to kick of the process
+                (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
+                (current-run)))))
 
 (defn continue!
   "Continues the run identified by run-id.
@@ -49,24 +49,24 @@
   {:pre  [(not (nil? run-id))]
    :post [(run? %)]}
   (ensure-cached-connection
-    (let [run-id (if (run? run-id) (:id run-id) run-id)
+    (let [run-id   (if (run? run-id) (:id run-id) run-id)
           true-run (cache-get! Run run-id)]
       (with-run true-run
-        (if (-> true-run :interrupt (not= interrupt))
-          (throw (ex-info "Attempt to continue interrupted run. Valid interrupt must be provided."
-                   {:type     :input-error
-                    :expected (-> true-run :interrupt)
-                    :received interrupt
-                    :run-id   run-id})))
-        (if-not (-> true-run :suspend :permit (= permit))
-          (throw (ex-info "Invalid permit. Unable to continue run."
-                   {:type     :input-error
-                    :expected (current-run :suspend :permit)
-                    :received permit
-                    :run-id   run-id})))
-        (initialize-run-for-runlet)                         ;; ensure response and suspend are empty
-        (start-eval-loop! (next-stack-fn!) data)
-        (current-run)))))
+                (if (-> true-run :interrupt (not= interrupt))
+                  (throw (ex-info "Attempt to continue interrupted run. Valid interrupt must be provided."
+                                  {:type     :input-error
+                                   :expected (-> true-run :interrupt)
+                                   :received interrupt
+                                   :run-id   run-id})))
+                (if-not (-> true-run :suspend :permit (= permit))
+                  (throw (ex-info "Invalid permit. Unable to continue run."
+                                  {:type     :input-error
+                                   :expected (current-run :suspend :permit)
+                                   :received permit
+                                   :run-id   run-id})))
+                (initialize-run-for-runlet)                 ;; ensure response and suspend are empty
+                (start-eval-loop! (next-stack-fn!) data)
+                (current-run)))))
 
 (defn interrupt!
   "Interrupts the run, passing control to the innermost attempt handler matching the interruption's name.
@@ -81,16 +81,16 @@
      (keyword? i) (interrupt! run-id (->interruption i :message message :data data))
      (interruption? i) (if keys
                          (throw (ex-info "Unexpected arguments provided to interrupt! with Interruption argument"
-                                  {:args [i :message message :data data]}))
+                                         {:args [i :message message :data data]}))
                          (ensure-cached-connection
                            (with-run run-id
-                             (interrupt-run!)
-                             (push-stack! raise-partition-fn-address {} 'interrupt)
-                             (start-eval-loop! (next-stack-fn!) i)
-                             (current-run))))
+                                     (interrupt-run!)
+                                     (push-stack! raise-partition-fn-address {} 'interrupt)
+                                     (start-eval-loop! (next-stack-fn!) i)
+                                     (current-run))))
      :otherwise (throw (ex-info "Unexpected argument type to interrupt!. Expecting Keyword or Interruption"
-                         {:type (type i)
-                          :args [i :message message :data data]})))))
+                                {:type (type i)
+                                 :args [i :message message :data data]})))))
 
 ;;
 ;; Not really part of the run loop, but this little utility function is part o the top level API,
@@ -116,6 +116,11 @@
   ([stack-fn data]
    (letfn [(doloop [stack-fn data]
              (try (eval-loop! stack-fn data)
+                  (catch ExceptionInfo ei
+                    (if (-> ei ex-data :type (= :input-error))
+                      (throw ei)
+                      (do (set-status! :error ei)
+                          (update-run! :state :error))))
                   (catch CurrentContinuationChange ccc
                     (update-run! :stack (.stack ccc) :dynamics (.dynamics ccc))
                     ;; recur so we can catch the next ccc throwable
@@ -146,7 +151,7 @@
            ;; or the run dynamic environment has changed
            (call-stack! [stack-fn data]
              (if stack-fn
-               (let [result (stack-fn data)                 ; stack-fn may have altered dynamics
+               (let [result           (stack-fn data)       ; stack-fn may have altered dynamics
                      new-run-dynamics (current-run :dynamics)]
                  (if (suspend-signal? result)
                    (suspend-run! result)
@@ -155,7 +160,7 @@
                      (if (= action :call)
                        (recur nextfn result)
                        (->BindingChangeSignal (= action :pop)
-                         nextfn result new-run-dynamics)))))
+                                              nextfn result new-run-dynamics)))))
                (complete-run! data)))
            ;; Pushes or pops bindings until the thread's dynamic-bindings are
            ;; the same as the run's binding chain (the desired state).
@@ -187,7 +192,7 @@
 
     ;; continue processing the parent run
     (continue! parent-run-id
-      :permit (current-run :id) :data result))
+               :permit (current-run :id) :data result))
 
   ;; finished - return the current value
   result)
