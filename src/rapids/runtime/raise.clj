@@ -17,7 +17,7 @@
   (loop [attempts *attempts*]
     (if (empty? attempts)
       (throw (ex-info "Unhandled interruption"
-               {:type         :runtime-error
+               {:type         :input-error
                 :interruption interrupt})))
     (let [[attempt & attempts] attempts
           handler (first (filter #(= (:name %) (:name interrupt)) (:handlers attempt)))]
