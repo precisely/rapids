@@ -128,16 +128,39 @@
      (trampoline doloop stack-fn data))))
 
 (defn- eval-loop!
-  "Executes stack-fn (a unary fn) with the bindings present in the run. Because Clojure requires a new frame
-  for each dynamic binding, we do a recursive (non-tail optimized) call every time we push a new thread binding.
-  Push and pops that happen to the run-dynamics inside the stack-fn are detected and the thread bindings are
-  adjusted accordingly by returning from recursive calls until the new
-
-  The strategy is to compute the push (recursive call) or pop (return) operations that
-  need to be completed to make the thread-dynamics match the run-dynamics. Once that's done,
-  the stack-fn can be called.
-
-  When they are the same, the stack-fn is called with the given data."
+  "Executes stack-fn (a unary fn) with the bindings present in the run. Because Clojure requires a new Java
+  stack frame for each dynamic binding, we do a recursive (non-tail optimized) call every time we push a new
+  thread binding (inside the `push-binding` local fn) or we return from `push-binding` to unwind a level of
+  dynamic bindings."
+  ;; The strategy is to maintain a record of the current thread dynamic bindings and the run dynamic bindings,
+  ;; detect when they differ (i.e., after executing a stack-fn) and compute the push or pop operations needed
+  ;; to make the thread-dynamics match the run-dynamics. Once that's done, the next stack-fn can be called.
+  ;;
+  ;; Differences between the run dynamic environment and the actual Clojure dynamic bindings arise because
+  ;; Clojure wraps the bindings in a try-catch block and because dynamic bindings are associated with the
+  ;; current JVM stack frame. Since try-catch blocks can't span partitions and the stack frame associated with
+  ;; running a partition function disappears after it completes, we need a way to get the dynamic binding
+  ;; environment that the run expects in place when the next partition is called.
+  ;;
+  ;; For example, if a dynamic binding spans 3 partitions:
+  ;; ```clojure
+  ;; (def ^:dynamic *mydyn* :root-binding)
+  ;; (defn use-mydyn [location] (println location *mydyn*))
+  ;; (deflow foo []
+  ;;   (use-mydyn "partition 1-root binding")
+  ;;   (binding [*mydyn* :a]
+  ;;     (use-mydyn "partition 1-:a bound")
+  ;;     (<*) ;; first listen
+  ;;     (use-mydyn "partition 2-:a bound")
+  ;;     (<*) ;; second listen
+  ;;     (use-mydyn "partition 3-:a bound")) ;; binding partitioner ends the partition here
+  ;;   (use-mydyn "partition 4-root binding")
+  ;; ```
+  ;; Partition 1 establishes Clojure dynamic bindings partway through the partition.
+  ;; However, the Clojure thread bindings are unwound at the end of partition 1.
+  ;; The run-bindings are not unwound, since the binding spans partitions 1-3.
+  ;;
+  ;; When they are the same, the stack-fn is called with the given data.
   ([stack-fn] (eval-loop! stack-fn nil))
   ([stack-fn data] (eval-loop! stack-fn data [] (current-run :dynamics)))
   ([stack-fn data thread-dynamics run-dynamics]
@@ -146,7 +169,7 @@
              (push-thread-bindings binding)
              (try (eval-loop! stack-fn data (conj thread-dynamics binding) run-dynamics)
                   (finally (pop-thread-bindings))))
-           ;; Calls the stack-fn with data successively passing the result
+           ;; call-stack! calls the stack-fn with data successively passing the result
            ;; to the next fn retrieved from the stack until the stack is empty
            ;; or the run dynamic environment has changed
            (call-stack! [stack-fn data]
@@ -162,9 +185,9 @@
                        (->BindingChangeSignal (= action :pop)
                                               nextfn result new-run-dynamics)))))
                (complete-run! data)))
-           ;; Pushes or pops bindings until the thread's dynamic-bindings are
+           ;; build-dynamics pushes or pops bindings until the thread's dynamic-bindings are
            ;; the same as the run's binding chain (the desired state).
-           ;; Then, calls process-stack!
+           ;; Then, invokes call-stack!
            (build-dynamics []
              (let [[action binding] (next-move thread-dynamics run-dynamics)]
                (case action

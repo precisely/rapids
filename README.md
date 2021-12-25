@@ -182,7 +182,7 @@ Besides the usual Clojure program errors, this package throws `ExceptionInfo` ob
 * `:runtime-error` - an error caught at runtime, usually indicating a programmer error. E.g., passing the wrong type of argument to a function.
 * `:system-error` - a severe error usually indicating a bug in the system or inconsistency of the stack
 * `:syntax-error` - problem while compiling a flow
-* `:input-error` - invalid data was provided to the system
+* `:input-error` - invalid input was provided to the system. A run does NOT move to :error state and the error is returned to the caller
 
 ## Coverage
 
