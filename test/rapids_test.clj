@@ -84,7 +84,7 @@
   (<*)
   (set-status! :changing 1)
   (<*)
-  (set-status! :changing 2))
+  (set-status! :changing 2 [:nested :key] "nested"))
 
 (deftest ^:language RunStatusTest
   (with-test-env
@@ -96,7 +96,8 @@
         (is (= (:status run) {:changing 1 :static "unchanging"}))
         (flush-cache!)
         (continue! run)
-        (is (= (:status run) {:changing 2 :static "unchanging"}))))))
+        (is (= (:status run) {:changing 2 :static "unchanging"
+                              :nested {:key "nested"}}))))))
 
 (deftest ^:language CacheProxyTopLevelTests
   (let [run (start! suspending-flow :foo)]

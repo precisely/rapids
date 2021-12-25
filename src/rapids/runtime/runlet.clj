@@ -64,8 +64,19 @@
     (update-run! :stack (or rest-stack ()))
     frame))
 
-(defn set-status! [& kvs]
-  (update-run! :status (apply assoc (current-run :status) kvs)))
+(defn set-status!
+  "Sets a status key (or subkey) of the current run.
+
+  E.g.,
+  (set-status! :a 1) => {:a 1}
+  (set-status! :a 1 :b 2) ; {:a 1, :b 2}
+  (set-status! [:a :b] 2) ; {:a {:b 2}}"
+  [& kvs]
+  (update-run! :status (reduce (fn [m [k v]]
+                                 (let [ks (if (vector? k) k [k])]
+                                   (assoc-in m ks v)))
+                               (current-run :status)
+                               (partition 2 kvs))))
 
 (defn add-responses! [& responses]
   (let [current-response (current-run :response)]
