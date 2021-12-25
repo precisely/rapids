@@ -63,6 +63,15 @@ Suspends execution of the current run until the given run completes. Returns the
 (block! run :expires expiry-time, :default value) 
 ```
 
+#### set-status! 
+
+Sets one or more values in the current run's status map. Supports nested access.
+
+```clojure
+(set-status! :foo 1, [:a :b] 2) 
+(current-run :status) ; => {:foo 1 {:a {:b 2}}}
+```
+
 ### Starting a flow
 
 ```clojure
