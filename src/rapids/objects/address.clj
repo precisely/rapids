@@ -28,7 +28,7 @@
 ;;         (a)          ; point = [1,baz,0,map,1]
 ;;      :b              ; point = invalid
 ;;         (b)}))       ; point = [1,baz,0,map,2]
-(declare to-string valid-point? simplify-if-symbol)
+(declare to-string simplify-if-symbol)
 
 ;; TODO: change Address to a custom class?
 ;;
@@ -44,7 +44,7 @@
 
 (defn ->address
   [symbol & point]
-  {:pre [(qualified-symbol? symbol) (valid-point? point)]}
+  {:pre [(qualified-symbol? symbol)]}
   (Address.
     symbol
     (vec (map simplify-if-symbol point))))
@@ -66,8 +66,7 @@
 
 (defn child
   [address & point]
-  {:pre [(instance? Address address)
-         (valid-point? point)]}
+  {:pre [(instance? Address address)]}
   (assoc address :point (vec (concat (:point address) (map simplify-if-symbol point)))))
 
 (defn increment
@@ -87,10 +86,6 @@
   {:pre  [(instance? Address address)]
    :post [(or (nil? %) (.getName (type %)))]}
   (-> address :flow resolve var-get))
-
-(defn valid-point?
-  [elts]
-  (and (every? #(or (keyword? %) (symbol? %) (number? %)) elts)))
 
 (defn simplify-if-symbol [x]
   (cond
