@@ -28,8 +28,10 @@
 (defn ^:suspending block!
   "Suspends the current run until the provided child-run completes."
   [child-run & {:keys [expires default]}]
-  (rt/attach-child-run! child-run)
-  (listen! :permit (:id child-run) :expires expires :default default))
+  (if (-> child-run :state (= :complete))
+    (:result child-run)
+    (do (rt/attach-child-run! child-run)
+        (listen! :permit (:id child-run) :expires expires :default default))))
 
 (defn respond!
   "Adds an element to the current run response: returns nil"

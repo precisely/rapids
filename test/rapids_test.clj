@@ -97,7 +97,7 @@
         (flush-cache!)
         (continue! run)
         (is (= (:status run) {:changing 2 :static "unchanging"
-                              :nested {:key "nested"}}))))))
+                              :nested   {:key "nested"}}))))))
 
 (deftest ^:language CacheProxyTopLevelTests
   (let [run (start! suspending-flow :foo)]
@@ -514,25 +514,25 @@
                 :runtime-error (-> ex-data :type))
               (suspending-flow :foo)))))
 
-(deflow simple-child-flow []
+(deflow simple-child-flow [block?]
   (log! (current-run))
   (>* :child-flow-response)
-  (<*)
+  (if block? (<*))
   (>* :child-flow-after-suspending)
   :child-result)
 
-(deflow parent-flow-will-block []
+(deflow parent-flow-may-block [block?]
   (clear-log!)
   (log! (current-run))
   (>* :parent-before-blocking-call)
-  (let [result (<<! (! simple-child-flow))]
+  (let [result (<<! (! simple-child-flow block?))]
     (>* :parent-after-blocking-call)
     result))
 
 (deftest ^:language BlockingOperator
   (with-test-env
     (testing "Before blocking, the parent run is returned by the start operator"
-      (let [returned-run (start! parent-flow-will-block)
+      (let [returned-run (start! parent-flow-may-block true)
             [parent-run, child-run] @*log*]
         (is (= (:id returned-run) (:id parent-run)))
         (is (run-in-state? returned-run :running))
@@ -597,7 +597,11 @@
                   (is (run-in-state? parent-after-block-release :complete)))
 
                 (testing "parent result should be set correctly, which in this case is the result of the blocking call"
-                  (is (= :child-result (:result parent-after-block-release))))))))))))
+                  (is (= :child-result (:result parent-after-block-release))))))))))
+    (testing "block! should return immediately with result if child-flow doesn't suspend"
+      (let [returned-run (start! parent-flow-may-block false)]
+        (is (= (:state returned-run) :complete))
+        (is (= (:result returned-run) :child-result))))))
 
 (deflow level3-suspends [suspend?]
   (respond! :level3-start)                                  ; this does not get captured by level1 or level2 because the redirect operator is not used
