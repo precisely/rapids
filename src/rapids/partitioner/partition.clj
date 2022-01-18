@@ -175,8 +175,9 @@
     (binding [*partitioning-expr* (if (-> expr meta :line) expr *partitioning-expr*)]
       (or (attempt-partitioning)
           (let [expanded (macroexpand-1 expr)
-                expanded (if (= (seq? expanded) (instance? LazySeq expanded))
-                           (seq expanded) expanded)]
+                expanded (if (and (seq? expanded) (instance? LazySeq expanded))
+                           (seq expanded)
+                           expanded)]
             (cond
               (non-partitioning? expanded) [expr, nil, nil]
               (identical? expanded expr)
@@ -254,8 +255,13 @@
     (let [[_, sigs] (closure/extract-fn-defs expr)
           _ (doseq [sig sigs] (check-non-suspending sig))
           [ctor, pset] (closure/closure-constructor expr address params)]
+    ;; TODO: fix the suspend? return value
+    ;;       The third return value `suspend?` should be false since the (->Closure ...) form doesn't suspend
+    ;;       However, if we do this, the rest of the partitioner code will ignore
+    ;;       pset and start-expr. As a result, anonymous flows produce a little bit of
+    ;;       ugly overhead.
 
-      [ctor, pset, false])))
+      [ctor, pset, true])))
 
 (defn partition-flow-expr
   "Handles anonymous flow definition such as (flow [...] ...).
@@ -639,11 +645,10 @@
                                       start        (or start pexpr)]
                                   (recur rest-keys, rest-args, [], next-address, next-address,
                                          new-params, start, (or suspend? any-suspend?), pset))
-                                (do
-                                  (recur rest-keys, rest-args
-                                         (add-binding current-bindings key arg-start),
-                                         partition-address, next-address,
-                                         new-params, start, any-suspend?, pset))))
+                                (recur rest-keys, rest-args
+                                       (add-binding current-bindings key arg-start),
+                                       partition-address, next-address,
+                                       new-params, start, any-suspend?, pset)))
 
                             ;; finalize the last partition by executing the body with the
                             ;; bound params
