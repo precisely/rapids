@@ -971,29 +971,33 @@
 
 (deflow exception-flow [start-error continue-error]
   (if start-error
-    (throw (ex-info "Some error" {:type start-error})))
+    (throw (ex-info (str "message about " start-error) {:type start-error})))
   (<*)
   (if continue-error
-    (throw (ex-info "Some error" {:type continue-error}))))
+    (throw (ex-info (str "message about " continue-error) {:type continue-error}))))
 
 (deftest ^:language HandleException
-  (testing ":input-error should be thrown"
+  (testing ":input-error should be thrown and the message should be shown"
     (testing "by start!"
       (with-test-env
-        (is (thrown? ExceptionInfo (start! exception-flow :input-error nil)))))
+        (is (thrown-with-msg? ExceptionInfo #"message about :input-error"
+                              (start! exception-flow :input-error nil)))))
     (testing "by continue!"
       (with-test-env
         (let [run (start! exception-flow nil :input-error)]
-          (is (thrown? ExceptionInfo (continue! run)))))))
-  (testing "An error of any other type than :input-error should be returned in the :status :error key"
+          (is (thrown-with-msg? ExceptionInfo #"message about :input-error"
+                                (continue! run)))))))
+  (testing ":fatal-error should be returned in the :error-info :type key"
     (testing "by start!"
       (with-test-env
-        (let [run (start! exception-flow :foo-error nil)]
+        (let [run (start! exception-flow :fatal-error nil)]
           (is (= :error (:state run)))
-          (is (instance? ExceptionInfo (-> run :status :error))))))
+          (is (= (-> run :error-info :type) :fatal-error))
+          (is (= (-> run :error-info :message) "message about :fatal-error")))))
     (testing "by continue!"
       (with-test-env
-        (let [run (start! exception-flow nil :foo-error)
+        (let [run (start! exception-flow nil :fatal-error)
               run (continue! run)]
           (is (= :error (:state run)))
-          (is (instance? ExceptionInfo (-> run :status :error))))))))
+          (is (= (-> run :error-info :type) :fatal-error))
+          (is (= (-> run :error-info :message) "message about :fatal-error")))))))

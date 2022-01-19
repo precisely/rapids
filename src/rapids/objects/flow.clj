@@ -16,7 +16,7 @@
 
   :fn (fn [this & _]
         (throw (ex-info (str "Improperly invoked flow: " (:name this) ". Use start!, fcall or fapply when flow is bound dynamically.")
-                 {:type :runtime-error})))
+                        {:type :runtime-error})))
 
   Object
   (toString [this] (format "#<Flow %s (%d partitions)>" (:name this) (-> this :partition-fns count)))
@@ -49,8 +49,8 @@
 
 (defn flow-symbol? [o]
   (and (symbol? o)
-    (or (refers-to? flow? o)
-      (*defining-flows* (qualify-symbol o)))))
+       (or (refers-to? flow? o)
+           (*defining-flows* (qualify-symbol o)))))
 
 (defn call-partition
   "Executes the partition function at address with the given bindings"
@@ -58,12 +58,12 @@
   {:pre [(a/address? address)
          (map? bindings)]}
   (let [flow (a/resolved-flow address)
-        pfn (get-in flow [:partition-fns (:point address)])]
+        pfn  (get-in flow [:partition-fns (:point address)])]
     (if-not (fn? pfn)
-      (throw (ex-info (str "Attempt to continue flow at undefined partition " address )
-               {:type :system-error
-                :object pfn
-                :object-type (type pfn)})))
+      (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
+                      {:type        :system-error
+                       :object      pfn
+                       :object-type (type pfn)})))
     (pfn bindings)))
 
 (defmethod print-method Flow
