@@ -51,7 +51,7 @@
   (.update (current-run) #(merge % kvs)))
 
 (defn initialize-run-for-runlet []
-  (update-run! :suspend nil, :response []))
+  (update-run! :suspend nil, :response [], :error-message nil, :error-info nil))
 
 (defn push-stack! [address bindings data-key]
   {:post [(run? %)

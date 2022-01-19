@@ -47,16 +47,18 @@
 
 (defn valid-run-data? [kvs]
   (every? (fn [key]
-            (let [pred ({:id        uuid?
-                         :state     RunStates
-                         :stack     seq?
-                         :status    map?
-                         :dynamics  vector?
-                         :interrupt (some-fn nil? uuid?)
-                         :parent-id (some-fn nil? uuid?)
-                         :response  (constantly true)
-                         :result    (constantly true)
-                         :suspend   (some-fn nil? signals/suspend-signal?)} key)
+            (let [pred ({:id            uuid?
+                         :state         RunStates
+                         :stack         seq?
+                         :status        map?
+                         :dynamics      vector?
+                         :interrupt     (some-fn nil? uuid?)
+                         :parent-id     (some-fn nil? uuid?)
+                         :error-info    (some-fn nil? map?)
+                         :error-message (some-fn nil? string?)
+                         :response      (constantly true)
+                         :result        (constantly true)
+                         :suspend       (some-fn nil? signals/suspend-signal?)} key)
                   val  (get kvs key)]
               (if pred
                 (pred val)

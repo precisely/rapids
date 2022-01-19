@@ -117,10 +117,16 @@
    (letfn [(doloop [stack-fn data]
              (try (eval-loop! stack-fn data)
                   (catch ExceptionInfo ei
-                    (if (-> ei ex-data :type (= :input-error))
-                      (throw ei)
-                      (do (set-status! :error ei)
-                          (update-run! :state :error))))
+                    (let [data (ex-data ei)
+                          type (:type data)
+                          message (ex-message ei)]
+                      (if (= type :fatal-error)
+                        (update-run! :state :error
+                                     :error-info {:type :fatal-error,
+                                                  :message message
+                                                  :data data}
+                                     :error-message "Fatal Error")
+                        (throw ei))))
                   (catch CurrentContinuationChange ccc
                     (update-run! :stack (.stack ccc) :dynamics (.dynamics ccc))
                     ;; recur so we can catch the next ccc throwable
