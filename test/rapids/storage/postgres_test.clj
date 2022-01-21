@@ -1,6 +1,6 @@
 (ns rapids.storage.postgres-test
   (:require [clojure.test :refer :all]
-            [test_helpers :refer [env]]
+            [test-helpers :refer [env]]
             [rapids.implementations.postgres-storage :refer :all]
             [rapids.storage.core :refer :all]
             [rapids.objects.signals :refer [make-suspend-signal]]

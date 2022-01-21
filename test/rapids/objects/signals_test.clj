@@ -1,7 +1,7 @@
 (ns rapids.objects.signals_test
   (:require [clojure.test :refer :all]
             [rapids.objects.signals :refer :all]
-            [test_helpers :refer :all]))
+            [test-helpers :refer :all]))
 
 (def some-constant :foo)
 (deftest SuspendingOperatorTest

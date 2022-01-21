@@ -1,17 +1,21 @@
-(ns test_helpers
+(ns test-helpers
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [rapids.storage.core :as s]
             [rapids.objects.run :as r]
             rapids.objects.pool
             [rapids.runtime.runlet :as runlet]
-            [rapids.implementations.in-memory-storage :as imrs]
             [spy.core :as spy]
             [potemkin :refer [import-vars]]
-            [rapids.storage.core :as storage])
+            [rapids.storage.core :as storage]
+            rapids.language.test
+            [potemkin :refer [import-vars]])
   (:import (java.util Properties)
            (rapids.objects.run Run)
            (rapids.objects.pool Pool)))
+
+(import-vars
+  [rapids.language.test with-test-storage with-test-env flush-cache!])
 
 (defn run-in-state? [r state]
   (storage/ensure-cached-connection
@@ -50,18 +54,6 @@
                         (catch Exception e#
                           (str e#)))))
 
-(defmacro with-test-storage [& body]
-  `(s/with-storage (imrs/->in-memory-storage)
-     ~@body))
-
-(defmacro with-test-env
-  "Provides a storage and an active connection"
-  [& body]
-  {:pre [(not (vector? (first body)))]}
-  `(with-test-storage
-     (s/ensure-cached-connection
-       ~@body)))
-
 (defmacro with-test-env-run
   "Provides a test environment and a run"
   [bindings & body]
@@ -77,13 +69,6 @@
   `(let [~stub (spy/stub ~return-value)]
      (with-redefs [rapids.runtime.run-loop/continue! ~stub]
        ~@body)))
-
-(defn flush-cache!
-  "For ease of testing - simulates the end of a request by flushing the cache contents to the storage and clearing it"
-  []
-  (rapids.storage.cache/save-cache!)
-  (set! rapids.storage.globals/*cache* {})
-  (assert (empty? rapids.storage.globals/*cache*)))
 
 ;; easy access functions
 (defn get-run

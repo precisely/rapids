@@ -1,6 +1,6 @@
 (ns rapids-interruptions-test
   (:require [clojure.test :refer :all]
-            [test_helpers :refer :all]
+            [test-helpers :refer :all]
             [matchure.core :refer :all]
             [rapids :refer :all]))
 (deflow interruptible-child []

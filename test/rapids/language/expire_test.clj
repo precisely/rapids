@@ -1,6 +1,6 @@
 (ns ^:unit rapids.language.expire_test
   (:require [clojure.test :refer :all]
-            [test_helpers :refer :all]
+            [test-helpers :refer :all]
             [rapids :refer :all]
             [rapids.storage.core :as s]))
 

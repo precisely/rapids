@@ -1,6 +1,6 @@
 (ns rapids.runtime.runlet-test
   (:require [clojure.test :refer :all]
-            [test_helpers :refer :all]
+            [test-helpers :refer :all]
             [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]
             [rapids.objects.address :as a]
             [rapids.objects.flow :as flow]
