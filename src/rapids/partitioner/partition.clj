@@ -18,18 +18,18 @@
 ;;; which can be executed without being suspending.
 ;;;
 ;;; Partitions are the AST representations of code, used to define "partition functions" .
-;;; Breaks are introduced by calls to flows or to any suspending function like `listen!`.
+;;; Breaks are introduced by calls to flows or to any suspending function like `input!`.
 ;;; Suspending functions can be defined by tagging the function ^:suspending. It tells
 ;;; the partitions to introduce a break because calling the function _might_ return
 ;;; a suspending event.
 ;;;
 ;;; When a flow is called, a StackFrame is created which captures the bindings
-;;; and the address where execution should resume. When a `(listen! :permit "foo")`
+;;; and the address where execution should resume. When a `(input! :permit "foo")`
 ;;; expression is encountered, the stack is persisted to a non-volatile storage
 ;;; and associated with these values. When an event matching the current `*run-id*`
 ;;; and `permit` is received, the run (which holds the stack) is retrieved, and
-;;; execution is resumed at the point in the flow after the `(listen!...)` call,
-;;; with the bindings that were present when `(listen!...)` was invoked. At the end
+;;; execution is resumed at the point in the flow after the `(input!...)` call,
+;;; with the bindings that were present when `(input!...)` was invoked. At the end
 ;;; of each partition, the frame at the top of the stack is popped and execution
 ;;; continues at the address in the next frame.
 ;;;

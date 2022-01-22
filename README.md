@@ -3,7 +3,7 @@
 
 A DSL for programming user interaction flows. 
 
-Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `(listen!)` special form. The system uses a persistent Storage which saves the state of the computation when the `listen!` operator is invoked. An in-memory and Postgres implementation are provided. 
+Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `(input!)` special form. The system uses a persistent Storage which saves the state of the computation when the `input!` operator is invoked. An in-memory and Postgres implementation are provided. 
 
 The control API consists of two main functions, `start!` and `continue!` for starting and continuing flows. 
 
@@ -13,8 +13,8 @@ Also see `tests/Rapids_test.clj`.
 ### Define a flow
 ```clojure
 (deflow multiply-by-user-input [x]
-  (respond! "Hi, please enter a number!")
-  (let [user-num, (Integer/parseInt (listen!))
+  (output! "Hi, please enter a number!")
+  (let [user-num, (Integer/parseInt (input!))
         result (* user-num x)]
   (*> (str "Multiplying " x " by " user-num " gives " result))  
 ```
@@ -28,31 +28,31 @@ As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions li
 => 
 ```
 
-#### respond! (shorthand: *>)
+#### output! (shorthand: *>)
 
 ```
-(respond! arg*) ; or (*> arg*)
+(output! arg*) ; or (*> arg*)
 ```
 Write an object to the `:response` key.
 
-The `respond!` operator is conceptually akin to writing to stdout, but the output is collected and returned as the `:response` key of a run object returned by `start!` or `continue!` when a flow hits a `listen!` or completes execution.
+The `output!` operator is conceptually akin to writing to stdout, but the output is collected and returned as the `:response` key of a run object returned by `start!` or `continue!` when a flow hits a `input!` or completes execution.
 
-`respond!` take an arbitrary number of objects which are appended to the current response vector. Note that the response vector is automatically cleared before a run is continued so each request only retrieves some of the `respond!` arguments in a flow.
+`output!` take an arbitrary number of objects which are appended to the current response vector. Note that the response vector is automatically cleared before a run is continued so each request only retrieves some of the `output!` arguments in a flow.
 
-#### listen! (shorthand: <*)
+#### input! (shorthand: <*)
 
 Suspends execution of the run until a call to `continue!`.
  
 ```
-(listen!) ; or (<*)
-(listen! :permit permit)
-(listen! :expires expiry-time, :default value)
-(listen! :permit permit, :expires expiry-time, :default value)
+(input!) ; or (<*)
+(input! :permit permit)
+(input! :expires expiry-time, :default value)
+(input! :permit permit, :expires expiry-time, :default value)
 ```
 
-A call to `listen!` causes the run to be persisted to storage. Execution is resumed by calling `continue!` and providing the run-id (available using `(:id run)`, the permit value (which is nil by default) and `input` value. When the run resumes, the `(listen!...)` form evaluates to the `result` value. 
+A call to `input!` causes the run to be persisted to storage. Execution is resumed by calling `continue!` and providing the run-id (available using `(:id run)`, the permit value (which is nil by default) and `input` value. When the run resumes, the `(input!...)` form evaluates to the `result` value. 
 
-When the expiry time is passed, execution resumes, with the `listen!` operator evaluates to the value of the `default` argument, which is nil if not provided.
+When the expiry time is passed, execution resumes, with the `input!` operator evaluates to the value of the `default` argument, which is nil if not provided.
 
 #### block! (shorthand: <<!)
 

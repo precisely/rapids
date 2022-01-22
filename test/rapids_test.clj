@@ -439,7 +439,7 @@
             (is (run-in-state? run :complete))
             (is (= (proxy-field run :result) :end))))))))
 
-(deflow responding-flow []
+(deflow outputing-flow []
   (>* :r1)
   (<* :permit "s1")
   (>* :r2)
@@ -447,11 +447,11 @@
   (<* :permit "s2")
   (>* :r4 :r5))
 
-(deftest ^:language Respond
+(deftest ^:language output
   (storage/ensure-cached-connection
     (testing ">* adds to an element to the current run's response"
-      (let [run (start! responding-flow)]
-        (testing "responds during start flow"
+      (let [run (start! outputing-flow)]
+        (testing "outputs during start flow"
           (is (= (proxy-field run :response) [:r1])))
         (continue! run, :permit "s1")
         (testing "Each run starts a new response, and responses accumulate during a runlet"
@@ -493,7 +493,7 @@
       (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
                             (partition-flow-body
                               {}
-                              (address/->address `fn-with-suspend) `([] (fn [] (listen! :permit "boo")))))))
+                              (address/->address `fn-with-suspend) `([] (fn [] (input! :permit "boo")))))))
 
     (testing "flow-with-closure"
       (let [run (start! flow-with-closure 2 [3 4 5])]
@@ -604,25 +604,25 @@
         (is (= (:result returned-run) :child-result))))))
 
 (deflow level3-suspends [suspend?]
-  (respond! :level3-start)                                  ; this does not get captured by level1 or level2 because the redirect operator is not used
-  (if suspend? (listen!))
-  (respond! :level3-end)
+  (output! :level3-start)                                  ; this does not get captured by level1 or level2 because the redirect operator is not used
+  (if suspend? (input!))
+  (output! :level3-end)
   :level3-result)
 
 (deflow level2-suspends-and-blocks [suspend-blocker?]
-  (respond! :level2-start)
-  (listen!)                                                 ;; up to this point is capture by level1-start
+  (output! :level2-start)
+  (input!)                                                 ;; up to this point is capture by level1-start
   (clear-log!)                                              ;; continue level2-run should start here
-  (respond! :level2-after-suspend)
+  (output! :level2-after-suspend)
   (let [level3 (start! level3-suspends suspend-blocker?)]
     (log! level3)                                           ;; continue level2-run ends here
     #_(println "before level3 block")
-    (respond! (block! level3))
+    (output! (block! level3))
     #_(println "after level3 block"))
-  (respond! :level2-end)
+  (output! :level2-end)
   :level2-result)
 
-(deflow my-respond [a1 a2 a3] (respond! a1 a2 a3))
+(deflow my-output [a1 a2 a3] (output! a1 a2 a3))
 
 (deflow call-flows [forms]
   (doseq [[op a1 a2 a3] forms]
@@ -635,26 +635,26 @@
 (deftest ^:language CallFlow
   (storage/ensure-cached-connection
     (testing "fcall invokes flow objects with the supplied arguments"
-      (let [run (start! call-flows [[my-respond 1 2 3] [my-respond 4 5 6]])]
+      (let [run (start! call-flows [[my-output 1 2 3] [my-output 4 5 6]])]
         (is (= (proxy-field run :state) :complete))
         (is (= (:response run) [1 2 3 4 5 6]))))
 
     (testing "fcall invokes flow associated with flow symbols with the supplied arguments"
       (flush-cache!)
-      (let [run (start! call-flows `[[my-respond 1 2 3] [my-respond 4 5 6]])]
+      (let [run (start! call-flows `[[my-output 1 2 3] [my-output 4 5 6]])]
         (is (= (proxy-field run :state) :complete))
         (is (= (:response run) [1 2 3 4 5 6]))))))
 
 (deftest ^:language ApplyFlow
   (storage/ensure-cached-connection
     (testing "fapply applies a flow object to the remaining args"
-      (let [run (start! apply-flows [[my-respond 1 2 3] [my-respond 4 5 6]])]
+      (let [run (start! apply-flows [[my-output 1 2 3] [my-output 4 5 6]])]
         (is (= (proxy-field run :state) :complete))
         (is (= (:response run) [1 2 3 4 5 6]))))
 
     (testing "fapply applies a flow symbol to the remaining args"
       (flush-cache!)
-      (let [run (start! apply-flows `[[my-respond 1 2 3] [my-respond 4 5 6]])]
+      (let [run (start! apply-flows `[[my-output 1 2 3] [my-output 4 5 6]])]
         (is (= (proxy-field run :state) :complete))
         (is (= (:response run) [1 2 3 4 5 6]))))))
 
@@ -664,7 +664,7 @@
     (is (flow? (var-get (eval `(deflow ~'foo [~'s] (loop [[~'head & ~'rest] ~'s] (<*) (if ~'rest (recur ~'rest))))))))))
 
 (deflow anonymous-flow-creator [v]
-  (let [f (flow [] {:received (listen!)
+  (let [f (flow [] {:received (input!)
                     :captured v})]
     (fcall f)))
 

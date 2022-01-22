@@ -1,7 +1,7 @@
 (ns rapids.language.pool-ops
   (:require [rapids.language.flow :refer [deflow]]
             [rapids.runtime.core :refer [current-run continue!]]
-            [rapids.language.operators :refer [listen!]]
+            [rapids.language.operators :refer [input!]]
             [rapids.support.util :refer [new-uuid]]
             [rapids.objects.pool :refer [raw-pool? make-pool pool-push pool-pop]]
             [rapids.storage.core :as s])
@@ -49,7 +49,7 @@
     ;; THEN: no runs are available to receive the value
     (when (pool-buffer-full? p)
       (pool-push! p, :sources, (current-run :id))
-      (listen! :permit (:id p)))
+      (input! :permit (:id p)))
 
     ; ELSE: some runs are waiting for a value
     (let [run-id (pool-pop! p :sinks)
@@ -75,7 +75,7 @@
                     ;; until a value becomes available
                     (do
                       (pool-push! p :sinks (current-run :id))
-                      (listen! :permit (pool-id p)))        ; since take-out! is a function, it will only return a suspend
+                      (input! :permit (pool-id p)))        ; since take-out! is a function, it will only return a suspend
 
                     ;; ELSE: a default was provided... simply return it
                     default)

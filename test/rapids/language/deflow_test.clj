@@ -3,7 +3,7 @@
             [rapids :refer :all]
             [test_helpers :refer :all]))
 
-(deflow suspending-flow [] (listen! :permit :a))
+(deflow suspending-flow [] (input! :permit :a))
 (deflow flow-calling-flow [] (suspending-flow))
 (deflow multi-arity
   ([a] (multi-arity a :b))

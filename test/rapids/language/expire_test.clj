@@ -5,7 +5,7 @@
             [rapids.storage.core :as s]))
 
 (deflow expiring-flow []
-  (listen! :permit "foo" :expires (now) :default :default-input))
+  (input! :permit "foo" :expires (now) :default :default-input))
 
 (deftest ^:integration ExpireRuns
   (testing "It causes a suspended run to continue with the default value"

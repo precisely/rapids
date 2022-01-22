@@ -26,12 +26,12 @@
                         (restart :redo (:data i)))
 
                       (finally (>* :finally-called)))
-        final-listen (<*)]
+        final-input (<*)]
     {:attempt-result attempt-val
-     :final-listen   final-listen}))
+     :final-input   final-input}))
 
 (deftest ^:language InterruptionsTest
-  (testing "A flow with an attempt handler calling a child flow which gets interrupted while it listens"
+  (testing "A flow with an attempt handler calling a child flow which gets interrupted while it waits for input"
     (with-test-env
       (testing "without interruptions, the attempt block should return normally"
         (let [run (start! interruptible-flow)
@@ -44,7 +44,7 @@
           (flush-cache!)
           (is (= :complete (:state run)))
           (is (= {:attempt-result [:child-input :uninterrupted-result]
-                  :final-listen   :final} (:result run)))))
+                  :final-input   :final} (:result run)))))
 
       (testing "interrupting a run and handling the interruption"
         (let [run (start! interruptible-flow)
@@ -64,7 +64,7 @@
             (flush-cache!)
             (continue! run :input :continue-value)
             (is (= {:attempt-result :foo-interruption
-                    :final-listen   :continue-value}
+                    :final-input   :continue-value}
                   (:result run)))))))
 
     (with-test-env
@@ -73,7 +73,7 @@
           (is (throws-error-output #"Unhandled interruption" (interrupt! run (->interruption :no-handler-for-this)))))))
 
     (with-test-env
-      (testing "testing the :bar interruption handler which uses listen!"
+      (testing "testing the :bar interruption handler which uses input!"
         (let [run (start! interruptible-flow)
               _ (flush-cache!)
               i (->interruption :bar)
@@ -103,7 +103,7 @@
 
             (is (= :complete (:state run)))
             (is (= [{:attempt-result [:interruption-data :bar-handled]
-                     :final-listen   :final}]))))))
+                     :final-input   :final}]))))))
 
 
     (with-test-env
@@ -116,7 +116,7 @@
           (continue! run :input :final)
           (is (= :complete (:state run)))
           (is (= {:attempt-result [{:redo-value :baz-data} :uninterrupted-result]
-                  :final-listen   :final}
+                  :final-input   :final}
                 (:result run)))
           (testing "the response indicates revisiting the point where flow was interrupted"
             (is (= [:body-called :finally-called]))))))

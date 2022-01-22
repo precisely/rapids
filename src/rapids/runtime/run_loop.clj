@@ -157,9 +157,9 @@
   ;;   (use-mydyn "partition 1-root binding")
   ;;   (binding [*mydyn* :a]
   ;;     (use-mydyn "partition 1-:a bound")
-  ;;     (<*) ;; first listen
+  ;;     (<*) ;; first input
   ;;     (use-mydyn "partition 2-:a bound")
-  ;;     (<*) ;; second listen
+  ;;     (<*) ;; second input
   ;;     (use-mydyn "partition 3-:a bound")) ;; binding partitioner ends the partition here
   ;;   (use-mydyn "partition 4-root binding")
   ;; ```

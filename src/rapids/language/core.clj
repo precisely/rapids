@@ -18,8 +18,8 @@
   [rapids.objects.interruptions ->interruption]
   [rapids.language.operators
    ;; operators. longform, shortform:
-   listen!, <*,
-   respond!, >*,
+   input!, <*,
+   output!, >*,
    block!, <<!,
    ;; start operator:
    !])
