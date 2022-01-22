@@ -39,7 +39,7 @@
               run (continue! run :input :child-input)]
           (is (= :running (:state run)))
           (testing "the finally block should execute after the body"
-            (is (= [:body-called :finally-called] (:response run))))
+            (is (= [:body-called :finally-called] (:output run))))
           (continue! run :input :final)
           (flush-cache!)
           (is (= :complete (:state run)))
@@ -58,7 +58,7 @@
 
           (testing "however, we see that the handler was triggered and the finally clause was executed by observing the response"
             (is (= [[:foo-handled i] :finally-called]
-                  (:response run))))
+                  (:output run))))
 
           (testing "the handler return value is returned by the attempt form"
             (flush-cache!)
@@ -129,4 +129,4 @@
 
           (testing "the expected interruption is handled"
             (is (= [[:foo-handled (->interruption :foo :message "hello" :data {:a 123})] :finally-called]
-                  (:response run)))))))))
+                  (:output run)))))))))

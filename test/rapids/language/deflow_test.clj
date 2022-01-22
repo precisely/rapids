@@ -26,7 +26,7 @@
 
     (testing "it should produce a valid multi-arity flow"
       (let [run (start! multi-arity :a)]
-        (is (= (:response run) [:a :b]))))
+        (is (= (:output run) [:a :b]))))
 
     (testing "it should succeed when valid and pre-post conditions"
       (let [run (start! prepost-conditions 2)]

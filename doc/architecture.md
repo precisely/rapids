@@ -171,7 +171,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 ```clojure
 (start! outputer)
 ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1",
-;;         :response ["a" "b"]},
+;;         :output ["a" "b"]},
 ;;         :state :suspended}
 ```
 
@@ -180,7 +180,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 ```clojure
 (continue "72278789-99b8-4626-aa5c-ef7997305cb1" "RESULTVALUE")
 ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1",
-;;         :response ["RESULTVALUE" "c" "d"],
+;;         :output ["RESULTVALUE" "c" "d"],
 ;;         :state :complete}
 ```
 

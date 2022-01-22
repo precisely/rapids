@@ -33,9 +33,9 @@ As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions li
 ```
 (output! arg*) ; or (*> arg*)
 ```
-Write an object to the `:response` key.
+Write an object to the `:output` key.
 
-The `output!` operator is conceptually akin to writing to stdout, but the output is collected and returned as the `:response` key of a run object returned by `start!` or `continue!` when a flow hits a `input!` or completes execution.
+The `output!` operator is conceptually akin to writing to stdout, but the output is collected and returned as the `:output` key of a run object returned by `start!` or `continue!` when a flow hits a `input!` or completes execution.
 
 `output!` take an arbitrary number of objects which are appended to the current response vector. Note that the response vector is automatically cleared before a run is continued so each request only retrieves some of the `output!` arguments in a flow.
 
@@ -145,13 +145,13 @@ Here's an example of how to use them:
   (branch "welcome" [run (start! welcome)]
     (keys-match run
       :state :suspended
-      :response ["welcome. Do You want to continue?" _])
+      :output ["welcome. Do You want to continue?" _])
 
     (branch "wants to continue"
       [run (continue! (:next-id run) {:input "yes"})]
       (keys-match run
         :state :suspended 
-        :response ["great!... let's continue"]))
+        :output ["great!... let's continue"]))
 
     (branch "doesn't want to continue"
       [run (continue! (:next-id run) {:input "no"})]
