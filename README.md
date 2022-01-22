@@ -86,6 +86,7 @@ Sets one or more values in the current run's status map. Supports nested access.
 ;; the caller provides run-id, permit and input 
 ;; resume the flow as follows:
 (continue! run-id {:permit permit :input input})
+;; the value provided to input is returned by (input!)
 ```
 
 ## Setting up a backend
