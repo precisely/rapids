@@ -1,7 +1,7 @@
 (ns rapids.language.deflow_test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [test_helpers :refer :all]))
+            [test-helpers :refer :all]))
 
 (deflow suspending-flow [] (input! :permit :a))
 (deflow flow-calling-flow [] (suspending-flow))

@@ -4,7 +4,7 @@
             [rapids.language.pool-ops :refer [->pool put-in! pool-id pool?]]
             [rapids.objects.pool :refer [raw-pool?]]
             [rapids.storage.protocol :refer [thaw-record freeze-record frozen?]]
-            [test_helpers :refer :all]
+            [test-helpers :refer :all]
             [rapids.runtime.core :refer [with-run current-run]]
             [rapids.objects.run :as r]
             [rapids.objects.stack-frame :as sf]

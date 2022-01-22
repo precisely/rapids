@@ -1,26 +1,37 @@
 (ns rapids.language.test-test
-  (:require [clojure.test :refer :all]
-            [rapids.language.test :refer :all])
+  (:require [clojure.test :refer :all :as ct]
+            [rapids.language.test :refer [branch keys-match] :as rt])
   (:import (java.io StringWriter)))
 
-(deftest BranchTestTest
+(deftest BranchTest
   (testing "branch"
-    (let [a []
-          b []
-          c []]
-      (branch "level1" [a (conj a :a)]
-        (is (= a [:a]))
-        (branch "level2-1" [b (conj b :b)]
-          (is (= a [:a :a]))
-          (is (= b [:b])))
-        (branch "level2-2" [c (conj c :c)]
-          (is (= a [:a :a]))
-          (is (= c [:c]))
-          (branch "level3" [d :d]
-            (is (= a [:a :a :a]))
-            (is (= b []))
-            (is (= c [:c :c]))
-            (is (= d :d))))))))
+    (is (= (macroexpand '(rapids.language.test/branch [v1 1]
+                           "1" :a
+                           (branch [v2 2]
+                             "2" :b
+                             (branch [v3 3]
+                               "3" :c)
+                             (branch [v4 4]
+                               "4" :d))
+                           (branch [v5 5]
+                             "5" :e)))
+           '(do
+              (rapids.language.test/with-test-env
+                (clojure.test/testing
+                  "1"
+                  (clojure.core/let
+                    [v1 1]
+                    [:a
+                     (clojure.test/testing "2" (clojure.core/let [v2 2] [:b (clojure.test/testing "3" (clojure.core/let [v3 3] :c))]))])))
+              (rapids.language.test/with-test-env
+                (clojure.test/testing
+                  "1"
+                  (clojure.core/let
+                    [v1 1]
+                    [:a
+                     (clojure.test/testing "2" (clojure.core/let [v2 2] [:b (clojure.test/testing "4" (clojure.core/let [v4 4] :d))]))])))
+              (rapids.language.test/with-test-env
+                (clojure.test/testing "1" (clojure.core/let [v1 1] [:a (clojure.test/testing "5" (clojure.core/let [v5 5] :e))]))))))))
 
 (deftest KeysMatchTest
   (testing "keys-match should succeed for working patterns"
@@ -29,10 +40,10 @@
       :b ["hi" "there" _]))
 
   (testing "keys-match should fail if any pattern fails to match"
-    (is (false? (binding [*test-out* (new StringWriter)
+    (is (false? (binding [*test-out*         (new StringWriter)
                           *testing-contexts* (list)
-                          *report-counters* nil] ; hide failing test output
-                  (rapids.language.test/keys-match {:a 1 :b ["hi" "there" "foo"]}
+                          *report-counters*  nil]           ; hide failing test output
+                  (keys-match {:a 1 :b ["hi" "there" "foo"]}
                     :a 1
                     :b ["hi" "there" "WRONG"]))))))
 

@@ -7,7 +7,7 @@
             [rapids.objects.run :as r]
             [rapids.storage.core :as s]
             [rapids.language.pool-ops :refer :all]
-            [test_helpers :refer :all]
+            [test-helpers :refer :all]
             [spy.core :as spy]))
 
 (deftest ^:unit UnbufferedPoolTests

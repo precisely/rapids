@@ -142,19 +142,20 @@ Here's an example of how to use them:
 
 ```clojure
 (deftest WelcomeTest
-  (branch "welcome" [run (start! welcome)]
+  (branch [run (start! welcome)]
+    "welcome" 
     (keys-match run
       :state :suspended
       :output ["welcome. Do You want to continue?" _])
 
-    (branch "wants to continue"
-      [run (continue! (:next-id run) {:input "yes"})]
+    (branch [run (continue! (:next-id run) {:input "yes"})]
+      "wants to continue"
       (keys-match run
         :state :suspended 
         :output ["great!... let's continue"]))
 
-    (branch "doesn't want to continue"
-      [run (continue! (:next-id run) {:input "no"})]
+    (branch [run (continue! (:next-id run) {:input "no"})]
+      "doesn't want to continue"
       (keys-match run
         :state :complete))))
 ```
@@ -164,7 +165,7 @@ Here's an example of how to use them:
 Creates nested test conditions.
 
 ```clojure
-(branch "description" [...bindings] & body)
+(branch [...bindings] description & body)
 ```
 
 ### keys-match

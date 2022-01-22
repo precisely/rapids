@@ -2,11 +2,11 @@
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
             [rapids.storage.core :as storage :refer [cache-proxy?]]
-            [test_helpers :refer [flush-cache! proxy-field with-test-env-run get-run get-pool throws-error-output run-in-state?]]
+            [test-helpers :refer [flush-cache! proxy-field with-test-env-run get-run get-pool throws-error-output run-in-state?]]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [rapids.partitioner.core :refer [partition-flow-body]]
             [rapids.support.debug :refer :all]
-            [test_helpers :refer :all]
+            [test-helpers :refer :all]
             [expectations.clojure.test
              :refer [defexpect expect expecting more->
                      approximately between between' functionally

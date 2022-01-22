@@ -24,45 +24,108 @@
   (:require [rapids :refer :all]
             [clojure.test :refer :all]
             [clojure.tools.macro :refer [macrolet]]
+            [rapids.storage.core :as s]
+            [rapids.implementations.in-memory-storage :as imrs]
             [clojure.core.match :refer [match]]))
 
 (declare branch)
-(defn make-branch-code [name bindings body]
-  {:pre [(string? name) (vector? bindings)]}
-  (letfn [(process-form [form]
-            (if (rapids.support.util/in? '[rapids.test/branch branch] (first form))
-              (let [[_ name form-bindings & form-body] form
-                    name (if (string? name) (str "-> " name) name)
-                    branch-bindings (vec (concat bindings form-bindings))]
-                (with-meta `(branch ~name ~branch-bindings ~@form-body)
-                  (meta form)))
-              form))]
-    `(testing ~name
-       (let [~@bindings]
-         ~@(map process-form body)))))
 
-(defmacro branch [name bindings & body]
-  "Creates a series of tests where bindings from parent branches are prepended to the
-  bindings of child branches. This allows easily testing interaction trees.
+(defmacro with-test-storage [& body]
+  `(s/with-storage (imrs/->in-memory-storage)
+     ~@body))
 
-  Example:
-  (deftest WelcomeTest
-    (branch \"welcome\" [run (start! welcome)]
-      (keys-match run
-        :state :running
-        :output [\"welcome. Do You want to continue?\" _])
+(defmacro with-test-env
+  "Provides a storage and an active connection"
+  [& body]
+  {:pre [(not (vector? (first body)))]}
+  `(with-test-storage
+     (s/ensure-cached-connection
+       ~@body)))
 
-      (branch \"wants to continue\"
-        [run (continue! (:id run) :input \"yes\")]
-        (keys-match run
-          :state :running
-          :output [\"great!... let's continue\"]))
+(defmacro branch [bindings string & forms]
+  ;; TODO: put the string (name) before bindings once Cursive supports custom macro argument resolution
+  "Creates a series of tests where alternative steps can be tested. Each route from the root branch
+  to the leaf branches is wrapped in a test environment.
 
-      (branch \"doesn't want to continue\"
-        [run (continue! (:id run) :input \"no\")]
-        (keys-match run
-          :state :complete)))"
-  (make-branch-code name bindings body))
+  (branch [root 1]
+    \"root\"
+    ...
+    (branch [a 1]
+      \"A\"
+      ...
+      (branch [b 2]
+        \"B\"
+         ...)
+      (branch [c 3]
+        \"C\"
+         ...))
+    (branch [d 4]
+      \"D\"
+      ...
+      (branch [e 5]
+        \"E\"
+        ...)))
+
+  Executes 3 test environments:
+   - root, A, B
+   - root, A, C
+   - root, D, E
+
+  By expanding to:
+  (do
+    (with-test-env
+      (testing \"root\"
+        (let [root 1]
+          ...
+          (testing \"A\"
+            (let [a 1]
+              ...
+              (testing \"B\"
+                (let [b 2]
+                  ...)))))
+    (with-test-env
+      (testing \"root\"
+        (let [root 1]
+          ...
+          (testing \"A\"
+            (let [a 1]
+              ...
+              (testing \"C\"
+                (let [c 3]
+                  ...)))))
+    (with-test-env
+      (testing \"root\"
+        (let [root 1]
+          ...
+          (testing \"D\"
+            (let [d 4]
+              ...
+              (testing \"E\"
+                (let [e 5]
+                  ...)))))"
+  (letfn [(branch? [x]
+            (and (list? x) (-> x first #{`branch 'branch})))
+          (expand-branch [[op bindings doc & forms]]
+            {:pre [(#{'branch `branch} op)
+                   (string? doc)
+                   (and (vector? bindings) (-> bindings count even?))]}
+            (loop [non-branch-elts []
+                   results         []
+                   children        forms]
+              (if (empty? children)
+                (if (empty? results)
+                  `((testing ~doc (let ~bindings ~@non-branch-elts)))
+                  (map (fn [result] `(testing ~doc (let ~bindings ~result))) results))
+                (let [[child & remaining-children] children]
+                  (if (branch? child)
+                    (let [expanded-branch (expand-branch child)]
+                      (recur non-branch-elts
+                             (concat results (map #(conj non-branch-elts %) expanded-branch))
+                             remaining-children))
+                    (recur (conj non-branch-elts child)
+                           results
+                           remaining-children))))))]
+    `(do ~@(map #(list `with-test-env %) (expand-branch &form)))))
 
 (defmacro keys-match
   "Checks that the keys of obj match a pattern. See clojure.core.match for documentation
@@ -89,13 +152,20 @@
         body (loop [result []
                     [k m & rest-kms] key-matches]
                (let [new-result (conj result,
-                                  (with-meta
-                                    `(is (match [(~k ~ovar)]
-                                         [~m] true
-                                         [~'_] false))
-                                    (meta m)))]
+                                      (with-meta
+                                        `(is (match [(~k ~ovar)]
+                                               [~m] true
+                                               [~'_] false))
+                                        (meta m)))]
                  (if (empty? rest-kms)
                    new-result
                    (recur new-result, rest-kms))))]
     (with-meta `(let [~ovar ~obj]
                   ~@body) (meta &form))))
+
+(defn flush-cache!
+  "For ease of testing - simulates the end of a request by flushing the cache contents to the storage and clearing it"
+  []
+  (rapids.storage.cache/save-cache!)
+  (set! rapids.storage.globals/*cache* {})
+  (assert (empty? rapids.storage.globals/*cache*)))
