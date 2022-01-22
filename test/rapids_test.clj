@@ -71,7 +71,7 @@
 
     (testing "<* event provides a value"
       (flush-cache!)
-      (let [run (continue! (start! event-value-flow "foo"), :permit "foo", :data "foo-result")]
+      (let [run (continue! (start! event-value-flow "foo"), :permit "foo", :input "foo-result")]
         (is (= (proxy-field run :result) "foo-result"))))
 
     (testing "providing a mismatched context throws an exception"
@@ -105,7 +105,7 @@
       (assert (not (storage/cache-exists?)))
       (is (map? (.rawData run))))
     (testing "Invoking continue! outside of cached connection should produce a CacheProxy with accessible raw data"
-      (let [continued-run (continue! run :data :bar)]
+      (let [continued-run (continue! run :input :bar)]
         (assert (not (storage/cache-exists?)))
         (is (map? (.rawData continued-run)))))))
 
@@ -126,23 +126,23 @@
   (with-test-env
     (testing "nested flow arguments"
       (let [run  (start! nested-flow-args 2)
-            run2 (continue! run, :permit "first", :data 3)
-            run3 (continue! run2, :permit "second", :data 5)
-            run4 (continue! run3, :permit "third", :data 7)]
+            run2 (continue! run, :permit "first", :input 3)
+            run3 (continue! run2, :permit "second", :input 5)
+            run4 (continue! run3, :permit "third", :input 7)]
         (is (= (proxy-field run4 :result) (* 2 3 5 7)))))
 
     (testing "various suspending and non-suspending args"
       (flush-cache!)
 
       (let [run (continue!
-                  (continue! (start! fl-alternating), :permit "first-arg", :data 1),
-                  :permit "third", :data 3)]
+                  (continue! (start! fl-alternating), :permit "first-arg", :input 1),
+                  :permit "third", :input 3)]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result) 321))))
 
     (testing "accepts keywords"
       (let [run (continue! (start! fl-keywords :a 1 :b 10 :c 100),
-                           :permit "event", :data 1000)]
+                           :permit "event", :input 1000)]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result) 1111))))))
 
@@ -151,7 +151,7 @@
 
 (deftest ^:language JavaStaticTest
   (testing "It can use Java static methods"
-    (is (= 990 (:result (continue! (start! java-static-method-test 10) :data "99"))))))
+    (is (= 990 (:result (continue! (start! java-static-method-test 10) :input "99"))))))
 
 (deflow conditional-suspend [test]
   (if test
@@ -288,22 +288,22 @@
 
     (testing "correctly binds a suspending initial value"
       (let [run (continue! (start! suspending-let-initial-binding-flow 3),
-                           :permit "initial-binding", :data "event-data")]
+                           :permit "initial-binding", :input "event-data")]
         (is (= (proxy-field run :result) ["event-data", 9]))))
 
     (testing "correctly binds a suspending internal value"
       (let [run (continue! (start! suspending-let-internal-binding-flow 3),
-                           :permit "internal-binding", :data "event-data")]
+                           :permit "internal-binding", :input "event-data")]
         (is (= (proxy-field run :result) [9, "event-data", 27]))))
 
     (testing "correctly binds a suspending final value"
       (let [run (continue! (start! suspending-let-final-binding-flow 3),
-                           :permit "final-binding", :data "event-data")]
+                           :permit "final-binding", :input "event-data")]
         (is (= (proxy-field run :result) [9, 27, "event-data"]))))
 
     (testing "correctly handles body with suspending value"
       (let [run (continue! (start! suspending-let-body-flow 3),
-                           :permit "body", :data "body-event-data")]
+                           :permit "body", :input "body-event-data")]
         (is (= (proxy-field run :result) [9, 27, "body-event-data"]))))))
 
 (deflow non-suspending-loop [n]
@@ -361,7 +361,7 @@
         (clear-log!)
         (let [run (start! loop-with-suspending-body)]
           (is (run-in-state? run :running))
-          (let [run (continue! run, :permit "continue-loop", :data false)]
+          (let [run (continue! run, :permit "continue-loop", :input false)]
             (is (run-in-state? run :complete))
             (is-log [:before-loop :inside-loop])
             (is (= (proxy-field run :result) 1)))))
@@ -369,9 +369,9 @@
       (testing "multiple iterations"
         (clear-log!)
         (let [run (start! loop-with-suspending-body)        ; a = 1
-              run (continue! run, :permit "continue-loop", :data true) ; a + 1 = 2
-              run (continue! run, :permit "continue-loop", :data true) ; a + 1 = 3
-              run (continue! run, :permit "continue-loop", :data false)] ; a + 1 = 4
+              run (continue! run, :permit "continue-loop", :input true) ; a + 1 = 2
+              run (continue! run, :permit "continue-loop", :input true) ; a + 1 = 3
+              run (continue! run, :permit "continue-loop", :input false)] ; a + 1 = 4
           (is (run-in-state? run :complete))
           (is (proxy-field run :result) 4)
           (is-log [:before-loop :inside-loop :inside-loop :inside-loop])))
@@ -466,7 +466,7 @@
 (deftest ^:language DataStructures
   (storage/ensure-cached-connection
     (testing "nested data structure with multiple suspending operations"
-      (let [run (reduce #(continue! %1, :permit "data", :data %2) (start! datastructures) [1 2 3 4])]
+      (let [run (reduce #(continue! %1, :permit "data", :input %2) (start! datastructures) [1 2 3 4])]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result)
                {:a 1 :b 2 :c [3 {:d 4}]}))))))
@@ -477,7 +477,7 @@
 (deftest ^:language MacroexpansionTest
   (storage/ensure-cached-connection
     (testing "macroexpansion with suspending forms"
-      (let [run (reduce #(continue! %1, :permit "data", :data %2) (start! macroexpansion) [false true "foo"])]
+      (let [run (reduce #(continue! %1, :permit "data", :input %2) (start! macroexpansion) [false true "foo"])]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result) "foo"))))))
 
@@ -501,7 +501,7 @@
         (is (= (proxy-field run :result) '(6 8 10)))))
 
     (testing "should successfully partition when a normal fn is present in the body"
-      (let [run (continue! (start! flow-with-anonymous-fn), :permit "list", :data '(1 2 3))]
+      (let [run (continue! (start! flow-with-anonymous-fn), :permit "list", :input '(1 2 3))]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result) '(1 4 9)))))))
 
@@ -679,7 +679,7 @@
         (testing "the parent flow suspends when the internal anonymous flow suspends"
           (is (= :running (proxy-field r :state)))
           (flush-cache!)
-          (let [r      (try (continue! (:id r) :data :foo)
+          (let [r      (try (continue! (:id r) :input :foo)
                             (catch ExceptionInfo e {}))
                 result (proxy-field r :result)]
             (is (= :complete (proxy-field r :state)))
@@ -727,15 +727,15 @@
           (is (= (-> pool-consumer-run :id get-run :state) :running))
           (is (= (-> user-run-id get-run :state) :running)))
         (testing "inputs to the run which acts as the pool source are received by the pool sink"
-          (continue! user-run-id :data "hello")
+          (continue! user-run-id :input "hello")
           (is (= (-> user-run-id get-run :state) :running))
 
           (flush-cache!)
-          (continue! user-run-id :data "sailor")
+          (continue! user-run-id :input "sailor")
           (is (= (-> user-run-id get-run :state) :running))
 
           (flush-cache!)
-          (continue! user-run-id :data "stop")
+          (continue! user-run-id :input "stop")
 
           (flush-cache!)
           (is (= (-> user-run-id get-run :state) :complete))

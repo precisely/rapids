@@ -22,7 +22,7 @@
     name)) ;; return the name of the user
 ```
 
-  The `listen!` function represents a point where execution pauses for input. The compiler recognizes `listen!` as a suspending expression - a point where execution pauses. Execution resumes when the system receives data from an external event (e.g., the user provides their name to a client, and the client generates an HTTP `POST` request on the rapids server). When execution resumes, the user's input (the "data") is bound to the `name` variable (the "data-key"). Note that bindings (in this case just one symbol, `excited?`) are preserved in the second half of the code body.
+  The `listen!` function represents a point where execution pauses for input. The compiler recognizes `listen!` as a suspending expression - a point where execution pauses. Execution resumes when the system receives data from an external event (e.g., the user provides their name to a client, and the client generates an HTTP `POST` request on the rapids server). When execution resumes, the user's input (the "data") is bound to the `name` variable (the "input-key"). Note that bindings (in this case just one symbol, `excited?`) are preserved in the second half of the code body.
 
 First let's jump to the output of the compiler to get a flavor of what is going on.
 
@@ -82,11 +82,11 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 7. Contents of Stack Frames.
 
-  A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a partition function where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `data-key`. That variable will be bound as an argument to the partition function referenced by the symbolic address (a).
+  A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a partition function where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `input-key`. That variable will be bound as an argument to the partition function referenced by the symbolic address (a).
 
 ```clojure
 ;; simplified way of creating a stackframe record in Clojure
-(StackFrame. address bindings data-key)
+(StackFrame. address bindings input-key)
 ```
 
 8. Rule for pushing stack frames.
@@ -125,7 +125,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
   The `start!` function generates a StackFrame where the address is the partition function which identifies the beginning of the flow. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `(StackFrame. #address<greeting/0>, {:excited? true}, nil)`.
 
-  Remember, these values are the address, the bindings and the data-key. The `start!`  function allocates an empty array for the stack, the initial frame is pushed onto the stack, and the main loop is invoked with a `nil` argument. The result of the main loop is processed as described below, saving the state of computation to durable storage, and an object which allows resuming the computation is returned.
+  Remember, these values are the address, the bindings and the input-key. The `start!`  function allocates an empty array for the stack, the initial frame is pushed onto the stack, and the main loop is invoked with a `nil` argument. The result of the main loop is processed as described below, saving the state of computation to durable storage, and an object which allows resuming the computation is returned.
 
 11. Operation of the main loop.
 
@@ -133,7 +133,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
   a. If the stack is not empty, pop the frame at the top of the stack (the top frame), otherwise exit, returning the `data`.
 
-  b. If the data-key of the top frame is non nil, add the `data` to the bindings, associating it with the `data-key`. E.g., `(assoc bindings data-key data)` in Clojure. The bindings thus prepared are called "the continue bindings".
+  b. If the input-key of the top frame is non nil, add the `data` to the bindings, associating it with the `input-key`. E.g., `(assoc bindings input-key data)` in Clojure. The bindings thus prepared are called "the continue bindings".
 
   c. Retrieve the partition function identified by the address of the top frame and call it with the continue bindings.
 
@@ -311,7 +311,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 24. Partitioning branching logic.
 
-  A branching logic expression consists of `test`, `then` and `else` clauses. A branching logic expression which contains no suspending expressions is incorporated as is by the compiler. If the `test` clause is a suspending expression, then code is partitioned at the test expression. That is, the test expressions ends the current partition function, a stack frame is pushed with a new unique auto-generated variable for the `data-key`. The address will point to a new partition, the "branch partition" or "branch partition function" which contains a conditional expression which takes the data key variable as an argument and the start forms of the `then` and `else` clauses as arguments:
+  A branching logic expression consists of `test`, `then` and `else` clauses. A branching logic expression which contains no suspending expressions is incorporated as is by the compiler. If the `test` clause is a suspending expression, then code is partitioned at the test expression. That is, the test expressions ends the current partition function, a stack frame is pushed with a new unique auto-generated variable for the `input-key`. The address will point to a new partition, the "branch partition" or "branch partition function" which contains a conditional expression which takes the data key variable as an argument and the start forms of the `then` and `else` clauses as arguments:
 
 ```clojure
 ;;; input form
@@ -486,7 +486,7 @@ E.g.,
 
   D. partition functions which save new stack frames to the stack at runtime
 
-  E. A stack composed of stack frames, each of which contains the address of a partition function, a map of lexical bindings, and an optional data-key
+  E. A stack composed of stack frames, each of which contains the address of a partition function, a map of lexical bindings, and an optional input-key
 
   F. A main loop function which continuously pops stack frames and evaluates partition functions until a `Suspend` signal is received.
 
@@ -505,7 +505,7 @@ E.g.,
    * partition function - Clojure function associated with an address that implements the partition. In practice, this also includes code which pushes and pops frames onto/off of the stack
    * listen - stop execution of a run due to encountering the listen! command with a flow. The state of the flow is saved to the stack and can be resumed when an event is received.
    * suspending expression - within a lexical body of code, an expression which represents a point at which execution may pause for an arbitrarily long period of time.
-   * stack frame - a Clojure record which contains information required for resuming a flow. It contains an address which identifies the next partition function, plus any bindings, and an optional data-key, representing a variable name to which a value will be bound when the computation is resumed in the next partition function.
+   * stack frame - a Clojure record which contains information required for resuming a flow. It contains an address which identifies the next partition function, plus any bindings, and an optional input-key, representing a variable name to which a value will be bound when the computation is resumed in the next partition function.
    * stack - a FILO queue of stack frames
    * run - a data structure persisted in durable storage which is identified by a unique ID and stores the stack, but can also be used to refer to a sequence of execution involving multiple runlets and the events that trigger them.
    * runlet - the sequence of events following a start! or continue! call during which one or more partition functions are invoked. During a runlet, partition functions from multiple flows may be invoked. A runlet ends either when the run finishes (when the main flow completes and the stack is empty) or when a suspend signal is generated.

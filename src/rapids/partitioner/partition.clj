@@ -155,7 +155,7 @@
     address - Address of the expression
     params - vector of currently bound parameters at this address point
             these become keys when defining functions
-    data-key - where the code should
+    input-key - where the code should
 
   Returns:
   [
@@ -813,15 +813,15 @@
   "Generates code that continues execution at address after body.
   address - names the partition
   params - list of parameters needed by the partition
-  data-key - the key to which the value of form will be bound in the partition
+  input-key - the key to which the value of form will be bound in the partition
   body - expression which may suspend the run
 
   Returns:
   value of body"
-  ([[address params data-key] & body]
+  ([[address params input-key] & body]
    (:pre [(a/address? address)
           (vector? params)
-          (or (nil? data-key) (symbol? data-key))])
+          (or (nil? input-key) (symbol? input-key))])
    `(let [bindings# ~(bindings-expr-from-params params)]
-      (rapids.runtime.runlet/push-stack! ~address bindings# '~data-key)
+      (rapids.runtime.runlet/push-stack! ~address bindings# '~input-key)
       ~@body)))

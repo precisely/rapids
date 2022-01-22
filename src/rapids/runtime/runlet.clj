@@ -53,10 +53,10 @@
 (defn initialize-run-for-runlet []
   (update-run! :suspend nil, :response [], :error-message nil, :error-info nil))
 
-(defn push-stack! [address bindings data-key]
+(defn push-stack! [address bindings input-key]
   {:post [(run? %)
           (linked-list? (:stack %))]}
-  (let [frame (sf/make-stack-frame address bindings data-key)]
+  (let [frame (sf/make-stack-frame address bindings input-key)]
     (update-run! :stack (cons frame (current-run :stack)))))
 
 (defn pop-stack! []

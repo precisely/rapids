@@ -28,9 +28,9 @@
           (with-run (s/cache-insert! (r/make-run))          ; simulate takeout happening in a different run
             (testing "returning the value put in"
               (is (= (take-out! p) :foo)))
-            (testing "calling continue! once with the suspended run id, no data and the pool-id as permit"
+            (testing "calling continue! once with the suspended run id, no input and the pool-id as permit"
               (is (spy/called-once-with? stub               ; NB: called-once-with? requires exact argument match
-                    run-id :permit (pool-id p)))))))))      ; i.e., no :data key provided
+                    run-id :permit (pool-id p)))))))))      ; i.e., no :input key provided
   (testing "An empty unbuffered pool, when taking out"
     (with-test-env-run [p (->pool)
                         run-id (current-run :id)]
@@ -47,7 +47,7 @@
           (testing "calling continue! once with the suspended run id, and the put-in value, using the pool-id as permit"
             (is (spy/called-once-with? stub
                   run-id
-                  :data :foo
+                  :input :foo
                   :permit (pool-id p)))))))))
 
 (deftest ^:unit BufferedPoolTests
@@ -108,8 +108,8 @@
             (is (nil? (put-in! p 1)))
             (is (nil? (put-in! p 2))))
           (is (= (spy/calls stub)
-                [(list (:id run1) :data 1 :permit (pool-id p))
-                 (list (:id run2) :data 2 :permit (pool-id p))]))))
+                [(list (:id run1) :input 1 :permit (pool-id p))
+                 (list (:id run2) :input 2 :permit (pool-id p))]))))
       (testing "Once the sinks are exhausted, a subsequent put-in should fill the buffer without calling continue!"
         (with-continue!-stub [stub :unused]
           (is (= (pool-count p :sinks) 0))

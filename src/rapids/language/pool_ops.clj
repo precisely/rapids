@@ -55,7 +55,7 @@
     (let [run-id (pool-pop! p :sinks)
           value (pool-pop! p :buffer)]
       ; continue the next run, passing it the put-in value
-      (continue! run-id :data value :permit (pool-id p))
+      (continue! run-id :input value :permit (pool-id p))
       nil)))
 
 (defn ^:suspending take-out!

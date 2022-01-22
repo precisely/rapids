@@ -36,14 +36,14 @@
       (testing "without interruptions, the attempt block should return normally"
         (let [run (start! interruptible-flow)
               _ (flush-cache!)
-              run (continue! run :data :child-data)]
+              run (continue! run :input :child-input)]
           (is (= :running (:state run)))
           (testing "the finally block should execute after the body"
             (is (= [:body-called :finally-called] (:response run))))
-          (continue! run :data :final)
+          (continue! run :input :final)
           (flush-cache!)
           (is (= :complete (:state run)))
-          (is (= {:attempt-result [:child-data :uninterrupted-result]
+          (is (= {:attempt-result [:child-input :uninterrupted-result]
                   :final-listen   :final} (:result run)))))
 
       (testing "interrupting a run and handling the interruption"
@@ -62,7 +62,7 @@
 
           (testing "the handler return value is returned by the attempt form"
             (flush-cache!)
-            (continue! run :data :continue-value)
+            (continue! run :input :continue-value)
             (is (= {:attempt-result :foo-interruption
                     :final-listen   :continue-value}
                   (:result run)))))))
@@ -84,22 +84,22 @@
 
           (testing "attempting to continue without providing the interrupt results in an exception"
             (is (throws-error-output #"Attempt to continue interrupted run"
-                  (continue! run :data :hello))))
+                  (continue! run :input :hello))))
 
           (testing "attempting to continue with an invalid interrupt results in an exception"
             (is (throws-error-output #"Attempt to continue interrupted run"
-                  (continue! run :data :hello :interrupt :invalid))))
+                  (continue! run :input :hello :interrupt :invalid))))
 
           (testing "Providing the interrupt value to continue allows us to continue"
             (flush-cache!)
             (continue! run
-              :data :interruption-data
+              :input :interruption-data
               :interrupt (:interrupt run))
 
             (is (= :running (:state run))))
 
-          (testing "The continued data is captured within the handler"
-            (continue! run :data :final)
+          (testing "The continued input is captured within the handler"
+            (continue! run :input :final)
 
             (is (= :complete (:state run)))
             (is (= [{:attempt-result [:interruption-data :bar-handled]
@@ -113,7 +113,7 @@
               i (->interruption :baz :data :baz-data)
               run (interrupt! run i)]
           (is (= :running (:state run)))
-          (continue! run :data :final)
+          (continue! run :input :final)
           (is (= :complete (:state run)))
           (is (= {:attempt-result [{:redo-value :baz-data} :uninterrupted-result]
                   :final-listen   :final}

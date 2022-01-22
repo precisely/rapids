@@ -45,7 +45,7 @@
 
   Returns:
     run - Run instance indicated by run-id"
-  [run-id & {:keys [data permit interrupt]}]
+  [run-id & {:keys [input permit interrupt]}]
   {:pre  [(not (nil? run-id))]
    :post [(run? %)]}
   (ensure-cached-connection
@@ -65,7 +65,7 @@
                                    :received permit
                                    :run-id   run-id})))
                 (initialize-run-for-runlet)                 ;; ensure response and suspend are empty
-                (start-eval-loop! (next-stack-fn!) data)
+                (start-eval-loop! (next-stack-fn!) input)
                 (current-run)))))
 
 (defn interrupt!
@@ -105,17 +105,17 @@
 ;;
 (declare eval-loop! complete-run! stack-processor! next-stack-fn! next-move)
 
-(defn ->CurrentContinuationChange [stack, dynamics, data]
+(defn ->CurrentContinuationChange [stack, dynamics, input]
   {:pre [(seq? stack), (vector? dynamics)]}
-  (CurrentContinuationChange. stack, dynamics, data))
+  (CurrentContinuationChange. stack, dynamics, input))
 
 (defn- start-eval-loop!
   "Provides a trampoline that catches CurrentContinuationChange events and
   restarts the eval-loop! with the new run environment."
   ([stack-fn] (start-eval-loop! stack-fn nil))
-  ([stack-fn data]
-   (letfn [(doloop [stack-fn data]
-             (try (eval-loop! stack-fn data)
+  ([stack-fn input]
+   (letfn [(doloop [stack-fn input]
+             (try (eval-loop! stack-fn input)
                   (catch ExceptionInfo ei
                     (let [data (ex-data ei)
                           type (:type data)
@@ -123,15 +123,16 @@
                       (if (= type :fatal-error)
                         (update-run! :state :error
                                      :error-info {:type :fatal-error,
-                                                  :message message
-                                                  :data data}
+                                                  :message message,
+                                                  :ex-info-data data
+                                                  :input input}
                                      :error-message "Fatal Error")
                         (throw ei))))
                   (catch CurrentContinuationChange ccc
                     (update-run! :stack (.stack ccc) :dynamics (.dynamics ccc))
                     ;; recur so we can catch the next ccc throwable
-                    #(doloop (next-stack-fn!) (.data ccc)))))]
-     (trampoline doloop stack-fn data))))
+                    #(doloop (next-stack-fn!) (.input ccc)))))]
+     (trampoline doloop stack-fn input))))
 
 (defn- eval-loop!
   "Executes stack-fn (a unary fn) with the bindings present in the run. Because Clojure requires a new Java
@@ -221,7 +222,7 @@
 
     ;; continue processing the parent run
     (continue! parent-run-id
-               :permit (current-run :id) :data result))
+               :permit (current-run :id) :input result))
 
   ;; finished - return the current value
   result)
@@ -231,7 +232,7 @@
 
   Returns:
    function (fn [value] ...) which causes execution of the next partition, where value
-   will be bound to the data-key established by `resume-at`"
+   will be bound to the input-key established by `resume-at`"
   []
   (if-let [it (pop-stack!)]
     (sf/stack-fn it)))

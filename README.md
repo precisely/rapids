@@ -23,7 +23,7 @@ As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions li
 ### Simple example
 ```clojure
 (let [run (start! multiply-by-user-input 5)]
-   (continue! (:id run) {:data "100"}) ; this would normally happen as the result of a separate web API call
+   (continue! (:id run) {:input "100"}) ; this would normally happen as the result of a separate web API call
    (println (:result run))) ; prints 500
 => 
 ```
@@ -50,7 +50,7 @@ Suspends execution of the run until a call to `continue!`.
 (listen! :permit permit, :expires expiry-time, :default value)
 ```
 
-A call to `listen!` causes the run to be persisted to storage. Execution is resumed by calling `continue!` and providing the run-id (available using `(:id run)`, the permit value (which is nil by default) and `data` value. When the run resumes, the `(listen!...)` form evaluates to the `result` value. 
+A call to `listen!` causes the run to be persisted to storage. Execution is resumed by calling `continue!` and providing the run-id (available using `(:id run)`, the permit value (which is nil by default) and `input` value. When the run resumes, the `(listen!...)` form evaluates to the `result` value. 
 
 When the expiry time is passed, execution resumes, with the `listen!` operator evaluates to the value of the `default` argument, which is nil if not provided.
 
@@ -83,9 +83,9 @@ Sets one or more values in the current run's status map. Supports nested access.
 
 ### Resume the flow 
 ```clojure
-;; the caller provides run-id, context and data 
+;; the caller provides run-id, permit and input 
 ;; resume the flow as follows:
-(continue! run-id {:permit permit :data data})
+(continue! run-id {:permit permit :input input})
 ```
 
 ## Setting up a backend
@@ -148,13 +148,13 @@ Here's an example of how to use them:
       :response ["welcome. Do You want to continue?" _])
 
     (branch "wants to continue"
-      [run (continue! (:next-id run) {:data "yes"})]
+      [run (continue! (:next-id run) {:input "yes"})]
       (keys-match run
         :state :suspended 
         :response ["great!... let's continue"]))
 
     (branch "doesn't want to continue"
-      [run (continue! (:next-id run) {:data "no"})]
+      [run (continue! (:next-id run) {:input "no"})]
       (keys-match run
         :state :complete))))
 ```

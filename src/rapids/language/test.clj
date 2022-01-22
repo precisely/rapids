@@ -10,13 +10,13 @@
 ;;;;       :response ["welcome. Do You want to continue?" _])
 ;;;;
 ;;;;     (branch "wants to continue"
-;;;;       [run (continue! (:id run) :data "yes")]
+;;;;       [run (continue! (:id run) :input "yes")]
 ;;;;       (keys-match run
 ;;;;         :state :suspended 
 ;;;;         :response ["great!... let's continue"]))
 ;;;;
 ;;;;     (branch "doesn't want to continue"
-;;;;       [run (continue! (:id run) :data "no")]
+;;;;       [run (continue! (:id run) :input "no")]
 ;;;;       (keys-match run
 ;;;;         :state :complete)))
 
@@ -53,13 +53,13 @@
         :response [\"welcome. Do You want to continue?\" _])
 
       (branch \"wants to continue\"
-        [run (continue! (:id run) :data \"yes\")]
+        [run (continue! (:id run) :input \"yes\")]
         (keys-match run
           :state :running
           :response [\"great!... let's continue\"]))
 
       (branch \"doesn't want to continue\"
-        [run (continue! (:id run) :data \"no\")]
+        [run (continue! (:id run) :input \"no\")]
         (keys-match run
           :state :complete)))"
   (make-branch-code name bindings body))
