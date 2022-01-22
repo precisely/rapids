@@ -18,18 +18,18 @@
 ;;; which can be executed without being suspending.
 ;;;
 ;;; Partitions are the AST representations of code, used to define "partition functions" .
-;;; Breaks are introduced by calls to flows or to any suspending function like `listen!`.
+;;; Breaks are introduced by calls to flows or to any suspending function like `input!`.
 ;;; Suspending functions can be defined by tagging the function ^:suspending. It tells
 ;;; the partitions to introduce a break because calling the function _might_ return
 ;;; a suspending event.
 ;;;
 ;;; When a flow is called, a StackFrame is created which captures the bindings
-;;; and the address where execution should resume. When a `(listen! :permit "foo")`
+;;; and the address where execution should resume. When a `(input! :permit "foo")`
 ;;; expression is encountered, the stack is persisted to a non-volatile storage
 ;;; and associated with these values. When an event matching the current `*run-id*`
 ;;; and `permit` is received, the run (which holds the stack) is retrieved, and
-;;; execution is resumed at the point in the flow after the `(listen!...)` call,
-;;; with the bindings that were present when `(listen!...)` was invoked. At the end
+;;; execution is resumed at the point in the flow after the `(input!...)` call,
+;;; with the bindings that were present when `(input!...)` was invoked. At the end
 ;;; of each partition, the frame at the top of the stack is popped and execution
 ;;; continues at the address in the next frame.
 ;;;
@@ -155,7 +155,7 @@
     address - Address of the expression
     params - vector of currently bound parameters at this address point
             these become keys when defining functions
-    data-key - where the code should
+    input-key - where the code should
 
   Returns:
   [
@@ -813,15 +813,15 @@
   "Generates code that continues execution at address after body.
   address - names the partition
   params - list of parameters needed by the partition
-  data-key - the key to which the value of form will be bound in the partition
+  input-key - the key to which the value of form will be bound in the partition
   body - expression which may suspend the run
 
   Returns:
   value of body"
-  ([[address params data-key] & body]
+  ([[address params input-key] & body]
    (:pre [(a/address? address)
           (vector? params)
-          (or (nil? data-key) (symbol? data-key))])
+          (or (nil? input-key) (symbol? input-key))])
    `(let [bindings# ~(bindings-expr-from-params params)]
-      (rapids.runtime.runlet/push-stack! ~address bindings# '~data-key)
+      (rapids.runtime.runlet/push-stack! ~address bindings# '~input-key)
       ~@body)))

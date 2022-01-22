@@ -33,7 +33,7 @@
 ;;
 ;;   ;; handlers - can run some code, and can either invoke a retrace or a recovery
 ;;                 note that during an interruption, the caller with the interruption ID
-;;                 has control; the run is responding to that caller.
+;;                 has control; the run is outputing to that caller.
 ;;
 ;;   (handle :abort i  ;; e.g., returning a different value
 ;;      (>* "Hello, doctor, I am aborting this dosing procedure")

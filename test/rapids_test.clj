@@ -71,7 +71,7 @@
 
     (testing "<* event provides a value"
       (flush-cache!)
-      (let [run (continue! (start! event-value-flow "foo"), :permit "foo", :data "foo-result")]
+      (let [run (continue! (start! event-value-flow "foo"), :permit "foo", :input "foo-result")]
         (is (= (proxy-field run :result) "foo-result"))))
 
     (testing "providing a mismatched context throws an exception"
@@ -105,7 +105,7 @@
       (assert (not (storage/cache-exists?)))
       (is (map? (.rawData run))))
     (testing "Invoking continue! outside of cached connection should produce a CacheProxy with accessible raw data"
-      (let [continued-run (continue! run :data :bar)]
+      (let [continued-run (continue! run :input :bar)]
         (assert (not (storage/cache-exists?)))
         (is (map? (.rawData continued-run)))))))
 
@@ -126,23 +126,23 @@
   (with-test-env
     (testing "nested flow arguments"
       (let [run  (start! nested-flow-args 2)
-            run2 (continue! run, :permit "first", :data 3)
-            run3 (continue! run2, :permit "second", :data 5)
-            run4 (continue! run3, :permit "third", :data 7)]
+            run2 (continue! run, :permit "first", :input 3)
+            run3 (continue! run2, :permit "second", :input 5)
+            run4 (continue! run3, :permit "third", :input 7)]
         (is (= (proxy-field run4 :result) (* 2 3 5 7)))))
 
     (testing "various suspending and non-suspending args"
       (flush-cache!)
 
       (let [run (continue!
-                  (continue! (start! fl-alternating), :permit "first-arg", :data 1),
-                  :permit "third", :data 3)]
+                  (continue! (start! fl-alternating), :permit "first-arg", :input 1),
+                  :permit "third", :input 3)]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result) 321))))
 
     (testing "accepts keywords"
       (let [run (continue! (start! fl-keywords :a 1 :b 10 :c 100),
-                           :permit "event", :data 1000)]
+                           :permit "event", :input 1000)]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result) 1111))))))
 
@@ -151,7 +151,7 @@
 
 (deftest ^:language JavaStaticTest
   (testing "It can use Java static methods"
-    (is (= 990 (:result (continue! (start! java-static-method-test 10) :data "99"))))))
+    (is (= 990 (:result (continue! (start! java-static-method-test 10) :input "99"))))))
 
 (deflow conditional-suspend [test]
   (if test
@@ -288,22 +288,22 @@
 
     (testing "correctly binds a suspending initial value"
       (let [run (continue! (start! suspending-let-initial-binding-flow 3),
-                           :permit "initial-binding", :data "event-data")]
+                           :permit "initial-binding", :input "event-data")]
         (is (= (proxy-field run :result) ["event-data", 9]))))
 
     (testing "correctly binds a suspending internal value"
       (let [run (continue! (start! suspending-let-internal-binding-flow 3),
-                           :permit "internal-binding", :data "event-data")]
+                           :permit "internal-binding", :input "event-data")]
         (is (= (proxy-field run :result) [9, "event-data", 27]))))
 
     (testing "correctly binds a suspending final value"
       (let [run (continue! (start! suspending-let-final-binding-flow 3),
-                           :permit "final-binding", :data "event-data")]
+                           :permit "final-binding", :input "event-data")]
         (is (= (proxy-field run :result) [9, 27, "event-data"]))))
 
     (testing "correctly handles body with suspending value"
       (let [run (continue! (start! suspending-let-body-flow 3),
-                           :permit "body", :data "body-event-data")]
+                           :permit "body", :input "body-event-data")]
         (is (= (proxy-field run :result) [9, 27, "body-event-data"]))))))
 
 (deflow non-suspending-loop [n]
@@ -361,7 +361,7 @@
         (clear-log!)
         (let [run (start! loop-with-suspending-body)]
           (is (run-in-state? run :running))
-          (let [run (continue! run, :permit "continue-loop", :data false)]
+          (let [run (continue! run, :permit "continue-loop", :input false)]
             (is (run-in-state? run :complete))
             (is-log [:before-loop :inside-loop])
             (is (= (proxy-field run :result) 1)))))
@@ -369,9 +369,9 @@
       (testing "multiple iterations"
         (clear-log!)
         (let [run (start! loop-with-suspending-body)        ; a = 1
-              run (continue! run, :permit "continue-loop", :data true) ; a + 1 = 2
-              run (continue! run, :permit "continue-loop", :data true) ; a + 1 = 3
-              run (continue! run, :permit "continue-loop", :data false)] ; a + 1 = 4
+              run (continue! run, :permit "continue-loop", :input true) ; a + 1 = 2
+              run (continue! run, :permit "continue-loop", :input true) ; a + 1 = 3
+              run (continue! run, :permit "continue-loop", :input false)] ; a + 1 = 4
           (is (run-in-state? run :complete))
           (is (proxy-field run :result) 4)
           (is-log [:before-loop :inside-loop :inside-loop :inside-loop])))
@@ -439,7 +439,7 @@
             (is (run-in-state? run :complete))
             (is (= (proxy-field run :result) :end))))))))
 
-(deflow responding-flow []
+(deflow outputing-flow []
   (>* :r1)
   (<* :permit "s1")
   (>* :r2)
@@ -447,18 +447,18 @@
   (<* :permit "s2")
   (>* :r4 :r5))
 
-(deftest ^:language Respond
+(deftest ^:language output
   (storage/ensure-cached-connection
     (testing ">* adds to an element to the current run's response"
-      (let [run (start! responding-flow)]
-        (testing "responds during start flow"
-          (is (= (proxy-field run :response) [:r1])))
+      (let [run (start! outputing-flow)]
+        (testing "outputs during start flow"
+          (is (= (proxy-field run :output) [:r1])))
         (continue! run, :permit "s1")
         (testing "Each run starts a new response, and responses accumulate during a runlet"
-          (is (= (proxy-field run :response) [:r2 :r3])))
+          (is (= (proxy-field run :output) [:r2 :r3])))
         (continue! run, :permit "s2")
         (testing ">* treats multiple arguments as separate responses")
-        (is (= (proxy-field run :response) [:r4 :r5]))))))
+        (is (= (proxy-field run :output) [:r4 :r5]))))))
 
 (deflow datastructures []
   {:a (<* :permit "data") :b (<* :permit "data") :c [(<* :permit "data") {:d (<* :permit "data")}]})
@@ -466,7 +466,7 @@
 (deftest ^:language DataStructures
   (storage/ensure-cached-connection
     (testing "nested data structure with multiple suspending operations"
-      (let [run (reduce #(continue! %1, :permit "data", :data %2) (start! datastructures) [1 2 3 4])]
+      (let [run (reduce #(continue! %1, :permit "data", :input %2) (start! datastructures) [1 2 3 4])]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result)
                {:a 1 :b 2 :c [3 {:d 4}]}))))))
@@ -477,7 +477,7 @@
 (deftest ^:language MacroexpansionTest
   (storage/ensure-cached-connection
     (testing "macroexpansion with suspending forms"
-      (let [run (reduce #(continue! %1, :permit "data", :data %2) (start! macroexpansion) [false true "foo"])]
+      (let [run (reduce #(continue! %1, :permit "data", :input %2) (start! macroexpansion) [false true "foo"])]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result) "foo"))))))
 
@@ -493,7 +493,7 @@
       (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
                             (partition-flow-body
                               {}
-                              (address/->address `fn-with-suspend) `([] (fn [] (listen! :permit "boo")))))))
+                              (address/->address `fn-with-suspend) `([] (fn [] (input! :permit "boo")))))))
 
     (testing "flow-with-closure"
       (let [run (start! flow-with-closure 2 [3 4 5])]
@@ -501,7 +501,7 @@
         (is (= (proxy-field run :result) '(6 8 10)))))
 
     (testing "should successfully partition when a normal fn is present in the body"
-      (let [run (continue! (start! flow-with-anonymous-fn), :permit "list", :data '(1 2 3))]
+      (let [run (continue! (start! flow-with-anonymous-fn), :permit "list", :input '(1 2 3))]
         (is (run-in-state? run :complete))
         (is (= (proxy-field run :result) '(1 4 9)))))))
 
@@ -537,7 +537,7 @@
         (is (= (:id returned-run) (:id parent-run)))
         (is (run-in-state? returned-run :running))
         (is (-> parent-run :parent-run-id nil?))
-        (is (= '(:parent-before-blocking-call) (proxy-field returned-run :response)))
+        (is (= '(:parent-before-blocking-call) (proxy-field returned-run :output)))
         (testing "The child run is created, but is not returned initially"
           (is child-run)
           (is (:id child-run))
@@ -564,7 +564,7 @@
               (is (= (-> parent-after-block :id get-run :state) :running)))
 
             (testing "the parent response includes only the response from the parent run"
-              (is (= '(:parent-before-blocking-call) (:response parent-after-block)))))
+              (is (= '(:parent-before-blocking-call) (:output parent-after-block)))))
 
           (flush-cache!)
 
@@ -574,7 +574,7 @@
               (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
 
             (testing "the child response includes only the response from the child run"
-              (is (= '(:child-flow-response) (:response child-run-after-block)))))
+              (is (= '(:child-flow-response) (:output child-run-after-block)))))
 
           (flush-cache!)
 
@@ -585,13 +585,13 @@
                 (is (run-in-state? completed-child :complete))
                 (is (= (:id child-run) (:id completed-child))))
               (testing "child response should contain only the child response"
-                (is (= '(:child-flow-after-suspending) (:response completed-child))))
+                (is (= '(:child-flow-after-suspending) (:output completed-child))))
 
               (flush-cache!)
 
               (let [parent-after-block-release (get-run (:id parent-run))]
                 (testing "parent response should contain only the parent response"
-                  (is (= '(:parent-after-blocking-call) (:response parent-after-block-release))))
+                  (is (= '(:parent-after-blocking-call) (:output parent-after-block-release))))
 
                 (testing "parent should be in complete state"
                   (is (run-in-state? parent-after-block-release :complete)))
@@ -604,25 +604,25 @@
         (is (= (:result returned-run) :child-result))))))
 
 (deflow level3-suspends [suspend?]
-  (respond! :level3-start)                                  ; this does not get captured by level1 or level2 because the redirect operator is not used
-  (if suspend? (listen!))
-  (respond! :level3-end)
+  (output! :level3-start)                                  ; this does not get captured by level1 or level2 because the redirect operator is not used
+  (if suspend? (input!))
+  (output! :level3-end)
   :level3-result)
 
 (deflow level2-suspends-and-blocks [suspend-blocker?]
-  (respond! :level2-start)
-  (listen!)                                                 ;; up to this point is capture by level1-start
+  (output! :level2-start)
+  (input!)                                                 ;; up to this point is capture by level1-start
   (clear-log!)                                              ;; continue level2-run should start here
-  (respond! :level2-after-suspend)
+  (output! :level2-after-suspend)
   (let [level3 (start! level3-suspends suspend-blocker?)]
     (log! level3)                                           ;; continue level2-run ends here
     #_(println "before level3 block")
-    (respond! (block! level3))
+    (output! (block! level3))
     #_(println "after level3 block"))
-  (respond! :level2-end)
+  (output! :level2-end)
   :level2-result)
 
-(deflow my-respond [a1 a2 a3] (respond! a1 a2 a3))
+(deflow my-output [a1 a2 a3] (output! a1 a2 a3))
 
 (deflow call-flows [forms]
   (doseq [[op a1 a2 a3] forms]
@@ -635,28 +635,28 @@
 (deftest ^:language CallFlow
   (storage/ensure-cached-connection
     (testing "fcall invokes flow objects with the supplied arguments"
-      (let [run (start! call-flows [[my-respond 1 2 3] [my-respond 4 5 6]])]
+      (let [run (start! call-flows [[my-output 1 2 3] [my-output 4 5 6]])]
         (is (= (proxy-field run :state) :complete))
-        (is (= (:response run) [1 2 3 4 5 6]))))
+        (is (= (:output run) [1 2 3 4 5 6]))))
 
     (testing "fcall invokes flow associated with flow symbols with the supplied arguments"
       (flush-cache!)
-      (let [run (start! call-flows `[[my-respond 1 2 3] [my-respond 4 5 6]])]
+      (let [run (start! call-flows `[[my-output 1 2 3] [my-output 4 5 6]])]
         (is (= (proxy-field run :state) :complete))
-        (is (= (:response run) [1 2 3 4 5 6]))))))
+        (is (= (:output run) [1 2 3 4 5 6]))))))
 
 (deftest ^:language ApplyFlow
   (storage/ensure-cached-connection
     (testing "fapply applies a flow object to the remaining args"
-      (let [run (start! apply-flows [[my-respond 1 2 3] [my-respond 4 5 6]])]
+      (let [run (start! apply-flows [[my-output 1 2 3] [my-output 4 5 6]])]
         (is (= (proxy-field run :state) :complete))
-        (is (= (:response run) [1 2 3 4 5 6]))))
+        (is (= (:output run) [1 2 3 4 5 6]))))
 
     (testing "fapply applies a flow symbol to the remaining args"
       (flush-cache!)
-      (let [run (start! apply-flows `[[my-respond 1 2 3] [my-respond 4 5 6]])]
+      (let [run (start! apply-flows `[[my-output 1 2 3] [my-output 4 5 6]])]
         (is (= (proxy-field run :state) :complete))
-        (is (= (:response run) [1 2 3 4 5 6]))))))
+        (is (= (:output run) [1 2 3 4 5 6]))))))
 
 (deftest ^:language Destructuring
   (testing "quick and dirty tests that destructuring expressions compile without error"
@@ -664,7 +664,7 @@
     (is (flow? (var-get (eval `(deflow ~'foo [~'s] (loop [[~'head & ~'rest] ~'s] (<*) (if ~'rest (recur ~'rest))))))))))
 
 (deflow anonymous-flow-creator [v]
-  (let [f (flow [] {:received (listen!)
+  (let [f (flow [] {:received (input!)
                     :captured v})]
     (fcall f)))
 
@@ -679,7 +679,7 @@
         (testing "the parent flow suspends when the internal anonymous flow suspends"
           (is (= :running (proxy-field r :state)))
           (flush-cache!)
-          (let [r      (try (continue! (:id r) :data :foo)
+          (let [r      (try (continue! (:id r) :input :foo)
                             (catch ExceptionInfo e {}))
                 result (proxy-field r :result)]
             (is (= :complete (proxy-field r :state)))
@@ -727,15 +727,15 @@
           (is (= (-> pool-consumer-run :id get-run :state) :running))
           (is (= (-> user-run-id get-run :state) :running)))
         (testing "inputs to the run which acts as the pool source are received by the pool sink"
-          (continue! user-run-id :data "hello")
+          (continue! user-run-id :input "hello")
           (is (= (-> user-run-id get-run :state) :running))
 
           (flush-cache!)
-          (continue! user-run-id :data "sailor")
+          (continue! user-run-id :input "sailor")
           (is (= (-> user-run-id get-run :state) :running))
 
           (flush-cache!)
-          (continue! user-run-id :data "stop")
+          (continue! user-run-id :input "stop")
 
           (flush-cache!)
           (is (= (-> user-run-id get-run :state) :complete))
@@ -766,7 +766,7 @@
     (is (= 4 (:result (start! call-cc-fn-test :short-circuit)))))
   (testing "Recurrence: Calling callcc with no args returns the current continuation, and calling it later returns control to the point where it was created"
     (is (= ["callcc returns a closure" "callcc returns a value: 123"]
-           (:response (start! call-cc-fn-test :recurrence))))))
+           (:output (start! call-cc-fn-test :recurrence))))))
 
 (def ^:dynamic *test-binding*)
 (declare dynamic-binding-test2)
@@ -830,28 +830,28 @@
       (testing ""
         (let [run (start! dynamic-binding-parent-flow false)]
           (testing "Binding works normally in the first partition"
-            (is (= (:response run) [{:parent [:p1 :outer-value]}
+            (is (= (:output run) [{:parent [:p1 :outer-value]}
                                     {:child [:p1 :outer-value]}])))
 
           ;; :p2
           (flush-cache!)
           (continue! run)
           (testing "The binding holds in a subsequent partition"
-            (is (= (:response run) [{:parent [:p2 :outer-value]}
+            (is (= (:output run) [{:parent [:p2 :outer-value]}
                                     {:child [:p2 :outer-value]}])))
 
           ;; :p3
           (flush-cache!)
           (continue! run)
           (testing "The binding can be overridden"
-            (is (= (:response run) [{:parent [:p3 :inner-value]}
+            (is (= (:output run) [{:parent [:p3 :inner-value]}
                                     {:child [:p3 :inner-value]}])))
 
           ;; :p4
           (flush-cache!)
           (continue! run)
           (testing "The overriding binding holds in a subsequent partition, and can be released"
-            (is (= (:response run) [{:parent [:p4-inner :inner-value]}
+            (is (= (:output run) [{:parent [:p4-inner :inner-value]}
                                     {:child [:p4-inner :inner-value]}
                                     {:parent [:p4-outer :outer-value]}
                                     {:child [:p4-outer :outer-value]}])))
@@ -860,7 +860,7 @@
           (flush-cache!)
           (continue! run)
           (testing "Once released the binding remains at its original value in subsequent partitions"
-            (is (= (:response run) [{:parent [:p5 :outer-value]}
+            (is (= (:output run) [{:parent [:p5 :outer-value]}
                                     {:child [:p5 :outer-value]}]))))))))
 
 (deftest ^:language DynamicSetTest
@@ -869,21 +869,21 @@
       (testing ""
         (let [run (start! dynamic-binding-parent-flow true)]
           (testing "Binding works normally in the first partition"
-            (is (= (:response run) [{:parent [:p1 :outer-value]}
+            (is (= (:output run) [{:parent [:p1 :outer-value]}
                                     {:child [:p1 :outer-value]}])))
 
           ;; :p2
           (flush-cache!)
           (continue! run)
           (testing "The binding holds in a subsequent partition"
-            (is (= (:response run) [{:parent [:p2 :outer-value]}
+            (is (= (:output run) [{:parent [:p2 :outer-value]}
                                     {:child [:p2 :outer-value]}])))
 
           ;; :p3
           (flush-cache!)
           (continue! run)
           (testing "The inner binding is overriden with set!"
-            (is (= (:response run) [{:parent [:p3 :inner-value]}
+            (is (= (:output run) [{:parent [:p3 :inner-value]}
                                     {:child [:p3 :inner-value]}
                                     {:child-after-set [:p3 :set-value]}])))
 
@@ -891,7 +891,7 @@
           (flush-cache!)
           (continue! run)
           (testing "The set! binding holds in a subsequent partition, and is lost after the binding goes out of scope"
-            (is (= (:response run) [{:parent [:p4-inner :set-value]} ; <<== these lines show set! has carried beyond the initial partition
+            (is (= (:output run) [{:parent [:p4-inner :set-value]} ; <<== these lines show set! has carried beyond the initial partition
                                     {:child [:p4-inner :set-value]} ; <<==
                                     {:parent [:p4-outer :outer-value]}
                                     {:child [:p4-outer :outer-value]}])))
@@ -900,7 +900,7 @@
           (flush-cache!)
           (continue! run)
           (testing "Once released the binding remains at its original value in subsequent partitions"
-            (is (= (:response run) [{:parent [:p5 :outer-value]}
+            (is (= (:output run) [{:parent [:p5 :outer-value]}
                                     {:child [:p5 :outer-value]}]))))))))
 
 (def ^:dynamic *cc-dynamic*)
@@ -935,14 +935,14 @@
     (testing ""
       (let [run (start! callcc-with-dynamics)]
         (testing "Sanity test that *cc-dynamic* is bound properly initially"
-          (is (= (:response run) [{:first-partition {:*cc-dynamic* :outer}}])))
+          (is (= (:output run) [{:first-partition {:*cc-dynamic* :outer}}])))
 
         ;;
         ;; FIRST TRIP THROUGH
         ;;
         (flush-cache!)
         (continue! run)
-        (let [response (:response run)]
+        (let [response (:output run)]
           (testing "The current continuation can be captured in a trans-partition dynamic"
             (is (= (first response) {:then-branch {:*cc* :closure, :*cc-dynamic* :outer}})))
 
@@ -967,7 +967,7 @@
 
           (testing "The second time through, the continuation call returns the value provided inside the child flow"
             (is (= [{:else-branch {:*cc* :interruption, :*cc-dynamic* :outer}}]
-                   (:response run)))))))))
+                   (:output run)))))))))
 
 (deflow exception-flow [start-error continue-error]
   (if start-error

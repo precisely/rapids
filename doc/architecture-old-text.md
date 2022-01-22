@@ -1,16 +1,16 @@
 ## Detailed discussion 
  
- 1) During the partitioning (compiler) phase, the abstract syntax tree is analyzed by recursively walking the tree. The compiler examines each expression and determines whether it is a suspending expression. Suspending expressions include invocations of the `listen!` function, invocations of flows or expressions which contain nested suspending expressions.
+ 1) During the partitioning (compiler) phase, the abstract syntax tree is analyzed by recursively walking the tree. The compiler examines each expression and determines whether it is a suspending expression. Suspending expressions include invocations of the `input!` function, invocations of flows or expressions which contain nested suspending expressions.
  
  2) The compiler generates a symbolic address as it visits each expression. For example, in the following `do` block, the addresses. Each continuation is associated with the address which begins the continuation. For example, the address of the first continuation in the main flow is `main/0`.
  
  ```clojure
  (deflow greeting [day-of-week]
-   (respond! "Hi. What is your name?")  ; address = greeting/0
+   (output! "Hi. What is your name?")  ; address = greeting/0
    (let                                 ; address = greeting/1 
-      [name (listen!)]                  ; address = greeting/let/0
-     (respond! "Nice to meet you" name) ; address = greeting/let/1/0
-     (respond! "It's a very nice " day-of-week) ; address = greeting/let/1/1
+      [name (input!)]                  ; address = greeting/let/0
+     (output! "Nice to meet you" name) ; address = greeting/let/1/0
+     (output! "It's a very nice " day-of-week) ; address = greeting/let/1/1
      name)) ;; return the name of the user
 ```
     
@@ -21,7 +21,7 @@
    (do (a) (b) (myflow))
   ``` 
  
-  The `(myflow)` call is a suspending expression, but is terminal. The compiler defines a single partition, corresponding to a single continuation. But in `(do (a) (myflow) (b))`, execution may suspend at `(myflow)`, so the partition must end there, and a stack frame must be pushed onto the stack to allow execution to resume at `(b)`. This is done with a macro: 
+  The `(myflow)` call is a suspending expression, but is terminal. The compiler defines a single partition, coroutputing to a single continuation. But in `(do (a) (myflow) (b))`, execution may suspend at `(myflow)`, so the partition must end there, and a stack frame must be pushed onto the stack to allow execution to resume at `(b)`. This is done with a macro: 
   ```clojure
     (resume-at [{address-of-b}] (do (a) (myflow)))
   ```

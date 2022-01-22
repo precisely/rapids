@@ -21,7 +21,7 @@ So far so good. But running flows
 
 What `deflow` adds are a few key operators which permit the workflow code to operate over very long time scales without consuming volatile memory or compute resources while waiting for input. 
 
-Use the `listen!` operator, usually written `<*`, to pause the workflow for input. Think of the asterisk as a globe representing the real world. This operator says "get data from the real world".
+Use the `input!` operator, usually written `<*`, to pause the workflow for input. Think of the asterisk as a globe representing the real world. This operator says "get data from the real world".
 
 
  I.e., it takes inputs and produces an output. Along the way several interactions with one or more people may be necessary, but from our perspective as Rapids programmers, this is secondary.  We call these workflow functions "Flows", and refer to this approach as "functional Human Computer Interaction programming".

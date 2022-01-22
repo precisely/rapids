@@ -51,12 +51,12 @@
   (.update (current-run) #(merge % kvs)))
 
 (defn initialize-run-for-runlet []
-  (update-run! :suspend nil, :response [], :error-message nil, :error-info nil))
+  (update-run! :suspend nil, :output [], :error-message nil, :error-info nil))
 
-(defn push-stack! [address bindings data-key]
+(defn push-stack! [address bindings input-key]
   {:post [(run? %)
           (linked-list? (:stack %))]}
-  (let [frame (sf/make-stack-frame address bindings data-key)]
+  (let [frame (sf/make-stack-frame address bindings input-key)]
     (update-run! :stack (cons frame (current-run :stack)))))
 
 (defn pop-stack! []
@@ -79,9 +79,9 @@
                                (partition 2 kvs))))
 
 (defn add-responses! [& responses]
-  (let [current-response (current-run :response)]
+  (let [current-response (current-run :output)]
     (assert (vector? current-response))
-    (update-run! :response (vec (concat current-response responses)))
+    (update-run! :output (vec (concat current-response responses)))
     responses))
 
 (defn interrupt-run!
