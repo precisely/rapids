@@ -42,57 +42,81 @@
      (s/ensure-cached-connection
        ~@body)))
 
-(defmacro branch [string & forms]
+(defmacro branch [bindings string & forms]
+  ;; TODO: put the string (name) before bindings once Cursive supports custom macro argument resolution
   "Creates a series of tests where alternative steps can be tested. Each route from the root branch
   to the leaf branches is wrapped in a test environment.
 
-  (branch \"root\"
+  (branch [root 1]
+    \"root\"
     ...
-    (branch \"1\"
+    (branch [a 1]
+      \"A\"
       ...
-      (branch \"a\"
+      (branch [b 2]
+        \"B\"
          ...)
-      (branch \"b\"
+      (branch [c 3]
+        \"C\"
          ...))
-    (branch \"2\"
+    (branch [d 4]
+      \"D\"
       ...
-      (branch \"c\"
+      (branch [e 5]
+        \"E\"
         ...)))
 
-  Expands to 3 test sequences:
+  Executes 3 test environments:
+   - root, A, B
+   - root, A, C
+   - root, D, E
+
+  By expanding to:
   (do
     (with-test-env
       (testing \"root\"
-        ...
-        (testing \"1\"
+        (let [root 1]
           ...
-          (testing \"a\"
-           ....))))
+          (testing \"A\"
+            (let [a 1]
+              ...
+              (testing \"B\"
+                (let [b 2]
+                  ...)))))
     (with-test-env
       (testing \"root\"
-        ...
-        (testing \"1\"
+        (let [root 1]
           ...
-          (testing \"b\"
-           ....))))
+          (testing \"A\"
+            (let [a 1]
+              ...
+              (testing \"C\"
+                (let [c 3]
+                  ...)))))
     (with-test-env
       (testing \"root\"
-        ...
-        (testing \"2\"
+        (let [root 1]
           ...
-          (testing \"c\"
-           ...)))))"
+          (testing \"D\"
+            (let [d 4]
+              ...
+              (testing \"E\"
+                (let [e 5]
+                  ...)))))
+"
   (letfn [(branch? [x]
             (and (list? x) (-> x first #{`branch 'branch})))
-          (expand-branch [[op name & forms]]
-            {:pre [(#{'branch `branch} op) (string? name)]}
+          (expand-branch [[op bindings doc & forms]]
+            {:pre [(#{'branch `branch} op)
+                   (string? doc)
+                   (and (vector? bindings) (-> bindings count even?))]}
             (loop [non-branch-elts []
                    results         []
                    children        forms]
               (if (empty? children)
                 (if (empty? results)
-                  `((clojure.test/testing ~name ~@non-branch-elts))
-                  (map #(list* `clojure.test/testing name %) results))
+                  `((testing ~doc (let ~bindings ~@non-branch-elts)))
+                  (map #(list* `let bindings %) results))
                 (let [[child & remaining-children] children]
                   (if (branch? child)
                     (let [expanded-branch (expand-branch child)]
