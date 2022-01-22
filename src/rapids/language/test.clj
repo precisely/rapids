@@ -115,7 +115,7 @@
               (if (empty? children)
                 (if (empty? results)
                   `((testing ~doc (let ~bindings ~@non-branch-elts)))
-                  (map #(list* `let bindings %) results))
+                  (map (fn [result] `(testing ~doc (let ~bindings ~result))) results))
                 (let [[child & remaining-children] children]
                   (if (branch? child)
                     (let [expanded-branch (expand-branch child)]

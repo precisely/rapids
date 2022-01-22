@@ -1,18 +1,37 @@
 (ns rapids.language.test-test
   (:require [clojure.test :refer :all :as ct]
-            [rapids.language.test :refer :all :as rt])
+            [rapids.language.test :refer [branch keys-match] :as rt])
   (:import (java.io StringWriter)))
 
-(deftest BranchTestTest
+(deftest BranchTest
   (testing "branch"
-    (is (= (macroexpand '(branch "1" :a (branch "2" :b (branch "3" :c) (branch "4" :d)) (branch "5" :e)))
-           `(do
-              (rt/with-test-env
-                (ct/testing "1" :a (ct/testing "2" :b (ct/testing "3" :c))))
-              (rt/with-test-env
-                (ct/testing "1" :a (ct/testing "2" :b (ct/testing "4" :d))))
-              (rt/with-test-env
-                (ct/testing "1" :a (ct/testing "5" :e))))))))
+    (is (= (macroexpand '(rapids.language.test/branch [v1 1]
+                           "1" :a
+                           (branch [v2 2]
+                             "2" :b
+                             (branch [v3 3]
+                               "3" :c)
+                             (branch [v4 4]
+                               "4" :d))
+                           (branch [v5 5]
+                             "5" :e)))
+           '(do
+              (rapids.language.test/with-test-env
+                (clojure.test/testing
+                  "1"
+                  (clojure.core/let
+                    [v1 1]
+                    [:a
+                     (clojure.test/testing "2" (clojure.core/let [v2 2] [:b (clojure.test/testing "3" (clojure.core/let [v3 3] :c))]))])))
+              (rapids.language.test/with-test-env
+                (clojure.test/testing
+                  "1"
+                  (clojure.core/let
+                    [v1 1]
+                    [:a
+                     (clojure.test/testing "2" (clojure.core/let [v2 2] [:b (clojure.test/testing "4" (clojure.core/let [v4 4] :d))]))])))
+              (rapids.language.test/with-test-env
+                (clojure.test/testing "1" (clojure.core/let [v1 1] [:a (clojure.test/testing "5" (clojure.core/let [v5 5] :e))]))))))))
 
 (deftest KeysMatchTest
   (testing "keys-match should succeed for working patterns"
