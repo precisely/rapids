@@ -7,16 +7,16 @@
 ;;;;   (branch "welcome" [run (start! welcome)]
 ;;;;     (keys-match run
 ;;;;       :state :suspended
-;;;;       :response ["welcome. Do You want to continue?" _])
+;;;;       :output ["welcome. Do You want to continue?" _])
 ;;;;
 ;;;;     (branch "wants to continue"
-;;;;       [run (continue! (:id run) :data "yes")]
+;;;;       [run (continue! (:id run) :input "yes")]
 ;;;;       (keys-match run
 ;;;;         :state :suspended 
-;;;;         :response ["great!... let's continue"]))
+;;;;         :output ["great!... let's continue"]))
 ;;;;
 ;;;;     (branch "doesn't want to continue"
-;;;;       [run (continue! (:id run) :data "no")]
+;;;;       [run (continue! (:id run) :input "no")]
 ;;;;       (keys-match run
 ;;;;         :state :complete)))
 
@@ -102,8 +102,7 @@
               ...
               (testing \"E\"
                 (let [e 5]
-                  ...)))))
-"
+                  ...)))))"
   (letfn [(branch? [x]
             (and (list? x) (-> x first #{`branch 'branch})))
           (expand-branch [[op bindings doc & forms]]
@@ -137,7 +136,7 @@
   Example:
     (keys-match run
       :state :running
-      :response [\"great!... let's continue\"])
+      :output [\"great!... let's continue\"]))
 
     is equivalent to:
 
@@ -145,7 +144,7 @@
       (is (match [(:state r)]
             [:running] true
             [_] false))
-      (is (match [(:response r)]
+      (is (match [(:output r)]
             [[\"great! ... let's continue\"]] true
             [_] false)))"
   [obj & key-matches]

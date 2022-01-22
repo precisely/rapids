@@ -15,7 +15,7 @@ For example,
     (restartable (bar)   ; an expression which may be restarted
       (:redo [o] (* o o)) ; restart can take any number of arguments and returns a value based on the arguments
     (handle :xyzzy i
-      (println (:data i)) ; prints interruption's data to stdout
+      (println (:input i)) ; prints interruption's data to stdout
       ...)                ; handle :xyzzy block's value is returned when an :xyzzy interrupt is encountered
     (handle :recalc i
       (restart :redo (:data i))  ; :recalc interrupts are handled by passing the data to the :redo restart 

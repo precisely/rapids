@@ -10,8 +10,8 @@
    deflow flow letflow
    ->pool take-out! put-in! pool?
    ;; operators. longform, shortform:
-   listen!, <*,
-   respond!, >*,
+   input!, <*,
+   output!, >*,
    block!, <<!,
    ;; start operator:
    !

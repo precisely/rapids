@@ -56,7 +56,7 @@
                          :parent-id     (some-fn nil? uuid?)
                          :error-info    (some-fn nil? map?)
                          :error-message (some-fn nil? string?)
-                         :response      (constantly true)
+                         :output      (constantly true)
                          :result        (constantly true)
                          :suspend       (some-fn nil? signals/suspend-signal?)} key)
                   val  (get kvs key)]
@@ -81,7 +81,7 @@
                    {:id           id,
                     :state        state,
                     :stack        stack,
-                    :response     response,
+                    :output     response,
                     :result       result
                     :dynamics     dynamics
                     :cached-state :created

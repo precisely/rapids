@@ -14,12 +14,12 @@
 
     (testing "Is false for unqualified symbols when the current namespace doesn't refer to the operator"
       (with-temp-ns
-        (is (false? (suspending-operator? 'listen!)))))
+        (is (false? (suspending-operator? 'input!)))))
 
     (testing "Is true for unqualified symbols when the current namespace refers the operator"
       (with-temp-ns
         (use 'rapids.language.operators)
-        (is (= true (suspending-operator? 'listen!)))))
+        (is (= true (suspending-operator? 'input!)))))
 
     (testing "Is true for qualified symbols representing operators"
-      (is (true? (suspending-operator? 'rapids.language.operators/listen!))))))
+      (is (true? (suspending-operator? 'rapids.language.operators/input!))))))

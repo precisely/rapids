@@ -14,7 +14,7 @@
                 :map (s/map-of string? ::json)
                 :array (s/and vector? (s/coll-of ::json))))
 (s/def ::permit (s/or :keyword keyword? :json ::json :uuid uuid?))
-(defn ^:suspending listen!
+(defn ^:suspending input!
   [& {:keys [permit expires default]}]
   {:pre [(s/valid? (s/nilable ::permit) permit)
          (s/valid? (s/nilable #(instance? LocalDateTime %)) expires)]}
@@ -31,9 +31,9 @@
   (if (-> child-run :state (= :complete))
     (:result child-run)
     (do (rt/attach-child-run! child-run)
-        (listen! :permit (:id child-run) :expires expires :default default))))
+        (input! :permit (:id child-run) :expires expires :default default))))
 
-(defn respond!
+(defn output!
   "Adds an element to the current run response: returns nil"
   [& responses]
   (apply rt/add-responses! responses))
@@ -44,11 +44,11 @@
 (def ! rl/start!)
 (alter-meta! #'! #(merge (meta #'rl/start!) %))
 
-(def <* listen!)
-(alter-meta! #'<* #(merge (meta #'listen!) %))
+(def <* input!)
+(alter-meta! #'<* #(merge (meta #'input!) %))
 
 (def <<! block!)
 (alter-meta! #'<<! #(merge (meta #'block!) %))
 
-(def >* respond!)
-(alter-meta! #'>* #(merge (meta #'respond!) %))
+(def >* output!)
+(alter-meta! #'>* #(merge (meta #'output!) %))

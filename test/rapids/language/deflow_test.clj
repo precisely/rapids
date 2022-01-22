@@ -3,7 +3,7 @@
             [rapids :refer :all]
             [test-helpers :refer :all]))
 
-(deflow suspending-flow [] (listen! :permit :a))
+(deflow suspending-flow [] (input! :permit :a))
 (deflow flow-calling-flow [] (suspending-flow))
 (deflow multi-arity
   ([a] (multi-arity a :b))
@@ -26,12 +26,12 @@
 
     (testing "it should produce a valid multi-arity flow"
       (let [run (start! multi-arity :a)]
-        (is (= (:response run) [:a :b]))))
+        (is (= (:output run) [:a :b]))))
 
     (testing "it should succeed when valid and pre-post conditions"
       (let [run (start! prepost-conditions 2)]
         (is (= (:state run) :running))
-        (let [run (continue! (:id run) :data 3)]
+        (let [run (continue! (:id run) :input 3)]
           (is (= (:state run) :complete))
           (is (= (:result run) 6)))))
 
@@ -43,4 +43,4 @@
       (let [run (start! prepost-conditions 2)]
         (is (= (:state run) :running))
         (is (thrown-with-msg? AssertionError #"Assert failed\: \(< % 10\)"
-              (continue! (:id run) :data 100)))))))
+              (continue! (:id run) :input 100)))))))

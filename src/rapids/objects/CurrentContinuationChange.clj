@@ -11,12 +11,12 @@
     :state state
     :methods [[stack [] clojure.lang.ISeq]                  ; the new stack
               [dynamics [] clojure.lang.PersistentVector]   ; the new dynamic bindings
-              [data [] java.lang.Object]]                   ; data to be provided to the next stack-fn
+              [input [] java.lang.Object]]                   ; input to be provided to the next stack-fn
     :main false))
 
 (defn -init
-  [stack dynamics data]
-  [[] [stack, dynamics, data]])
+  [stack dynamics input]
+  [[] [stack, dynamics, input]])
 
 (defn -stack [this]
   (-> this .state first))
@@ -24,5 +24,5 @@
 (defn -dynamics [this]
   (-> this .state second))
 
-(defn -data [this]
+(defn -input [this]
   (-> this .state (nth 2)))

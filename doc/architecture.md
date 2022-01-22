@@ -11,18 +11,18 @@
 
 ```clojure
 (deflow greeting [excited?]
-  (respond! "Hi. What is your name?")
-  (let [name (listen!)] ;; listen! is a suspending operation
+  (output! "Hi. What is your name?")
+  (let [name (input!)] ;; input! is a suspending operation
 
      ;; in principle, the code after this point might execute on a different computer
-    (respond! (str "Hi, " name))
-    (respond! (if excited?
+    (output! (str "Hi, " name))
+    (output! (if excited?
                   "It's super duper, duper, duper, duper, duper, duper, duper, duper, (breathes) duper, duper, duper, duper, duper, duper, duper nice to meet you!"
                   "Nice to meet you."))
     name)) ;; return the name of the user
 ```
 
-  The `listen!` function represents a point where execution pauses for input. The compiler recognizes `listen!` as a suspending expression - a point where execution pauses. Execution resumes when the system receives data from an external event (e.g., the user provides their name to a client, and the client generates an HTTP `POST` request on the rapids server). When execution resumes, the user's input (the "data") is bound to the `name` variable (the "data-key"). Note that bindings (in this case just one symbol, `excited?`) are preserved in the second half of the code body.
+  The `input!` function represents a point where execution pauses for input. The compiler recognizes `input!` as a suspending expression - a point where execution pauses. Execution resumes when the system receives data from an external event (e.g., the user provides their name to a client, and the client generates an HTTP `POST` request on the rapids server). When execution resumes, the user's input (the "data") is bound to the `name` variable (the "input-key"). Note that bindings (in this case just one symbol, `excited?`) are preserved in the second half of the code body.
 
 First let's jump to the output of the compiler to get a flavor of what is going on.
 
@@ -32,19 +32,19 @@ First let's jump to the output of the compiler to get a flavor of what is going 
  :entry-point (fn [excited?] (flow/call [greeting 0] {:excited? excited?}))
  :partition-fns
  { #address[greeting 0]            (fn [{:keys [excited?]}]
-                                     (respond! "Hi. What is your name?")
+                                     (output! "Hi. What is your name?")
                                      (resume-at [#address[greeting 1 let 0 1],
                                                 [excited?], name]
-                                       (listen!)))
+                                       (input!)))
    #address[greeting 1 let 0 1]    (fn [{:keys [excited?, name]}]
-                                     (respond! (str "Hi, " name))
-                                     (respond! (if excited?
+                                     (output! (str "Hi, " name))
+                                     (output! (if excited?
                                                    "It's super duper, duper, duper, duper, duper, duper, duper, duper, (breathes) duper, duper, duper, duper, duper, duper, duper nice to meet you!"
                                                    "Nice to meet you."))
                                      name)}}
 ```
 
-  The deflow macro produces a Flow record which contains a map with two functions (partition functions). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `listen!` and how that expression is wrapped in a macro, `resume-at` which links it to the second partition function (explained below), providing both the symbols of the lexical context up to that point (`[excited?]`) and the symbol for the data (called the "data key") which will eventually be received by `listen!` (in this case, `name`). Also notice that the second partition function takes a parameter list comprised of the previous partition function's lexical symbols and the data key.
+  The deflow macro produces a Flow record which contains a map with two functions (partition functions). You can see how each function is associated with a unique address, how the original code body is split at the suspending operation `input!` and how that expression is wrapped in a macro, `resume-at` which links it to the second partition function (explained below), providing both the symbols of the lexical context up to that point (`[excited?]`) and the symbol for the data (called the "data key") which will eventually be received by `input!` (in this case, `name`). Also notice that the second partition function takes a parameter list comprised of the previous partition function's lexical symbols and the data key.
 
   We'll discuss how the infrastructure produces this code and uses it to implement long running processes in the next section. For now, just imagine that the execution of these two functions can be separated by an arbitrarily long period of time and executed on different CPUs. This gives you a flavor for how rapids models complex user interactions as functions and allows them to be delivered using traditional scalable web architecture.
 
@@ -60,7 +60,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 2. Definition of suspending operations.
 
-  Suspending expressions include expressions which suspend computation ("suspending operations", such as the `(listen!)` call above) and expressions which may suspend computation. The latter includes, for example, conditional expressions which contain a suspend operation in one branch and a non-suspending expression in the other branch, or invocations of flows, which themselves might return immediately or suspend before returning due to internal branching logic, or any expression which contains subexpressions which may suspend.
+  Suspending expressions include expressions which suspend computation ("suspending operations", such as the `(input!)` call above) and expressions which may suspend computation. The latter includes, for example, conditional expressions which contain a suspend operation in one branch and a non-suspending expression in the other branch, or invocations of flows, which themselves might return immediately or suspend before returning due to internal branching logic, or any expression which contains subexpressions which may suspend.
    
   Notice that suspending *expressions* are not guaranteed to suspend, while suspending *operations* always suspend. Suspending expressions are simply expressions which may result in a suspending operation. 
 
@@ -82,11 +82,11 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 7. Contents of Stack Frames.
 
-  A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a partition function where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `data-key`. That variable will be bound as an argument to the partition function referenced by the symbolic address (a).
+  A stack frame is a 3-tuple consisting of (a) a symbolic address referencing a partition function where computation should resume, (b) variable bindings up to that point of the computation, and (c) an optional variable name that an externally provided value should be bound to, called the `input-key`. That variable will be bound as an argument to the partition function referenced by the symbolic address (a).
 
 ```clojure
 ;; simplified way of creating a stackframe record in Clojure
-(StackFrame. address bindings data-key)
+(StackFrame. address bindings input-key)
 ```
 
 8. Rule for pushing stack frames.
@@ -111,7 +111,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
  (y)
  (suspending-expression)) ; terminal - stack frame push not required
 ```
-  Suspend operations (like `listen!`, described below) return a special `Suspend` signal which is recognized by the runtime environment. As stated earlier, the compiler arranges for these expressions to be the last expression in each partition function, thus partition functions which suspend will return `Suspend` signals. The importance of this is developed in discussion of the main loop.
+  Suspend operations (like `input!`, described below) return a special `Suspend` signal which is recognized by the runtime environment. As stated earlier, the compiler arranges for these expressions to be the last expression in each partition function, thus partition functions which suspend will return `Suspend` signals. The importance of this is developed in discussion of the main loop.
 
 9. The start! function.
 
@@ -125,7 +125,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
   The `start!` function generates a StackFrame where the address is the partition function which identifies the beginning of the flow. Bindings are generated from the arguments provided via `start!` to the flow. For example, the above expression starting the greeting flow produces a stack frame: `(StackFrame. #address<greeting/0>, {:excited? true}, nil)`.
 
-  Remember, these values are the address, the bindings and the data-key. The `start!`  function allocates an empty array for the stack, the initial frame is pushed onto the stack, and the main loop is invoked with a `nil` argument. The result of the main loop is processed as described below, saving the state of computation to durable storage, and an object which allows resuming the computation is returned.
+  Remember, these values are the address, the bindings and the input-key. The `start!`  function allocates an empty array for the stack, the initial frame is pushed onto the stack, and the main loop is invoked with a `nil` argument. The result of the main loop is processed as described below, saving the state of computation to durable storage, and an object which allows resuming the computation is returned.
 
 11. Operation of the main loop.
 
@@ -133,7 +133,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
   a. If the stack is not empty, pop the frame at the top of the stack (the top frame), otherwise exit, returning the `data`.
 
-  b. If the data-key of the top frame is non nil, add the `data` to the bindings, associating it with the `data-key`. E.g., `(assoc bindings data-key data)` in Clojure. The bindings thus prepared are called "the continue bindings".
+  b. If the input-key of the top frame is non nil, add the `data` to the bindings, associating it with the `input-key`. E.g., `(assoc bindings input-key data)` in Clojure. The bindings thus prepared are called "the continue bindings".
 
   c. Retrieve the partition function identified by the address of the top frame and call it with the continue bindings.
 
@@ -143,7 +143,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 12. Processing the result of the main loop.
 
-  As seen above, the main loop either returns a `Suspend` signal or a value. The former indicates that external input is needed to continue, whereas the latter indicates that the flow initiated by `start!` has completed. At this stage, the contents of the stack are saved to durable storage under a unique id in a structure referred to as a "Run". The client which initiated the process receives the Run, which contains the state of the computation, as well as other useful data which is described below ("Responding to the client during the run"). This post processing step returns a run.
+  As seen above, the main loop either returns a `Suspend` signal or a value. The former indicates that external input is needed to continue, whereas the latter indicates that the flow initiated by `start!` has completed. At this stage, the contents of the stack are saved to durable storage under a unique id in a structure referred to as a "Run". The client which initiated the process receives the Run, which contains the state of the computation, as well as other useful data which is described below ("outputing to the client during the run"). This post processing step returns a run.
 
 13. Continuing.
 
@@ -153,25 +153,25 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 (continue! run-id data) ; returns a Run object
 ```
 
-14. Responding to the client during the run.
+14. outputing to the client during the run.
 
   Since it is necessary to communicate with the client while a run is ongoing, some other mechanism must be used than the result, which is only available at the end of the run. To be precise, a response is generated by the initial `start!` call and each invokation of the `continue!` call. There are many possible mechanisms for generating a response - setting values in a map as the run is ongoing, appending values to a list or simply setting a global value. In our implementation, we choose to append to a list, as this accurately captures order. A post-processing function could be used to convert the list into some other structure - a map, set, or other value.
 
 ```clojure
-(deflow responder []
-  (respond! "a")
-  (respond! "b")
-  (respond! {:echo (listen!)})
-  (respond! "c")
-  (respond! "d"))
+(deflow outputer []
+  (output! "a")
+  (output! "b")
+  (output! {:echo (input!)})
+  (output! "c")
+  (output! "d"))
 ```
 
   The initial `start!` call creates a run and replies with a data structure representing a newly created Run object. The response thus far is reported:
 
 ```clojure
-(start! responder)
+(start! outputer)
 ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1",
-;;         :response ["a" "b"]},
+;;         :output ["a" "b"]},
 ;;         :state :suspended}
 ```
 
@@ -180,7 +180,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 ```clojure
 (continue "72278789-99b8-4626-aa5c-ef7997305cb1" "RESULTVALUE")
 ;; => #Run{:id "72278789-99b8-4626-aa5c-ef7997305cb1",
-;;         :response ["RESULTVALUE" "c" "d"],
+;;         :output ["RESULTVALUE" "c" "d"],
 ;;         :state :complete}
 ```
 
@@ -211,11 +211,11 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 17. Guarding against invalid partition function.
 
-  By adding a `permit` value to the `Suspend` signal, and storing this value in the Run, a requirement can be created for the caller of `continue!`. This is useful for preventing a client from responding to an earlier part of the flow. The `listen!` function is modified to take an optional argument `:permit` which must be matched with a value provided to the `continue!` function. The simplest version of this would just be to match the values exactly, but more sophisticated matching is possible by including a function. For example, the permit could be a private key. The client could be provided a public key and required to encode some value (e.g., the data) with that key and provide it as the permit.
+  By adding a `permit` value to the `Suspend` signal, and storing this value in the Run, a requirement can be created for the caller of `continue!`. This is useful for preventing a client from outputing to an earlier part of the flow. The `input!` function is modified to take an optional argument `:permit` which must be matched with a value provided to the `continue!` function. The simplest version of this would just be to match the values exactly, but more sophisticated matching is possible by including a function. For example, the permit could be a private key. The client could be provided a public key and required to encode some value (e.g., the data) with that key and provide it as the permit.
 
 ```clojure
 ;; inside the flow:
-... (listen! :permit :foo)
+... (input! :permit :foo)
 
 ;; client code somehow ends up calling this:
 (continue! run-id data permit) ; where permit = :foo
@@ -223,7 +223,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 18. Timers and timeouts.
 
-  By storing an expiry time and optional default value in a suspended Run, it is possible to both allow for timing out of external events and create a mechanism for implementing timers. The `listen!` operator is modified to take optional `:expires` and `:default` arguments. These are returned as values inside the `Suspend` signal and stored in the run in the post-processing step.  The system arranges to periodically check for expired runs, simply continuing them with the default value (and the `permit` stored in the db). If a traditional database is used for durable storage, storing the expiry time in an indexed column associated with the Run is a simple way to discover runs which should be expired. If a filesystem is used for durable storage, a separate file-based index could be stored to achieve the same effect.
+  By storing an expiry time and optional default value in a suspended Run, it is possible to both allow for timing out of external events and create a mechanism for implementing timers. The `input!` operator is modified to take optional `:expires` and `:default` arguments. These are returned as values inside the `Suspend` signal and stored in the run in the post-processing step.  The system arranges to periodically check for expired runs, simply continuing them with the default value (and the `permit` stored in the db). If a traditional database is used for durable storage, storing the expiry time in an indexed column associated with the Run is a simple way to discover runs which should be expired. If a filesystem is used for durable storage, a separate file-based index could be stored to achieve the same effect.
 
 19. Ensuring consistency.
 
@@ -285,11 +285,11 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 ```clojure
 (do
   (A)
-  (B (listen!))
+  (B (input!))
   (C))
 ```
 
-  The first includes `(A)` and `(listen!)`, then second includes an expression like `(B arg-0)` and the third includes `(C)`. In principle, this could have been reduced to 2 partitions and one stack push. The algorithm could be improved by adding the final partition address and body to the values returned by partitioners. That would allow a partitioner like `partition-body` to continue adding expressions to the final partition of a sub-expression without requiring a stack-push to continue executing a sequence of expressions after a suspending expression.
+  The first includes `(A)` and `(input!)`, then second includes an expression like `(B arg-0)` and the third includes `(C)`. In principle, this could have been reduced to 2 partitions and one stack push. The algorithm could be improved by adding the final partition address and body to the values returned by partitioners. That would allow a partitioner like `partition-body` to continue adding expressions to the final partition of a sub-expression without requiring a stack-push to continue executing a sequence of expressions after a suspending expression.
 
 22. Partitioning function expressions.
 
@@ -311,7 +311,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
 
 24. Partitioning branching logic.
 
-  A branching logic expression consists of `test`, `then` and `else` clauses. A branching logic expression which contains no suspending expressions is incorporated as is by the compiler. If the `test` clause is a suspending expression, then code is partitioned at the test expression. That is, the test expressions ends the current partition function, a stack frame is pushed with a new unique auto-generated variable for the `data-key`. The address will point to a new partition, the "branch partition" or "branch partition function" which contains a conditional expression which takes the data key variable as an argument and the start forms of the `then` and `else` clauses as arguments:
+  A branching logic expression consists of `test`, `then` and `else` clauses. A branching logic expression which contains no suspending expressions is incorporated as is by the compiler. If the `test` clause is a suspending expression, then code is partitioned at the test expression. That is, the test expressions ends the current partition function, a stack frame is pushed with a new unique auto-generated variable for the `input-key`. The address will point to a new partition, the "branch partition" or "branch partition function" which contains a conditional expression which takes the data key variable as an argument and the start forms of the `then` and `else` clauses as arguments:
 
 ```clojure
 ;;; input form
@@ -415,13 +415,13 @@ E.g.,
 
 ```clojure
 (deflow greeting [{:keys [excited?]}]
-  (respond! {:type :text, :text "Hi. What is your name?"})
-  (respond! {:type :text-input, :permit :name})
-  (let [name (listen! :permit :name)] ;; listen! is a suspending operation
+  (output! {:type :text, :text "Hi. What is your name?"})
+  (output! {:type :text-input, :permit :name})
+  (let [name (input! :permit :name)] ;; input! is a suspending operation
 
      ;; in principle, the code after this point might execute on a different computer
-    (respond! {:type :text, :text (str "Hi, " name)})
-    (respond! {:type :text, :text (if excited?
+    (output! {:type :text, :text (str "Hi, " name)})
+    (output! {:type :text, :text (if excited?
                   "It's super duper, duper, duper, duper, duper, duper, duper, duper, (breathes) duper, duper, duper, duper, duper, duper, duper nice to meet you!"
                   "Nice to meet you.")})
     name)) ;; return the name of the user
@@ -440,7 +440,7 @@ E.g.,
 }
 ```
 
-  The client would use this information to display objects on the user's screen, a text bubble and a text input box with a button enabling them to send their response. When the user enters information and clicks send, the client performs a second HTTP POST to an endpoint like `runs/f3162328-97b9-4f67-a15a-c77f1d9647d5` with body `{"permit": "name", "data": "Bob"}`. The server would then respond with:
+  The client would use this information to display objects on the user's screen, a text bubble and a text input box with a button enabling them to send their response. When the user enters information and clicks send, the client performs a second HTTP POST to an endpoint like `runs/f3162328-97b9-4f67-a15a-c77f1d9647d5` with body `{"permit": "name", "data": "Bob"}`. The server would then output with:
 
 ```json
 {
@@ -455,18 +455,18 @@ E.g.,
 
   Because the flow has ended, the state is marked as `"complete"` and it is no longer possible to continue the run.
 
-  In other situations, a response might be generated without action by the client, for example, if a `listen!` operation times out, the code that follows the operation will be executed without action by the client. If the client interacts with the server using a REST API, this means the response will be generated on the server side, but will not be displayed by the client. In this situation, the code should arrange to notify the client that a new response is available. In the following, the default value is used as a signal to trigger code which contacts the user and requests they return to the client application:
+  In other situations, a response might be generated without action by the client, for example, if a `input!` operation times out, the code that follows the operation will be executed without action by the client. If the client interacts with the server using a REST API, this means the response will be generated on the server side, but will not be displayed by the client. In this situation, the code should arrange to notify the client that a new response is available. In the following, the default value is used as a signal to trigger code which contacts the user and requests they return to the client application:
 
 ```clojure
 (deflow bug-user-for-input []
-  (respond! "Please answer within a day"))
-  (let [input (listen! :expires (-> 1 day from-now) :default :timed-out)]
+  (output! "Please answer within a day"))
+  (let [input (input! :expires (-> 1 day from-now) :default :timed-out)]
      (when :timed-out
         (notify-user-by-email
           :subject "Waiting for your response"
           :body "We're still waiting for your reply at https://app.com/chatbot/?run-id=f3162328-97b9-4f67-a15a-c77f1d9647d5")
         (recur))) ;; recursively retry
-  (respond! "Thanks for replying!")
+  (output! "Thanks for replying!")
   input) ;; return the user's input
  ```
 
@@ -486,7 +486,7 @@ E.g.,
 
   D. partition functions which save new stack frames to the stack at runtime
 
-  E. A stack composed of stack frames, each of which contains the address of a partition function, a map of lexical bindings, and an optional data-key
+  E. A stack composed of stack frames, each of which contains the address of a partition function, a map of lexical bindings, and an optional input-key
 
   F. A main loop function which continuously pops stack frames and evaluates partition functions until a `Suspend` signal is received.
 
@@ -503,16 +503,16 @@ E.g.,
    * partition - block of code from a (deflow ...) expression
    * address - a Clojure record which identifies a location in a flow
    * partition function - Clojure function associated with an address that implements the partition. In practice, this also includes code which pushes and pops frames onto/off of the stack
-   * listen - stop execution of a run due to encountering the listen! command with a flow. The state of the flow is saved to the stack and can be resumed when an event is received.
+   * input - stop execution of a run due to encountering the input! command with a flow. The state of the flow is saved to the stack and can be resumed when an event is received.
    * suspending expression - within a lexical body of code, an expression which represents a point at which execution may pause for an arbitrarily long period of time.
-   * stack frame - a Clojure record which contains information required for resuming a flow. It contains an address which identifies the next partition function, plus any bindings, and an optional data-key, representing a variable name to which a value will be bound when the computation is resumed in the next partition function.
+   * stack frame - a Clojure record which contains information required for resuming a flow. It contains an address which identifies the next partition function, plus any bindings, and an optional input-key, representing a variable name to which a value will be bound when the computation is resumed in the next partition function.
    * stack - a FILO queue of stack frames
    * run - a data structure persisted in durable storage which is identified by a unique ID and stores the stack, but can also be used to refer to a sequence of execution involving multiple runlets and the events that trigger them.
    * runlet - the sequence of events following a start! or continue! call during which one or more partition functions are invoked. During a runlet, partition functions from multiple flows may be invoked. A runlet ends either when the run finishes (when the main flow completes and the stack is empty) or when a suspend signal is generated.
    * child run - a run started by another run. Moral equivalent of a subprocess.
    * event - a real world event which causes the run to resume executing after being suspended
    * redirect - relinquish control to a child run. Clients will receive responses from the child run and will continue the child run until it blocks or ends.
-   * permit - value provided to listen! which serves as a unique identifier for an event which may continue the run. 
+   * permit - value provided to input! which serves as a unique identifier for an event which may continue the run. 
 
 #### Caching Runs in the run context
 
@@ -635,7 +635,7 @@ E.g.,
         - IF the BUFFER queue is full
           THEN
             - ADD the current run-id to the SOURCES queue
-            - SUSPEND the current run using (listen! :permit pool-id)
+            - SUSPEND the current run using (input! :permit pool-id)
 
   This algorithm assumes the pool object is destructively modified. In Clojure this requires passing the pool inside an atom.  
 
@@ -660,7 +660,7 @@ E.g.,
 
 #### Securing Pool flows with a permit
 
-  The `put-in!` and `take-out!` algorithms should guard against invalid continuation of runs. To do this, the above algorithms should be modified to include a `:permit` argument. A simple choice wis to use the pool id. So instead of calling `(listen!)` and `(continue! run-id value)`, we would call `(listen! :permit (:id pool))` and `(continue! run-id value :permit (:id pool))`.   
+  The `put-in!` and `take-out!` algorithms should guard against invalid continuation of runs. To do this, the above algorithms should be modified to include a `:permit` argument. A simple choice wis to use the pool id. So instead of calling `(input!)` and `(continue! run-id value)`, we would call `(input! :permit (:id pool))` and `(continue! run-id value :permit (:id pool))`.   
 
 #### Storing and regenerating pools
 

@@ -17,7 +17,7 @@
 
 (defn expire-run! [run]
   (let [{{permit :permit, default :default} :suspend} run]
-    (continue! run :permit permit :data default)))
+    (continue! run :permit permit :input default)))
 
 (def ^:dynamic *expiry-monitors* {})
 (defn expiry-monitor-delay
