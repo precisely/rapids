@@ -23,7 +23,7 @@
                         p (->pool)]                         ; this adds the pool to the cache
       (swap! pid (constantly (pool-id p)))
       (flush-cache!)
-      (is (raw-pool? (get-pool @pid)))))
+      (is (raw-pool? (get-pool-record @pid)))))
   (testing "A run containing a pool can be stored and retrieved"
     (with-test-storage
       (let [pid (atom nil)

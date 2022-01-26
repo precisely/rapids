@@ -65,12 +65,15 @@
   Returns - list of CacheProxy objects"
   ([type field-constraints] (cache-find! type field-constraints {}))
   ([type field-constraints query-constraints]
-   (let [existing        (filter-records (map :object (vals (get *cache* type)))
-                                         field-constraints {})
-         excluded-ids    (filter :id existing)
-         new-objects     (c/find-records! type field-constraints (assoc query-constraints :exclude excluded-ids))
-         result          (concat existing new-objects)
-         filtered-result (filter-records result field-constraints query-constraints)]
+   (let [existing             (filter-records (map :object (vals (get *cache* type)))
+                                              field-constraints {})
+         excluded-ids         (map :id existing)
+         storage-constraints  (if (empty? excluded-ids)
+                                field-constraints
+                                (conj field-constraints [:id :not-in (vec excluded-ids)]))
+         new-objects          (c/find-records! type storage-constraints query-constraints)
+         result               (concat existing new-objects)
+         filtered-result      (filter-records result [] query-constraints)]
      (map set-cache-entry new-objects)
      (map #(->CacheProxy (class %) (:id %) %) filtered-result))))
 ;;

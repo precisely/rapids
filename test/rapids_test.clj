@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
             [rapids.storage.core :as storage :refer [cache-proxy?]]
-            [test-helpers :refer [flush-cache! proxy-field with-test-env-run get-run get-pool throws-error-output run-in-state?]]
+            [test-helpers :refer [flush-cache! proxy-field with-test-env-run get-run-record get-pool-record throws-error-output run-in-state?]]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
             [rapids.partitioner.core :refer [partition-flow-body]]
             [rapids.support.debug :refer :all]
@@ -546,7 +546,7 @@
 
         (testing "After blocking, the parent run is returned, suspended with a child-run id as permit"
           (flush-cache!)
-          (let [parent-after-block (get-run (:id parent-run))]
+          (let [parent-after-block (get-run-record (:id parent-run))]
             (is (= (:state parent-after-block) :running))
             (is (-> parent-after-block :suspend rapids.objects.signals/suspend-signal?))
 
@@ -561,14 +561,14 @@
                       (continue! (:id parent-after-block))))
 
             (testing "but the parent run is still suspended"
-              (is (= (-> parent-after-block :id get-run :state) :running)))
+              (is (= (-> parent-after-block :id get-run-record :state) :running)))
 
             (testing "the parent response includes only the response from the parent run"
               (is (= '(:parent-before-blocking-call) (:output parent-after-block)))))
 
           (flush-cache!)
 
-          (let [child-run-after-block (get-run (:id child-run))]
+          (let [child-run-after-block (get-run-record (:id child-run))]
 
             (testing "the child run has a record of its parent id"
               (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
@@ -589,7 +589,7 @@
 
               (flush-cache!)
 
-              (let [parent-after-block-release (get-run (:id parent-run))]
+              (let [parent-after-block-release (get-run-record (:id parent-run))]
                 (testing "parent response should contain only the parent response"
                   (is (= '(:parent-after-blocking-call) (:output parent-after-block-release))))
 
@@ -724,21 +724,21 @@
         (flush-cache!)
 
         (testing "where the parent run starts the user interaction run"
-          (is (= (-> pool-consumer-run :id get-run :state) :running))
-          (is (= (-> user-run-id get-run :state) :running)))
+          (is (= (-> pool-consumer-run :id get-run-record :state) :running))
+          (is (= (-> user-run-id get-run-record :state) :running)))
         (testing "inputs to the run which acts as the pool source are received by the pool sink"
           (continue! user-run-id :input "hello")
-          (is (= (-> user-run-id get-run :state) :running))
+          (is (= (-> user-run-id get-run-record :state) :running))
 
           (flush-cache!)
           (continue! user-run-id :input "sailor")
-          (is (= (-> user-run-id get-run :state) :running))
+          (is (= (-> user-run-id get-run-record :state) :running))
 
           (flush-cache!)
           (continue! user-run-id :input "stop")
 
           (flush-cache!)
-          (is (= (-> user-run-id get-run :state) :complete))
+          (is (= (-> user-run-id get-run-record :state) :complete))
           (is (= ["User said 'hello' (0)"
                   "User said 'sailor' (1)"
                   "User said 'stop' (2)"

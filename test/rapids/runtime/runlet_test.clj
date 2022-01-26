@@ -25,7 +25,7 @@
         (testing "run can be saved to storage and retrieved"
           (s/ensure-connection
             (s/create-record! run)
-            (is (= run (get-run (:id run))))))
+            (is (= run (get-run-record (:id run))))))
 
         (testing "run can be altered"
           (s/ensure-connection
@@ -52,7 +52,7 @@
 
         ;; retrieve parent run
         (ensure-connection
-          (let [loaded-parent-run (get-run (:id parent-run))
+          (let [loaded-parent-run (get-run-record (:id parent-run))
                 deserialized-foo (-> loaded-parent-run :stack first :bindings :foo-flow)]
             (is (flow/flow? deserialized-foo))
             (is (fn? (:entry-point deserialized-foo)))
