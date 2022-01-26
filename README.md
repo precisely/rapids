@@ -88,7 +88,19 @@ Sets one or more values in the current run's status map. Supports nested access.
 (continue! run-id {:permit permit :input input})
 ;; the value provided to input is returned by (input!)
 ```
+### Getting a specific run
+```clojure
+(get-run run-id)
+```
 
+### Querying for runs
+The `find-runs` API allows for queries on multiple fields and JSON subfields of a run.
+```clojure
+;; query for runs which are running wheere a nested status key has a particular value
+(find-runs [[:state :eq :running] 
+            [[:status :runs :patient :initial-labs] :eq lab-run-id]] 
+{:limit 3})
+```
 ## Setting up a backend
 
 Rapids works by saving the runtime state in non-volatile storage. This capability can be provided by implementing the protocols, in rapids.storage.protocol: Storage and StorageConnection. The library contains implementations of an in memory implementation (used for testing) and a Postgres-based implementation.

@@ -71,12 +71,12 @@
        ~@body)))
 
 ;; easy access functions
-(defn get-run
+(defn get-run-record
   "Get run directly from storage"
   [id]
   (s/ensure-connection (s/get-record! Run id)))
 
-(defn get-pool
+(defn get-pool-record
   "Get pool directly from storage"
   [id]
   (s/ensure-connection (s/get-record! Pool id)))

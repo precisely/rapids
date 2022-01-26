@@ -60,45 +60,58 @@
                   (is (= "complete" (:runs/state (exec-one! cnxn ["select state from runs where id = ?" (:id r1)])))))
                 (testing "find-records! should find existing records using field index"
                   (is (= (map :id (find-records! Run [[:state :eq :complete]]))
-                        (map :id [r1])))))))))
+                         (map :id [r1])))))))))
       (testing "to access Runs using the suspend expiry index"
         (clear-test-db!)
         (with-storage test-storage
           (ensure-connection
             (let [current-time (now)
-                  r-now (r/make-run {:state :running :suspend (make-suspend-signal :now-permit current-time nil)})
-                  r-one (r/make-run {:state :running :suspend (make-suspend-signal :later-permit (-> 1 years from-now) nil)})
-                  r-two (r/make-run {:state :running :suspend (make-suspend-signal :later-permit (-> 2 years from-now) nil)})]
+                  r-now        (r/make-run {:state :running :suspend (make-suspend-signal :now-permit current-time nil)})
+                  r-one        (r/make-run {:state :running :suspend (make-suspend-signal :later-permit (-> 1 years from-now) nil)})
+                  r-two        (r/make-run {:state :running :suspend (make-suspend-signal :later-permit (-> 2 years from-now) nil)})]
               (create-records! [r-now r-one r-two])
               (testing "find-records! should find records using the suspend expiry index in ascending order"
                 (is (= (find-records! Run [[[:suspend :expires]]] {:order-by [[:suspend :expires] :asc]})
-                      [r-now r-one r-two])))
+                       [r-now r-one r-two])))
               (testing "find-records! should find records using the suspend expiry index in descending order"
                 (is (= (find-records! Run [[[:suspend :expires]]] {:order-by [[:suspend :expires] :desc]})
-                      [r-two r-one r-now])))
+                       [r-two r-one r-now])))
               (testing "find-records! should find records that qualify for expiry"
                 (is (= (find-records! Run [[[:suspend :expires] :lte current-time]])
-                      [r-now])))))))
+                       [r-now])))))))
 
-      (testing "to access Runs using the suspend index"
+      (testing "to access Runs using JSON index"
         (clear-test-db!)
         (with-storage test-storage
           (ensure-connection
             (letfn [(id-set [runs] (set (map :id runs)))]
-              (let [r-ab20 (r/make-run {:state :running :status {:a {:b 20}} :c "fee"})
-                    r-ab3 (r/make-run {:state :running :status {:a {:b 3} :c "fie"}})
-                    c-ab20 (r/make-run {:state :complete :status {:a {:b 20} :c "foe"}})
+              (let [r-ab20  (r/make-run {:state :running :status {:a {:b 20} :c "fee" :array ["abc"]}})
+                    r-ab3   (r/make-run {:state :running :status {:a {:b 3} :c "fie"}})
+                    c-ab20  (r/make-run {:state :complete :status {:a {:b 20} :c "foe"}})
                     r-ab100 (r/make-run {:state :running :status {:a {:b 100} :c "foe"}})]
                 (create-records! [r-ab20 r-ab3 c-ab20 r-ab100])
+                (println "RAW=>" (exec! (:connection (current-connection)) ["SELECT status->>'c' as c FROM runs ;"]))
                 (testing "find-records! should find records using JSON query"
                   (is (= (id-set (find-records! Run [[[:status :a :b] :eq 20]]))
-                        (id-set [r-ab20 c-ab20]))))
+                         (id-set [r-ab20 c-ab20]))))
                 (testing "find-records! should find records <= a value in JSON"
                   (is (= (id-set (find-records! Run [[[:status :a :b] :lte 20]]))
-                        (id-set [r-ab3 c-ab20 r-ab20]))))
+                         (id-set [r-ab3 c-ab20 r-ab20]))))
                 (testing "find-records! should find records matching state and json"
                   (is (= (find-records! Run [[[:status :a :b] :eq 20] [:state :eq :complete]])
-                        [c-ab20])))
+                         [c-ab20])))
                 (testing "find-records! should be able to order records based on json"
                   (is (= (map :id (find-records! Run [[:state :eq :running]] {:order-by [[:status :a :b] :asc]}))
-                        (map :id [r-ab3 r-ab20 r-ab100]))))))))))))
+                         (map :id [r-ab3 r-ab20 r-ab100]))))
+
+                (testing "find-records! should find records which don't have a particular id"
+                  (is (= (id-set (find-records! Run [[:id :not-in (vec (map :id [r-ab20 r-ab3]))]]))
+                         (id-set [c-ab20 r-ab100]))))
+
+                (testing "find-records! should find records not equal to a value"
+                  (is (= (id-set (find-records! Run [[[:status :a :b] :not-eq 20]]))
+                         (id-set [r-ab3 r-ab100]))))
+
+                (testing "find-records! should find records which contain a value in an array"
+                  (is (= (id-set (find-records! Run [[[:status :array] :? "abc"]]))
+                         (id-set [r-ab20]))))))))))))

@@ -95,10 +95,32 @@
 ;;
 ;; Not really part of the run loop, but this little utility function is part o the top level API,
 ;; so putting it here.
-(defn get-run!
+(defn get-run
   "Get a Run, storing it in the cache. Returns a CacheProxy object."
   [run-id]
   (ensure-cached-connection (cache-get! Run run-id)))
+
+(defn find-runs
+  "Allows querying runs.
+
+  field-constraints are a sequence of three-tuples:
+    ([field op val] [field op val]...)
+
+    Where field is a keyword or sequence of keywords (e.g., [:suspend :expires])
+          op is a comparator :eq, :gt, :lt, :lte, :gte, :in
+          val is the value to compare.
+
+  keyword arguments are:
+    :order-by [field order] - order is :asc or :desc
+    :limit - integer
+
+  Example:
+
+  Find 3 runs referencing the given patient:
+
+  (find-runs [[[:status :patient-id] :eq patient-uuid]] :limit 3)"
+  [field-constraints & {:keys [order-by limit] :as query-constraints}]
+  (ensure-cached-connection (cache-find! Run field-constraints query-constraints)))
 
 ;;
 ;; Helpers
