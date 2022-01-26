@@ -63,17 +63,32 @@
   "Finds objects matching criteria on a single field, loading them from storage as necessary.
 
   Returns - list of CacheProxy objects"
-  [type field & {:keys [eq lt gt lte gte eq in limit order-by] :as keys}]
-  (let [tests           (dissoc keys :limit)
-        existing        (filter-records (map :object (vals (get *cache* type)))
-                                        field (dissoc keys :limit :order-by))
-        excluded-ids    (filter :id existing)
-        test-args       (seq (apply concat (map vec tests)))
-        new-objects     (apply c/find-records! type field :exclude excluded-ids test-args)
-        result          (concat existing new-objects)
-        filtered-result (filter-records result field {:limit limit :order-by order-by})]
-    (map set-cache-entry new-objects)
-    (map #(->CacheProxy (class %) (:id %) %) filtered-result)))
+  ([type field-constraints] (cache-find! type field-constraints {}))
+  ([type field-constraints query-constraints]
+   (let [existing        (filter-records (map :object (vals (get *cache* type)))
+                                         field-constraints {})
+         excluded-ids    (filter :id existing)
+         new-objects     (c/find-records! type field-constraints (assoc query-constraints :exclude excluded-ids))
+         result          (concat existing new-objects)
+         filtered-result (filter-records result field-constraints query-constraints)]
+     (map set-cache-entry new-objects)
+     (map #(->CacheProxy (class %) (:id %) %) filtered-result))))
+;;
+;;(defn cache-find!
+;;  "Finds objects matching criteria on a single field, loading them from storage as necessary.
+;;
+;;  Returns - list of CacheProxy objects"
+;;  [type field & {:keys [eq lt gt lte gte eq in limit order-by] :as query}]
+;;  (let [tests           (dissoc keys :limit)
+;;        existing        (filter-records (map :object (vals (get *cache* type)))
+;;                                        field (dissoc keys :limit :order-by))
+;;        excluded-ids    (filter :id existing)
+;;        test-args       (seq (apply concat (map vec tests)))
+;;        new-objects     (apply c/find-records! type field :exclude excluded-ids test-args)
+;;        result          (concat existing new-objects)
+;;        filtered-result (filter-records result field {:limit limit :order-by order-by})]
+;;    (map set-cache-entry new-objects)
+;;    (map #(->CacheProxy (class %) (:id %) %) filtered-result)))
 
 (defn call-with-cached-transaction [f]
   (binding [*cache* {}]

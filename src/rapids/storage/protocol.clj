@@ -53,16 +53,20 @@
       return instance - if successful
       throw error - if not found")
 
-  (find-records! [sconn type field {:keys [eq lt gt lte gte in exclude limit exclude order-by skip-locked?]}]
+  (find-records! [sconn type field-constraints {:keys [limit skip-locked? order-by]}]
     "Retrieves objects using indexed fields.
     type - the class of object to find
-    field - the field to test
-      eq - equality test
-      lt, gt, lte, gte - <, >, <=, >=
-      in - argument should be a sequence
-    exclude - sequence of ids which should be ignored
-    lock - boolean, if true, record will be locked for duration of transaction
-    limit - if provided, limit number of returned records
+    field-constraints - a vector of two-tuples of the form: [[field, {test1 value, test2 value...}], ...]
+    E.g., [[:state {:eq :running}] [[:status :patient] {:eq 123}]] finds all current runs for patient 123.
+    field - the db field (which may be a vector)
+    test -
+      :eq - equality test
+      :lt, :gt, :lte, :gte - <, >, <=, >=
+      :in - argument should be a sequence
+      :? - for testing membership in a JSON array (json fields only)
+      :exclude - sequence of ids which should be ignored
+      :lock - boolean, if true, record will be locked for duration of transaction
+      :limit - if provided, limit number of returned records
 
     Only fields which have been added as indexes for the type may be used."))
 

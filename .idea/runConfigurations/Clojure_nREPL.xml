@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Clojure nREPL" type="ClojureREPL" factoryName="Local" activateToolWindowBeforeRun="false">
+  <configuration default="false" name="Clojure nREPL" type="ClojureREPL" factoryName="Local" activateToolWindowBeforeRun="false" singleton="true">
     <module name="rapids" />
     <setting name="displayName" value="Clojure nREPL" />
     <setting name="replType" value="NREPL" />
@@ -10,6 +10,16 @@
     <setting name="profiles" value="" />
     <setting name="aliases" value="" />
     <setting name="fixLineNumbers" value="false" />
+    <extension name="net.ashald.envfile">
+      <option name="IS_ENABLED" value="false" />
+      <option name="IS_SUBST" value="false" />
+      <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
+      <option name="IS_IGNORE_MISSING_FILES" value="false" />
+      <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
+      <ENTRIES>
+        <ENTRY IS_ENABLED="true" PARSER="runconfig" />
+      </ENTRIES>
+    </extension>
     <method v="2" />
   </configuration>
 </component>
