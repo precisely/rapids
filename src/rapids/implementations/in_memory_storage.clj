@@ -29,9 +29,9 @@
     (map #(if-let [rec (conn-records this cls %)]
             (thaw-record rec))
       ids))
-  (find-records! [this type field {:keys [eq gt lt gte lte limit order-by] :as keys}]
+  (find-records! [this type field-constraints {:keys [limit order-by] :as query-constraints}]
     (filter-records (map thaw-record (vals (conn-records this type)))
-      field keys)))
+      field-constraints query-constraints)))
 
 (defrecord InMemoryStorage
   [records]                                                 ; {typeA {id1 inst1, id2 inst2...}, typeB {...}}

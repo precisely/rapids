@@ -13,7 +13,7 @@
   ([] (get-expired-runs nil))
   ([limit]
    (let [current-time (now)]
-     (cache-find! Run [:suspend :expires] :lte current-time :limit limit :skip-locked? true))))
+     (cache-find! Run [[[:suspend :expires] :lte current-time]] {:limit limit :skip-locked? true}))))
 
 (defn expire-run! [run]
   (let [{{permit :permit, default :default} :suspend} run]

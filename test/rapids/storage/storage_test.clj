@@ -17,14 +17,14 @@
 
           (testing "records show up in the underlying hash-map"
             (is (= (count (-> (current-storage) :records deref (get Foo)))
-                  2)))
+                   2)))
 
           (testing "get-records! retrieves the created records"
             (let [foo-recs (get-records! Foo [1 2])]
               (is (-> foo-recs count (= 2)))
 
               (is (= (sort-by :id foo-recs)
-                    created))))
+                     created))))
 
           (testing "update-records! changes a record"
             (let [new-foos (update-records! [(Foo. 1 :replaced)])]
@@ -38,17 +38,17 @@
         (binding [*cache* {}]
           (set-cache-entry inst :update)
           (is (= (get-in *cache* [Foo 123])
-                {:object inst :op :update}))
+                 {:object inst :op :update}))
           (let [changed-inst (assoc inst :val "goodbye")]
             (set-cache-entry changed-inst :update)
             (is (= (get-in *cache* [Foo 123])
-                  {:object changed-inst :op :update}))))))
+                   {:object changed-inst :op :update}))))))
 
     (testing "get-cache-entry gets a cache entry"
       (let [inst (Foo. 123 :hello)]
         (binding [*cache* {Foo {123 {:object inst}}}]
           (is (= (get-cache-entry Foo 123)
-                {:object inst})))))))
+                 {:object inst})))))))
 
 (deftest ^:unit CachedConnectionTest
   (testing "Inside ensure-cached-connection"
@@ -79,7 +79,7 @@
             (.update (->CacheProxy Foo 2) #(assoc % :val :updated))
             (is (= (->CacheProxy Foo 2) (cache-get! Foo 2)))
             (is (= (Foo. 2 :updated)
-                  (get-in rapids.storage.globals/*cache* [Foo 2 :object])))
+                   (get-in rapids.storage.globals/*cache* [Foo 2 :object])))
             (is (= (get-record! Foo 2) (Foo. 2 :initial))))))
       (testing "finally, items are updated in the storage"
         (ensure-connection
@@ -91,24 +91,24 @@
                                 :a {:object (Foo. :a 1)},
                                 :c {:object (Foo. :c 3)}}}]
           (testing "it should find items using :eq in the cache"
-            (is (= (cache-find! Foo :val :eq 1) (list (->CacheProxy Foo :a)))))
+            (is (= (cache-find! Foo [[:val :eq 1]] {}) (list (->CacheProxy Foo :a)))))
           (testing "it should find items using :gt in the cache"
-            (is (= (set (cache-find! Foo :val :gt 1))
-                  (set [(->CacheProxy Foo :b) (->CacheProxy Foo :c)])))
+            (is (= (set (cache-find! Foo [[:val :gt 1]]))
+                   (set [(->CacheProxy Foo :b) (->CacheProxy Foo :c)])))
             (testing "it should find items using :gte in the cache"
-              (is (= (set (cache-find! Foo :val :gte 1))
-                    (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)])))))
+              (is (= (set (cache-find! Foo [[:val :gte 1]]))
+                     (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)])))))
           (testing "it should find items using :lt in the cache"
-            (is (= (set (cache-find! Foo :val :lt 3))
-                  (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b)]))))
+            (is (= (set (cache-find! Foo [[:val :lt 3]]))
+                   (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b)]))))
           (testing "it should find items using :lte in the cache"
-            (is (= (set (cache-find! Foo :val :lte 3))
-                  (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)]))))
+            (is (= (set (cache-find! Foo [[:val :lte 3]]))
+                   (set [(->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)]))))
           (testing "it should find items up to :limit in the cache"
-            (is (= 2 (count (cache-find! Foo :val :gte 1 :limit 2)))))
+            (is (= 2 (count (cache-find! Foo [[:val :gte 1]] {:limit 2})))))
           (testing "it should find items in ascending order in the cache"
-            (is (= (cache-find! Foo :val :lte 3 :order-by :asc)
-                  (list (->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)))))
+            (is (= (cache-find! Foo [[:val :lte 3]] {:order-by [:val :asc]})
+                   (list (->CacheProxy Foo :a) (->CacheProxy Foo :b) (->CacheProxy Foo :c)))))
           (testing "it should find items in descending order in the cache"
-            (is (= (cache-find! Foo :val :lte 3 :order-by :desc)
-                  (list (->CacheProxy Foo :c) (->CacheProxy Foo :b) (->CacheProxy Foo :a))))))))))
+            (is (= (cache-find! Foo [[:val :lte 3]] {:order-by [:val :desc]})
+                   (list (->CacheProxy Foo :c) (->CacheProxy Foo :b) (->CacheProxy Foo :a))))))))))

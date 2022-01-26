@@ -44,16 +44,14 @@
 
 (defn find-records!
   "Looks up records"
-  [type index & {:keys [eq lt gt lte gte eq limit in exclude skip-locked? order-by] :as keys}]
-  {:pre  [(or
-            (keyword? index)
-            (and (sequential? index) (every? keyword? index)))]
-   :post [(instances-of? type %)]}
-  (p/find-records! *connection* type index keys))
+  ([type field-constraints] (find-records! type field-constraints {}))
+  ([type field-constraints query-constraint]
+   {:post [(instances-of? type %)]}
+   (p/find-records! *connection* type field-constraints query-constraint)))
 
 (defn find-record!
-  [type index & {:keys [eq lt gt lte gte eq limit in exclude skip-locked?] :as keys}]
-  (first (apply find-records! type index keys)))
+  [type field-constraints query-constraints]
+  (first (apply find-records! type field-constraints (assoc query-constraints :limit 1))))
 
 ;; HELPERS
 (defn- instances-of? [cls seq]

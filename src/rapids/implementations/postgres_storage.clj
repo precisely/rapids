@@ -23,8 +23,9 @@
            (clojure.lang IPersistentMap IPersistentVector)
            (java.sql PreparedStatement)))
 
-(declare from-db-record to-db-record exec-one! exec! class->table table->name check-class field-caster keys-to-db-field)
-
+(declare from-db-record to-db-record exec-one! exec! class->table table->name check-class
+  field-caster keys-to-db-field json-field is-json-field? run-to-record pool-to-record)
+(declare ->pgobject <-pgobject)
 (declare ->PostgresStorageConnection)
 
 (defrecord PostgresStorage [db]
@@ -34,9 +35,9 @@
   (require-index! [_ type field]
     (if-not (get-in {Run  #{[:suspend :expires] :id}
                      Pool #{:id}}
-                    [type field])
+              [type field])
       (throw (ex-info "Implementation of PostgresStorage is out of date. Index not supported."
-                      {:type type :field field})))))
+               {:type type :field field})))))
 
 (defn disable-hikari-logging []
   (-> (LoggerFactory/getLogger "com.zaxxer.hikari.pool.PoolBase") (.setLevel Level/ERROR))
@@ -80,9 +81,9 @@
          (boolean? register-mbeans)
          (string? classname)]}
   (let [config (dissoc (assoc options :auto-commit false :read-only false) :pool-class)
-        db     (if pool
-                 (connection/->pool pool (dissoc (assoc options :auto-commit false :read-only false) :pool-class))
-                 config)]
+        db (if pool
+             (connection/->pool pool (dissoc (assoc options :auto-commit false :read-only false) :pool-class))
+             config)]
     (PostgresStorage. db)))
 
 (defrecord PostgresStorageConnection [connection]
@@ -103,85 +104,99 @@
     (exec-one! this ["ROLLBACK;"]))
 
   (get-records! [this type ids]
-    (let [table      (class->table type)
+    (let [table (class->table type)
           table-name (:name table)]
       (log/debug "Getting " table-name " " ids)
       (map (from-db-record table-name)
-           (exec! this
-                  (-> (h/select :*)
-                      (h/from table-name)
-                      (h/where [:in :id ids])
-                      (h/for :update))))))
+        (exec! this
+          (-> (h/select :*)
+            (h/from table-name)
+            (h/where [:in :id ids])
+            (h/for :update))))))
 
   (create-records! [this records]
-    (let [cls          (-> records first class)
-          table        (class->table cls)
+    (let [cls (-> records first class)
+          table (class->table cls)
           to-db-record (:to-db-record table)
-          table-name   (:name table)]
+          table-name (:name table)]
       (check-class cls records)
       (log/debug "Creating" table-name records)
       (let [stmt (-> (h/insert-into table-name)
-                     (h/values (vec (map to-db-record records)))
-                     (h/returning :*))]
+                   (h/values (vec (map to-db-record records)))
+                   (h/returning :*))]
         (map (from-db-record table-name) (exec! this stmt)))))
 
   (update-records! [this records]
-    (let [record       (first records)
-          cls          (class record)
-          table        (class->table cls)
-          table-name   (:name table)
+    (let [record (first records)
+          cls (class record)
+          table (class->table cls)
+          table-name (:name table)
           to-db-record (:to-db-record table)
-          db-records   (map to-db-record records)
-          set-keys     (disj (set (apply concat (map keys db-records))) :id :created_at)]
+          db-records (map to-db-record records)
+          set-keys (disj (set (apply concat (map keys db-records))) :id :created_at)]
       (check-class cls records)
       (log/debug "Updating " table-name (map :id records))
       (map (from-db-record table-name)
-           (exec! this
-                  (-> (h/insert-into table-name)
-                      (h/values db-records)
-                      (h/upsert (apply h/do-update-set (h/on-conflict :id) set-keys))
-                      (h/returning :*))))))
+        (exec! this
+          (-> (h/insert-into table-name)
+            (h/values db-records)
+            (h/upsert (apply h/do-update-set (h/on-conflict :id) set-keys))
+            (h/returning :*))))))
 
-  (find-records! [this type field {:keys [gt lt eq gte lte limit exclude skip-locked? order-by]}]
-    (let [table        (class->table type)
-          table-name   (:name table)
-          cast         (field-caster table field)
-          db-field     (keys-to-db-field field)
-          cmp          (fn [op test] [op db-field (cast test)])
-          where-clause (cond-> [:and]
-                               gt (conj (cmp :> gt))
-                               lt (conj (cmp :< lt))
-                               gte (conj (cmp :>= gte))
-                               lte (conj (cmp :<= lte))
-                               eq (conj (cmp := eq))
-                               (not (empty? exclude)) (conj [:not-in :id exclude]))]
+  (find-records! [this type field-constraints {:keys [limit skip-locked? order-by]}]
+    (let [table (class->table type)
+          table-name (:name table)
+          add-field-constraint (fn [where-clause [field & {:keys [gt lt eq gte lte exclude ?]}]]
+                                 (let [cast (field-caster table field)
+                                       cmp (fn [op test] [op (keys-to-db-field table field test) (cast test)])]
+                                   (cond-> where-clause
+                                     eq (conj (cmp := eq))
+                                     ? (conj (cmp :? ?))
+                                     lte (conj (cmp :<= lte))
+                                     gte (conj (cmp :>= gte))
+                                     gt (conj (cmp :> gt))
+                                     lt (conj (cmp :< lt))
+                                     (not (empty? exclude)) (conj [:not-in :id exclude]))))
+          where-clause (reduce add-field-constraint [:and] field-constraints)
+          order-by (if order-by [(keys-to-db-field table (first order-by)) (second order-by)])]
       (log/debug "Finding " table-name " where " where-clause)
       (map (from-db-record table-name)
-           (exec! this
-                  (cond-> (-> (h/select :*)
-                              (h/from table-name))
-                          (not= where-clause [:and]) (h/where where-clause)
-                          skip-locked? (h/for :update :skip-locked)
-                          (not skip-locked?) (h/for :update)
-                          order-by (h/order-by [db-field order-by])
-                          limit (h/limit limit)))))))
+        (exec! this
+          (cond-> (-> (h/select :*)
+                    (h/from table-name))
+            (not= where-clause [:and]) (h/where where-clause)
+            skip-locked? (h/for :update :skip-locked)
+            (not skip-locked?) (h/for :update)
+            order-by (h/order-by order-by)
+            limit (h/limit limit)))))))
 
 (defn keys-to-db-field
   "Converts a vector of keywords to a snake-case keyword
 
-  (keys-to-db-field [:foo :bar]) => :foo_bar"
-  [field]
-  (if (vector? field) (keyword (str/join "_" (map name field))) field))
+  (keys-to-db-field [:foo :bar]) => :foo_bar
+  OR, if :foo is a JSON field:
+  (keys-to-db-field [:foo :bar]) => [:raw \"foo->'bar'\"] "
+  ([table field] (keys-to-db-field table field nil))
+  ([table field example]
+   (letfn [(keywordize []
+             (keyword (str/join "_" (map name field))))]
+     (if (vector? field)
+       (if (is-json-field? table (first field))
+         (json-field field example)
+         (keywordize))
+       field))))
 
 ;; TODO: clean up this ugly casting operation
-(defn field-caster [table field]
+(defn field-caster
+  "Returns a unary function which takes value and converts it into the type stored in the field"
+  [table field]
   {:pre [(or (keyword? field) (vector? field))]}
   (let [to-db-record (:to-db-record table)
-        field        (if (vector? field) field [field])
-        db-field     (keys-to-db-field field)]
-    #(db-field
-       (to-db-record
-         (update-in {} field (constantly %))))))
+        field (if (vector? field) field [field])]
+    (if (is-json-field? table (first field))
+      identity
+      #(let [db-field (keys-to-db-field table field %)]
+         (db-field (to-db-record (update-in {} field (constantly %))))))))
 
 (defn postgres-storage-migrate!
   "Creates or updates Rapids tables in a JDBC database (currently only Postgres supported)."
@@ -202,14 +217,14 @@
 
 (defn- exec! [pconn stmt]
   (let [formatted-sql (if (map? stmt) (sql/format stmt) stmt)]
+    ;;(println ">>>>>>>>>>")
+    ;;(println "exec!" formatted-sql)
     (jdbc/execute! (:connection pconn) formatted-sql)))
 
 (defn- exec-one! [pconn stmt]
   (let [formatted-sql (if (map? stmt) (sql/format stmt) stmt)]
     (jdbc/execute-one! (:connection pconn) formatted-sql)))
 
-(declare run-to-record pool-to-record)
-(declare ->pgobject)
 (defn- run-to-record
   [run]
   (letfn [(safename [n] (if n (name n)))]
@@ -226,7 +241,7 @@
    :id     (:id pool)})
 
 (def tables
-  [{:class Run, :name :runs, :to-db-record run-to-record}
+  [{:class Run, :name :runs, :to-db-record run-to-record, :json-indexes #{:status}}
    {:class Pool, :name :pools, :to-db-record pool-to-record}])
 
 ;;
@@ -266,7 +281,7 @@
   "Transform PGobject containing `json` or `jsonb` value to Clojure
   data."
   [^PGobject v]
-  (let [type  (.getType v)
+  (let [type (.getType v)
         value (.getValue v)]
     (if (#{"jsonb" "json"} type)
       (when value
@@ -294,3 +309,34 @@
     (<-pgobject v))
   (read-column-by-index [^PGobject v _2 _3]
     (<-pgobject v)))
+
+(defn is-json-field? [table field]
+  (let [jindexes (:json-indexes table)]
+    (if jindexes (jindexes field))))
+
+(defn json-field
+  "Returns HoneySQL representing a JSON field.
+
+  E.g., (json-field [:status :runs :patient]) =>
+        [:raw \"status->'runs'->'patient'\" ]
+
+        A couple of keys are treated as  operators: :-> :->>
+  E.g., (json-field [:status :->> :roles]) =>
+        [:raw \"status->>'roles'\"]"
+  ([fields] (json-field fields "some-str"))
+  ([fields example]
+   (let [operator? #{:-> :->>}
+         pgtype (cond
+                  (string? example) "(%s)::text"
+                  (int? example) "(%s)::bigint"
+                  (float? example) "(%s)::float8"
+                  (boolean example) "(%s)::boolean")]
+     (letfn [(build-json [head fieldkeys]
+               (if (empty? fieldkeys)
+                 (if pgtype (format pgtype head) head)
+                 (let [[k & fieldkeys] fieldkeys]
+                   (if (operator? k)
+                     (let [[k2 & fieldkeys] fieldkeys]
+                       (recur (str head (name k) "'" (name k2) "'") fieldkeys))
+                     (recur (str head "->'" (name k) "'") fieldkeys)))))]
+       [:raw (build-json (-> fields first name) (rest fields))]))))
