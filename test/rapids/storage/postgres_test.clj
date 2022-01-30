@@ -105,7 +105,7 @@
                          (map :id [r-ab3 r-ab20 r-ab100]))))
 
                 (testing "find-records! should find records which don't have a particular id"
-                  (is (= (id-set (find-records! Run [[:id :not-in (vec (map :id [r-ab20 r-ab3]))]]))
+                  (is (= (id-set (find-records! Run [[:id :not-in (mapv :id [r-ab20 r-ab3])]]))
                          (id-set [c-ab20 r-ab100]))))
 
                 (testing "find-records! should find records not equal to a value"

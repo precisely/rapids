@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="ReplProjectCommandManager">
-    <repl-command name="Run All Tests!" executionType="EXPRESSION" commandText="(letfn [(list-sources [test-dir]&#10;          (map #(clojure.string/replace (second (re-matches (re-pattern (str test-dir &quot;/(.*)\\.clj?$&quot;)) (.getPath %))) &quot;/&quot; &quot;.&quot;)&#10;               (filter #(.isFile %) (file-seq (java.io.File. test-dir)))))]&#10;  (run! #(require (symbol %) :reload)&#10;        (list-sources &quot;test&quot;))&#10;  (clojure.test/run-all-tests #&quot;rapids.*test.*&quot;))" executeBefore="NONE" executionNs="REPL_CURRENT" inNamespace="" saveAll="true" />
-  </component>
-</project>

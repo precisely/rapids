@@ -130,7 +130,7 @@
       (check-class cls records)
       (log/debug "Creating" table-name records)
       (let [stmt (-> (h/insert-into table-name)
-                     (h/values (vec (map to-db-record records)))
+                     (h/values (mapv to-db-record records))
                      (h/returning :*))]
         (map (from-db-record table-name) (exec! this stmt)))))
 

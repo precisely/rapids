@@ -50,7 +50,7 @@
                        (flow/flow? %) {:d:flow (nice-record %)}
                        (map? %) (nice-map %)
                        (seq? %) (seq %)
-                       (vector? %) (vec (map (fn [elt] (replace-weird-symbols elt base symbol-dict counter))
+                       (vector? %) (vec (mapv (fn [elt] (replace-weird-symbols elt base symbol-dict counter))
                                           %))
                        (number? %) %
                        (string? %) %

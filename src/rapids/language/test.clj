@@ -153,9 +153,11 @@
                     [k m & rest-kms] key-matches]
                (let [new-result (conj result,
                                       (with-meta
-                                        `(is (match [(~k ~ovar)]
-                                               [~m] true
-                                               [~'_] false))
+                                        `(let [kval# (~k ~ovar)]
+                                           (is (match [kval#]    ; key of object
+                                                 [~m] true  ; the match pattern
+                                                 [~'_] false) (str "Key match " '~k " failed.  "
+                                                                   "Pattern " '~m " does not match " kval#)))
                                         (meta m)))]
                  (if (empty? rest-kms)
                    new-result

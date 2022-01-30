@@ -52,6 +52,10 @@
     (let [run-id   (if (run? run-id) (:id run-id) run-id)
           true-run (cache-get! Run run-id)]
       (with-run true-run
+                (if (-> true-run :state #{:running :interrupted} not)
+                  (throw (ex-info "Attempt to continue run in invalid state"
+                                  {:type :input-error
+                                   :state (-> true-run :state)})))
                 (if (-> true-run :interrupt (not= interrupt))
                   (throw (ex-info "Attempt to continue interrupted run. Valid interrupt must be provided."
                                   {:type     :input-error

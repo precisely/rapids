@@ -47,7 +47,7 @@
   {:pre [(qualified-symbol? symbol)]}
   (Address.
     symbol
-    (vec (map simplify-if-symbol point))))
+    (mapv simplify-if-symbol point)))
 
 (defn point-to-string [address]
   (letfn [(two-digit-num? [elt]
