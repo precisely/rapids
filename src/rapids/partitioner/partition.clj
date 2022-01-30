@@ -65,9 +65,10 @@
          partition-java-interop-expr partition-java-new-expr
          partition-suspend-expr partition-flow-expr partition-callcc-expr
          partition-case-expr partition-case*-expr partition-binding-expr partition-set!-expr
-         resume-at)
+         resume-at reduce-params)
 
 (defn default-partition-modifier [p _ _] p)
+
 (defn partition-body
   "Partitions a list of expressions, e.g., for do, let and deflow forms
   Args:
@@ -123,6 +124,7 @@
            (if suspend?
              (let [final-part-expr (if (> (count rest-body) 0) `(resume-at [~next-address [~@params] nil] ~pexpr) pexpr)
                    part-body       (modifier (conj part-body final-part-expr) (not start-body) (empty? rest-body))
+                   params          (reduce-params params part-body)
                    pset            (pset/add pset partition-address params part-body)]
 
                ;; this partition ends here; next-address becomes the new partition-address
@@ -255,11 +257,11 @@
     (let [[_, sigs] (closure/extract-fn-defs expr)
           _ (doseq [sig sigs] (check-non-suspending sig))
           [ctor, pset] (closure/closure-constructor expr address params)]
-    ;; TODO: fix the suspend? return value
-    ;;       The third return value `suspend?` should be false since the (->Closure ...) form doesn't suspend
-    ;;       However, if we do this, the rest of the partitioner code will ignore
-    ;;       pset and start-expr. As a result, anonymous flows produce a little bit of
-    ;;       ugly overhead.
+      ;; TODO: fix the suspend? return value
+      ;;       The third return value `suspend?` should be false since the (->Closure ...) form doesn't suspend
+      ;;       However, if we do this, the rest of the partitioner code will ignore
+      ;;       pset and start-expr. As a result, anonymous flows produce a little bit of
+      ;;       ugly overhead.
 
       [ctor, pset, true])))
 
@@ -825,3 +827,11 @@
    `(let [bindings# ~(bindings-expr-from-params params)]
       (rapids.runtime.runlet/push-stack! ~address bindings# '~input-key)
       ~@body)))
+
+(defn reduce-params
+  "Returns only params which are found in the code body"
+  [params body]
+  (letfn [(expander [o] (if (or (set? o) (map? o)) (clojure.walk/postwalk expander (seq o)) o))]
+    (vec (clojure.set/intersection
+           (set params)
+           (set (flatten (clojure.walk/postwalk expander body)))))))
