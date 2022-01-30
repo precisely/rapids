@@ -26,7 +26,8 @@
             [clojure.tools.macro :refer [macrolet]]
             [rapids.storage.core :as s]
             [rapids.implementations.in-memory-storage :as imrs]
-            [clojure.core.match :refer [match]]))
+            [clojure.core.match :refer [match]]
+            [clojure.core.match.regex]))
 
 (declare branch)
 

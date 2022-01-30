@@ -25,8 +25,7 @@
   (and
     (instance? Suspend s)
     (or (-> s :expires nil?)
-      (->> s :expires (instance? LocalDateTime)))
-    (or (nil? (:default s)) (:expires s))))
+        (->> s :expires (instance? LocalDateTime)))))
 
 (defn make-suspend-signal
   [permit expires default]
