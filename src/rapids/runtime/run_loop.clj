@@ -22,17 +22,20 @@
 (defn start!
   "Starts a run with the flow and given arguments.
   Returns the Run instance."
-  [startable & args]
-  {:post [(run? %)]}
-  (let [startable-name (name startable)
-        start-form     (prn-str `(~startable-name ~@args))]
-    (ensure-cached-connection
-      (with-run (cache-insert! (r/make-run {:state      :running,
-                                            :start-form start-form
-                                            :dynamics   []}))
-                ;; create the initial stack-fn to kick of the process
-                (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
-                (current-run)))))
+  ([startable] (start! startable []))
+  ([startable args & {:keys [status] :or {status {}}}]
+   {:pre [(startable/startable? startable) (map? status) (sequential? args)]
+    :post [(run? %)]}
+   (let [startable-name (name startable)
+         start-form (prn-str `(~startable-name ~@args))]
+     (ensure-cached-connection
+       (with-run (cache-insert! (r/make-run {:state      :running,
+                                             :start-form start-form
+                                             :dynamics   []
+                                             :status     status}))
+         ;; create the initial stack-fn to kick of the process
+         (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
+         (current-run))))))
 
 (defn continue!
   "Continues the run identified by run-id.
@@ -49,28 +52,28 @@
   {:pre  [(not (nil? run-id))]
    :post [(run? %)]}
   (ensure-cached-connection
-    (let [run-id   (if (run? run-id) (:id run-id) run-id)
+    (let [run-id (if (run? run-id) (:id run-id) run-id)
           true-run (cache-get! Run run-id)]
       (with-run true-run
-                (if (-> true-run :state #{:running :interrupted} not)
-                  (throw (ex-info "Attempt to continue run in invalid state"
-                                  {:type :input-error
-                                   :state (-> true-run :state)})))
-                (if (-> true-run :interrupt (not= interrupt))
-                  (throw (ex-info "Attempt to continue interrupted run. Valid interrupt must be provided."
-                                  {:type     :input-error
-                                   :expected (-> true-run :interrupt)
-                                   :received interrupt
-                                   :run-id   run-id})))
-                (if-not (-> true-run :suspend :permit (= permit))
-                  (throw (ex-info "Invalid permit. Unable to continue run."
-                                  {:type     :input-error
-                                   :expected (current-run :suspend :permit)
-                                   :received permit
-                                   :run-id   run-id})))
-                (initialize-run-for-runlet)                 ;; ensure response and suspend are empty
-                (start-eval-loop! (next-stack-fn!) input)
-                (current-run)))))
+        (if (-> true-run :state #{:running :interrupted} not)
+          (throw (ex-info "Attempt to continue run in invalid state"
+                          {:type  :input-error
+                           :state (-> true-run :state)})))
+        (if (-> true-run :interrupt (not= interrupt))
+          (throw (ex-info "Attempt to continue interrupted run. Valid interrupt must be provided."
+                          {:type     :input-error
+                           :expected (-> true-run :interrupt)
+                           :received interrupt
+                           :run-id   run-id})))
+        (if-not (-> true-run :suspend :permit (= permit))
+          (throw (ex-info "Invalid permit. Unable to continue run."
+                          {:type     :input-error
+                           :expected (current-run :suspend :permit)
+                           :received permit
+                           :run-id   run-id})))
+        (initialize-run-for-runlet)                         ;; ensure response and suspend are empty
+        (start-eval-loop! (next-stack-fn!) input)
+        (current-run)))))
 
 (defn interrupt!
   "Interrupts the run, passing control to the innermost attempt handler matching the interruption's name.
@@ -88,10 +91,10 @@
                                          {:args [i :message message :data data]}))
                          (ensure-cached-connection
                            (with-run run-id
-                                     (interrupt-run!)
-                                     (push-stack! raise-partition-fn-address {} 'interrupt)
-                                     (start-eval-loop! (next-stack-fn!) i)
-                                     (current-run))))
+                             (interrupt-run!)
+                             (push-stack! raise-partition-fn-address {} 'interrupt)
+                             (start-eval-loop! (next-stack-fn!) i)
+                             (current-run))))
      :otherwise (throw (ex-info "Unexpected argument type to interrupt!. Expecting Keyword or Interruption"
                                 {:type (type i)
                                  :args [i :message message :data data]})))))
@@ -148,10 +151,10 @@
                           message (ex-message ei)]
                       (if (= type :fatal-error)
                         (update-run! :state :error
-                                     :error-info {:type :fatal-error,
-                                                  :message message,
+                                     :error-info {:type         :fatal-error,
+                                                  :message      message,
                                                   :ex-info-data data
-                                                  :input input}
+                                                  :input        input}
                                      :error-message "Fatal Error")
                         (throw ei))))
                   (catch CurrentContinuationChange ccc
@@ -207,7 +210,7 @@
            ;; or the run dynamic environment has changed
            (call-stack! [stack-fn data]
              (if stack-fn
-               (let [result           (stack-fn data)       ; stack-fn may have altered dynamics
+               (let [result (stack-fn data)                 ; stack-fn may have altered dynamics
                      new-run-dynamics (current-run :dynamics)]
                  (if (suspend-signal? result)
                    (suspend-run! result)

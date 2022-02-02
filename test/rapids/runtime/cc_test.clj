@@ -10,4 +10,4 @@
           (callcc))))
 
   (testing "make-current-continuation returns a Closure"
-    (is (closure? (:result (rapids/start! make-current-continuation () []))))))
+    (is (closure? (:result (rapids/start! make-current-continuation [() []]))))))
