@@ -15,7 +15,7 @@
 
 (defn run? [o]
   (and (s/cache-proxy? o)
-    (= Run (.theClass o))))
+       (= Run (.theClass o))))
 
 (defn resolve-run [o]
   (let [run-id (if (run? o) (:id o) o)
@@ -64,19 +64,25 @@
     (update-run! :stack (or rest-stack ()))
     frame))
 
-(defn set-status!
-  "Sets a status key (or subkey) of the current run.
+(defn ^{:arglists '[[run & kvs] [& kvs]]}
+  set-status!
+  "Sets a status key (or subkey) of the given run (or the current run).
 
   E.g.,
+  (set-status! run :a 1) => {:a 1}
   (set-status! :a 1) => {:a 1}
   (set-status! :a 1 :b 2) ; {:a 1, :b 2}
   (set-status! [:a :b] 2) ; {:a {:b 2}}"
   [& kvs]
-  (update-run! :status (reduce (fn [m [k v]]
-                                 (let [ks (if (vector? k) k [k])]
-                                   (assoc-in m ks v)))
-                               (current-run :status)
-                               (partition 2 kvs))))
+  (let [[maybe-run & maybe-kvs] kvs]
+    (if (run? maybe-run)
+      (with-run maybe-run
+        (apply set-status! maybe-kvs))
+      (update-run! :status (reduce (fn [m [k v]]
+                                     (let [ks (if (vector? k) k [k])]
+                                       (assoc-in m ks v)))
+                                   (current-run :status)
+                                   (partition 2 kvs))))))
 
 (defn add-responses! [& responses]
   (let [current-response (current-run :output)]
@@ -137,7 +143,7 @@
                 (vec (doall (reverse (concat (conj new-dynamics (assoc bindings dynvar val)) dynamics))))
                 (if (empty? dynamics)
                   (throw (ex-info "Attempt to set! run dynamic which has not been bound"
-                           {:var dynvar :value val}))
+                                  {:var dynvar :value val}))
                   (recur dynamics (conj new-dynamics bindings))))))]
     (update-run! :dynamics (assoc-dynamics lhs rhs))))
 

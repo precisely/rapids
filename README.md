@@ -22,7 +22,7 @@ As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions li
 
 ### Simple example
 ```clojure
-(let [run (start! multiply-by-user-input 5)]
+(let [run (start! multiply-by-user-input [5])]
    (continue! (:id run) {:input "100"}) ; this would normally happen as the result of a separate web API call
    (println (:result run))) ; prints 500
 => 
@@ -77,7 +77,7 @@ Sets one or more values in the current run's status map. Supports nested access.
 ```clojure
 ;; start! creates a run, beginning execution of the given flow
 
-(start! multiply-by-user-input 4)
+(start! multiply-by-user-input [4])
   ...
 ```
 

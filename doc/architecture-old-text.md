@@ -49,7 +49,7 @@ For example, consider a flow `user-survey` which implements logic like:
 
 Note that the `user-survey` flow may return a value immediately. You'll see below how the evaluation mechanism handles these cases.
      
- 4) Runs are started using the `start!` function: `(start! flow ... args)`, where flow evaluates to a flow. It creates a new `run-id` which is analogous to an operating system's process-id. It is used to save and retrieve the stack and associated events for a particular flow.
+ 4) Runs are started using the `start!` function: `(start! flow args)`, where flow evaluates to a flow. It creates a new `run-id` which is analogous to an operating system's process-id. It is used to save and retrieve the stack and associated events for a particular flow.
  
  
  5) Under the hood, `start-run` establishes a new stack with a single Thunk and that calls `form`, and then calls `next-runlet.

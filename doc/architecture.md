@@ -118,7 +118,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
   Execution of a flow is begun by invoking the `start!` function, passing the `Flow` data structure and any arguments. E.g.,
 
 ```clojure
-(start! greeting true) 
+(start! greeting [true]) 
 ```
 
 10. Starting.
@@ -559,7 +559,7 @@ E.g.,
     
 (deflow sink-flow []
   (let [p (pool)] ; creates an unbuffered pool
-    (let [source-run (start! source-flow p)]
+    (let [source-run (start! source-flow [p])]
       (<*  (take-out! p))))) ; take a value out of a pool and use it as a response
 
 (def sink-run (start! sink-flow))
