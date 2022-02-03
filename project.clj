@@ -67,7 +67,8 @@
                    :plugins      [[lein-ancient "1.0.0-RC3"]
                                   [migratus-lein "0.7.3"]
                                   [lein-localrepo "0.5.4"]
-                                  [lein-cloverage "1.2.2"]]}}
+                                  [lein-cloverage "1.2.2"]
+                                  [lein-codox "0.10.8"]]}}
   :repl-options {:init-ns rapids}
 
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
