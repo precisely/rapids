@@ -114,8 +114,16 @@
     ([field op val] [field op val]...)
 
     Where field is a keyword or sequence of keywords (e.g., [:suspend :expires])
-          op is a comparator :eq, :gt, :lt, :lte, :gte, :in
-          val is the value to compare.
+    and op is a comparison: field-value (op) value
+           :eq - equal to
+           :gt - greater than
+           :lt - less than
+           :lte - less than or equal to
+           :gte - greater than or equal to
+           :in - is one of the members of val (which must be sequential?)
+           :not-eq - is not equal to val
+           :not-in - is not in val
+           :? - contains val (the field must be a JSON array)
 
   keyword arguments are:
     :order-by [field order] - order is :asc or :desc
