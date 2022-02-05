@@ -5,11 +5,11 @@
 ;;
 (defn filter-records [records field-constraints query-constraints]
   (letfn [(normalize-field [f] (if (vector? f) f [f]))
-          (field-filter [records [field & {:keys [eq gt lt gte lte in ? not-eq not-in]}]]
+          (field-filter [records [field & {:keys [eq gt lt gte lte in contains not-eq not-in]}]]
             (let [field (normalize-field field)
                   test (fn [rec val op]
                          (let [recval (get-in rec field)
-                               std-ops {:= = :not= not= :not-in #(not ((set %2) %1)) :? #((set %1) %2)}
+                               std-ops {:= = :not= not= :not-in #(not ((set %2) %1)) :contains #((set %1) %2) :in #((set %2) %1)}
                                ops (cond
                                      (number? recval) (merge std-ops {:> > :< < :>= >= :<= <=})
                                      (string? recval) (merge std-ops {:> (comp pos? compare) :< (comp neg? compare) :<= (comp (some-fn neg? zero?) compare) :>= (comp (some-fn pos? zero?) compare)})
@@ -21,7 +21,8 @@
                               eq (test eq :=)
                               not-eq (test not-eq :not=)
                               not-in (test not-in :not-in)
-                              ? (test ? :?)
+                              in (test in :in)
+                              contains (test contains :?)
                               gt (test gt :>)
                               lt (test lt :<)
                               gte (test gte :>=)

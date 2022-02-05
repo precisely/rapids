@@ -63,7 +63,9 @@
       :eq - equality test
       :lt, :gt, :lte, :gte - <, >, <=, >=
       :in - argument should be a sequence
-      :? - for testing membership in a JSON array (json fields only)
+      :not-in - not in
+      :not-eq - not equality
+      :contains - for testing membership in a JSON array (json fields only)
       :exclude - sequence of ids which should be ignored
       :lock - boolean, if true, record will be locked for duration of transaction
       :limit - if provided, limit number of returned records

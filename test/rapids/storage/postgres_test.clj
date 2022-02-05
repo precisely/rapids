@@ -113,5 +113,5 @@
                          (id-set [r-ab3 r-ab100]))))
 
                 (testing "find-records! should find records which contain a value in an array"
-                  (is (= (id-set (find-records! Run [[[:status :array] :? "abc"]]))
+                  (is (= (id-set (find-records! Run [[[:status :array] :contains "abc"]]))
                          (id-set [r-ab20]))))))))))))

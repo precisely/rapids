@@ -154,7 +154,7 @@
   (find-records! [this type field-constraints {:keys [limit skip-locked? order-by]}]
     (let [table                (class->table type)
           table-name           (:name table)
-          add-field-constraint (fn [where-clause [field & {:keys [not-in not-eq gt lt eq gte in lte exclude ?]}]]
+          add-field-constraint (fn [where-clause [field & {:keys [not-in not-eq gt lt eq gte in lte exclude contains]}]]
                                  (let [cast (field-caster table field)
                                        cmp  (fn [op test] [op (keys-to-db-field table field test) (cast test)])]
                                    (cond-> where-clause
@@ -162,7 +162,7 @@
                                      not-eq (conj (cmp :not= not-eq))
                                      in (conj (cmp :in in))
                                      not-in (conj [:not (cmp :in not-in)])
-                                     ? (conj [:? (keys-to-db-field table field) (str ?)]) ; don't cast the JSON field!
+                                     contains (conj [:? (keys-to-db-field table field) (str contains)]) ; don't cast the JSON field!
                                      lte (conj (cmp :<= lte))
                                      gte (conj (cmp :>= gte))
                                      gt (conj (cmp :> gt))
@@ -228,6 +228,7 @@
 
 (defn- exec! [pconn stmt]
   (let [formatted-sql (if (map? stmt) (sql/format stmt) stmt)]
+    (prn "exec!" stmt "=>" formatted-sql)
     (jdbc/execute! (:connection pconn) formatted-sql)))
 
 (defn- exec-one! [pconn stmt]
