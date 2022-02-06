@@ -228,7 +228,6 @@
 
 (defn- exec! [pconn stmt]
   (let [formatted-sql (if (map? stmt) (sql/format stmt) stmt)]
-    (prn "exec!" stmt "=>" formatted-sql)
     (jdbc/execute! (:connection pconn) formatted-sql)))
 
 (defn- exec-one! [pconn stmt]
