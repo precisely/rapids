@@ -63,13 +63,13 @@ Suspends execution of the current run until the given run completes. Returns the
 (block! run :expires expiry-time, :default value) 
 ```
 
-#### set-status! 
+#### set-index! 
 
-Sets one or more values in the current run's status map. Supports nested access.
+Sets one or more values in the current run's hierarchical index. Key value pairs are provided. Keys may be vectors, indicating a nested value.
 
 ```clojure
-(set-status! :foo 1, [:a :b] 2) 
-(current-run :status) ; => {:foo 1 {:a {:b 2}}}
+(set-index! :foo 1, [:a :b] 2) 
+(current-run :index) ; => {:foo 1 {:a {:b 2}}}
 ```
 
 ### Starting a flow
@@ -96,9 +96,9 @@ Sets one or more values in the current run's status map. Supports nested access.
 ### Querying for runs
 The `find-runs` API allows for queries on multiple fields and JSON subfields of a run.
 ```clojure
-;; query for runs which are running wheere a nested status key has a particular value
+;; query for runs which are running wheere a nested index key has a particular value
 (find-runs [[:state :eq :running] 
-            [[:status :runs :patient :initial-labs] :eq lab-run-id]] 
+            [[:index :runs :patient :initial-labs] :eq lab-run-id]] 
 {:limit 3})
 ```
 ## Setting up a backend

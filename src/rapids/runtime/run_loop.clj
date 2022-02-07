@@ -7,7 +7,7 @@
        [rapids.runtime.raise :refer [raise-partition-fn-address]]
        [rapids.support.util :refer :all]
        [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run!
-                                      update-run! run? push-stack! interrupt-run! set-status!]]
+                                      update-run! run? push-stack! interrupt-run! set-index!]]
        [rapids.objects.signals :refer [suspend-signal? binding-change-signal? ->BindingChangeSignal]]
        [rapids.objects.stack-frame :as sf]
        [rapids.objects.run :as r])
@@ -23,8 +23,8 @@
   "Starts a run with the flow and given arguments.
   Returns the Run instance."
   ([startable] (start! startable []))
-  ([startable args & {:keys [status] :or {status {}}}]
-   {:pre [(startable/startable? startable) (map? status) (sequential? args)]
+  ([startable args & {:keys [index] :or {index {}}}]
+   {:pre [(startable/startable? startable) (map? index) (sequential? args)]
     :post [(run? %)]}
    (let [startable-name (name startable)
          start-form (prn-str `(~startable-name ~@args))]
@@ -32,7 +32,7 @@
        (with-run (cache-insert! (r/make-run {:state      :running,
                                              :start-form start-form
                                              :dynamics   []
-                                             :status     status}))
+                                             :index     index}))
          ;; create the initial stack-fn to kick of the process
          (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
          (current-run))))))
@@ -133,7 +133,7 @@
 
   Find 3 runs referencing the given patient:
 
-  (find-runs [[[:status :patient-id] :eq patient-uuid]] :limit 3)"
+  (find-runs [[[:index :patient-id] :eq patient-uuid]] :limit 3)"
   [field-constraints & {:keys [order-by limit] :as query-constraints}]
   (ensure-cached-connection (cache-find! Run field-constraints query-constraints)))
 

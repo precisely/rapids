@@ -242,7 +242,7 @@
      :suspend_expires (-> run :suspend :expires)
      :result          (str (:result run))
      :id              (:id run)
-     :status          (-> run :status ->pgobject)
+     :index          (-> run :index ->pgobject)
      :state           (-> run :state safename as-other)}))
 
 (defn- pool-to-record [pool]
@@ -250,7 +250,7 @@
    :id     (:id pool)})
 
 (def tables
-  [{:class Run, :name :runs, :to-db-record run-to-record, :json-indexes #{:status}}
+  [{:class Run, :name :runs, :to-db-record run-to-record, :json-indexes #{:index}}
    {:class Pool, :name :pools, :to-db-record pool-to-record}])
 
 ;;
@@ -326,12 +326,12 @@
 (defn json-field
   "Returns HoneySQL representing a JSON field.
 
-  E.g., (json-field [:status :runs :patient]) =>
-        [:raw \"status->'runs'->'patient'\" ]
+  E.g., (json-field [:index :runs :patient]) =>
+        [:raw \"index->'runs'->'patient'\" ]
 
         A couple of keys are treated as  operators: :-> :->>
-  E.g., (json-field [:status :->> :roles]) =>
-        [:raw \"status->>'roles'\"]"
+  E.g., (json-field [:index :->> :roles]) =>
+        [:raw \"index->>'roles'\"]"
   ([fields] (json-field fields "some-str"))
   ([fields example]
    (let [operator? #{:-> :->>}

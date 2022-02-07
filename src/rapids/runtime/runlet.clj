@@ -65,23 +65,23 @@
     frame))
 
 (defn ^{:arglists '[[run & kvs] [& kvs]]}
-  set-status!
-  "Sets a status key (or subkey) of the given run (or the current run).
+  set-index!
+  "Sets a index key (or subkey) of the given run (or the current run).
 
   E.g.,
-  (set-status! run :a 1) => {:a 1}
-  (set-status! :a 1) => {:a 1}
-  (set-status! :a 1 :b 2) ; {:a 1, :b 2}
-  (set-status! [:a :b] 2) ; {:a {:b 2}}"
+  (set-index! run :a 1) => {:a 1}
+  (set-index! :a 1) => {:a 1}
+  (set-index! :a 1 :b 2) ; {:a 1, :b 2}
+  (set-index! [:a :b] 2) ; {:a {:b 2}}"
   [& kvs]
   (let [[maybe-run & maybe-kvs] kvs]
     (if (run? maybe-run)
       (with-run maybe-run
-        (apply set-status! maybe-kvs))
-      (update-run! :status (reduce (fn [m [k v]]
+        (apply set-index! maybe-kvs))
+      (update-run! :index (reduce (fn [m [k v]]
                                      (let [ks (if (vector? k) k [k])]
                                        (assoc-in m ks v)))
-                                   (current-run :status)
+                                   (current-run :index)
                                    (partition 2 kvs))))))
 
 (defn add-responses! [& responses]
