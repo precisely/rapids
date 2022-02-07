@@ -57,7 +57,7 @@
     "Retrieves objects using indexed fields.
     type - the class of object to find
     field-constraints - a vector of two-tuples of the form: [[field, {test1 value, test2 value...}], ...]
-    E.g., [[:state {:eq :running}] [[:status :patient] {:eq 123}]] finds all current runs for patient 123.
+    E.g., [[:state {:eq :running}] [[:index :patient] {:eq 123}]] finds all current runs for patient 123.
     field - the db field (which may be a vector)
     test -
       :eq - equality test

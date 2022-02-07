@@ -85,23 +85,23 @@
         (with-storage test-storage
           (ensure-connection
             (letfn [(id-set [runs] (set (map :id runs)))]
-              (let [r-ab20  (r/make-run {:state :running :status {:a {:b 20} :c "fee" :array ["abc"]}})
-                    r-ab3   (r/make-run {:state :running :status {:a {:b 3} :c "fie"}})
-                    c-ab20  (r/make-run {:state :complete :status {:a {:b 20} :c "foe"}})
-                    r-ab100 (r/make-run {:state :running :status {:a {:b 100} :c "foe"}})]
+              (let [r-ab20  (r/make-run {:state :running :index {:a {:b 20} :c "fee" :array ["abc"]}})
+                    r-ab3   (r/make-run {:state :running :index {:a {:b 3} :c "fie"}})
+                    c-ab20  (r/make-run {:state :complete :index {:a {:b 20} :c "foe"}})
+                    r-ab100 (r/make-run {:state :running :index {:a {:b 100} :c "foe"}})]
                 (create-records! [r-ab20 r-ab3 c-ab20 r-ab100])
-                (println "RAW=>" (exec! (:connection (current-connection)) ["SELECT status->>'c' as c FROM runs ;"]))
+                (println "RAW=>" (exec! (:connection (current-connection)) ["SELECT index->>'c' as c FROM runs ;"]))
                 (testing "find-records! should find records using JSON query"
-                  (is (= (id-set (find-records! Run [[[:status :a :b] :eq 20]]))
+                  (is (= (id-set (find-records! Run [[[:index :a :b] :eq 20]]))
                          (id-set [r-ab20 c-ab20]))))
                 (testing "find-records! should find records <= a value in JSON"
-                  (is (= (id-set (find-records! Run [[[:status :a :b] :lte 20]]))
+                  (is (= (id-set (find-records! Run [[[:index :a :b] :lte 20]]))
                          (id-set [r-ab3 c-ab20 r-ab20]))))
                 (testing "find-records! should find records matching state and json"
-                  (is (= (find-records! Run [[[:status :a :b] :eq 20] [:state :eq :complete]])
+                  (is (= (find-records! Run [[[:index :a :b] :eq 20] [:state :eq :complete]])
                          [c-ab20])))
                 (testing "find-records! should be able to order records based on json"
-                  (is (= (map :id (find-records! Run [[:state :eq :running]] {:order-by [[:status :a :b] :asc]}))
+                  (is (= (map :id (find-records! Run [[:state :eq :running]] {:order-by [[:index :a :b] :asc]}))
                          (map :id [r-ab3 r-ab20 r-ab100]))))
 
                 (testing "find-records! should find records which don't have a particular id"
@@ -109,9 +109,9 @@
                          (id-set [c-ab20 r-ab100]))))
 
                 (testing "find-records! should find records not equal to a value"
-                  (is (= (id-set (find-records! Run [[[:status :a :b] :not-eq 20]]))
+                  (is (= (id-set (find-records! Run [[[:index :a :b] :not-eq 20]]))
                          (id-set [r-ab3 r-ab100]))))
 
                 (testing "find-records! should find records which contain a value in an array"
-                  (is (= (id-set (find-records! Run [[[:status :array] :contains "abc"]]))
+                  (is (= (id-set (find-records! Run [[[:index :array] :contains "abc"]]))
                          (id-set [r-ab20]))))))))))))

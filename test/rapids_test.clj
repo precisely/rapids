@@ -77,26 +77,26 @@
     (testing "providing a mismatched context throws an exception"
       (is (thrown? Exception (continue! (start! event-value-flow ["expecting"]), :permit "actual"))))))
 
-(deflow status-flow
-  "Updates the status occassionally"
+(deflow index-flow
+  "Updates the index occassionally"
   []
-  (set-status! :changing 0 :static "unchanging")
+  (set-index! :changing 0 :static "unchanging")
   (<*)
-  (set-status! :changing 1)
+  (set-index! :changing 1)
   (<*)
-  (set-status! :changing 2 [:nested :key] "nested"))
+  (set-index! :changing 2 [:nested :key] "nested"))
 
-(deftest ^:language RunStatusTest
+(deftest ^:language RunIndexTest
   (with-test-env
-    (testing "Run status"
-      (let [run (start! status-flow)]
-        (is (= (:status run) {:changing 0 :static "unchanging"}))
+    (testing "Run index"
+      (let [run (start! index-flow)]
+        (is (= (:index run) {:changing 0 :static "unchanging"}))
         (flush-cache!)
         (continue! run)
-        (is (= (:status run) {:changing 1 :static "unchanging"}))
+        (is (= (:index run) {:changing 1 :static "unchanging"}))
         (flush-cache!)
         (continue! run)
-        (is (= (:status run) {:changing 2 :static "unchanging"
+        (is (= (:index run) {:changing 2 :static "unchanging"
                               :nested   {:key "nested"}}))))))
 
 (deftest ^:language CacheProxyTopLevelTests

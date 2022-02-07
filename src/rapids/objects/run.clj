@@ -21,7 +21,7 @@
    ^Object response
    ^Vector dynamics
    ^UUID interruption-id
-   ^PersistentHashMap status])
+   ^PersistentHashMap index])
 
 (def ^:const RunStates #{:running :error :complete :interrupted})
 
@@ -50,7 +50,7 @@
             (let [pred ({:id            uuid?
                          :state         RunStates
                          :stack         seq?
-                         :status        map?
+                         :index        map?
                          :dynamics      vector?
                          :interrupt     (some-fn nil? uuid?)
                          :parent-id     (some-fn nil? uuid?)
@@ -67,13 +67,13 @@
 
 (defn make-run
   ([] (make-run {}))
-  ([{:keys [id, stack, state, response, result, dynamics status]
+  ([{:keys [id, stack, state, response, result, dynamics index]
      :or   {id       (new-uuid)
             state    :running
             stack    ()
             response []
             dynamics []
-            status   {}}
+            index   {}}
      :as   fields}]
    {:pre  [(RunStates state)]
     :post [(s/assert ::run %)]}
@@ -85,7 +85,7 @@
                     :result       result
                     :dynamics     dynamics
                     :cached-state :created
-                    :status       status}))))
+                    :index       index}))))
 
 ;(defmethod print-method Run
 ;  [o w]
