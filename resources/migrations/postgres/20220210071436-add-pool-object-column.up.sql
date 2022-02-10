@@ -1,0 +1,5 @@
+ALTER TABLE pools
+ADD COLUMN object BYTEA,
+DROP COLUMN sources,
+DROP COLUMN buffer,
+DROP COLUMN sinks;
