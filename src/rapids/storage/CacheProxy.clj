@@ -46,23 +46,37 @@
 
 (defn -toString [this]
   (format "(CacheProxy. %s %s %s)"
-    (-> this (.theClass) (.getName))
-    (-> this (.theId) str)
-    (into {} (:recent @(.state this)))))
+          (-> this (.theClass) (.getName))
+          (-> this (.theId) str)
+          (into {} (:recent @(.state this)))))
 
-(defn recent-instance [this]
+(defn recent-instance
+  "Returns the most recent instance of the object pointed at by the CacheProxy"
+  [this]
   (let [state (.state this)]
     (if (cache-exists?)
 
       ;; get a fresh copy
-      (let [fresh (apply ensure-raw-object (.index this))]
-        (if (or (not= (.theClass this) (class fresh))
-              (not= (.theId this) (:id fresh)))
+      (let [fresh              (apply ensure-raw-object (.index this))
+            current-class      (.theClass this)
+            fresh-class        (class fresh)
+            current-id         (.theId this)
+            current-class-name (.getName current-class)
+            fresh-class-name   (.getName fresh-class)
+            fresh-id           (:id fresh)]
+        (if (or (not= current-class-name fresh-class-name)
+                (not= current-id fresh-id))
           (throw (ex-info "CacheProxy detected cache corruption while attempt to retrieve instance"
-                   {:type     ::cache-corruption
-                    :class    (.theClass this)
-                    :id       (.theId this)
-                    :instance fresh})))
+                          {:type               ::cache-corruption
+                           :current-class      current-class
+                           :current-class-hash (hash current-class)
+                           :fresh-class        fresh-class
+                           :fresh-class-hash   (hash fresh-class)
+                           :current-id         current-id
+                           :fresh-id           fresh-id
+                           :class-names-equal  (= current-class-name fresh-class-name)
+                           :id-equal           (= current-id fresh-id)
+                           :fresh-instance     fresh})))
         (swap! state assoc :recent fresh)
         fresh)
 
@@ -85,7 +99,7 @@
   [this]
   (if (cache-exists?)
     (throw (ex-info "Attempt to access raw object while in a transaction."
-             {:proxy this}))
+                    {:proxy this}))
     (if-let [raw-object (recent-instance this)]
       (into {} raw-object)
       (assert false "Invalid CacheProxy instance cached object is not available."))))
@@ -96,25 +110,25 @@
 
 (defn -equals [this that]
   (and that (instance? (class this) that)
-    (= (.index this) (.index that))))
+       (= (.index this) (.index that))))
 
 (defn -hashCode [this]
   (hash [::hashCode (.index this)]))
 
 (defn -update [this f]
-  (let [id (.theId this)
-        cls (.theClass this)
+  (let [id           (.theId this)
+        cls          (.theClass this)
         {existing :object existing-change :op} (or (get-cache-entry cls id)
-                                                 (set-cache-entry (recent-instance this)))
+                                                   (set-cache-entry (recent-instance this)))
         cache-change (if existing
                        (or existing-change :update)
                        (throw (ex-info "Attempt to update cache object which can't be found"
-                                {:class cls :id id})))
-        new-object (f existing)]
-    (if-not (instance? cls new-object)
+                                       {:class cls :id id})))
+        new-object   (f existing)]
+    (if-not (= (.getName cls) (-> new-object class (.getName)))
       (throw (ex-info "Attempt to update object with object of different type"
-               {:cache-proxy this
-                :object      new-object})))
+                      {:cache-proxy this
+                       :object      new-object})))
     (set-cache-entry new-object cache-change)
     this))
 

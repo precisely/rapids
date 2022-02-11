@@ -114,7 +114,7 @@
   (get-records! [this type ids]
     (let [table      (class->table type)
           table-name (:name table)]
-      (log/debug "Getting " table-name " " ids)
+      (log/debug "Getting type:" type " table-name:" table-name " ids:" ids)
       (map (from-db-record table-name)
            (exec! this
                   (-> (h/select :*)
@@ -250,18 +250,20 @@
    :id     (:id pool)})
 
 (def tables
-  [{:class Run, :name :runs, :to-db-record run-to-record, :json-indexes #{:index}}
-   {:class Pool, :name :pools, :to-db-record pool-to-record}])
+  [{:class-name (.getName Run), :name :runs, :to-db-record run-to-record, :json-indexes #{:index}}
+   {:class-name (.getName Pool), :name :pools, :to-db-record pool-to-record}])
 
 ;;
 ;; Indexes into tables:
 (defn index-on [f coll]
   (zipmap (map f coll) coll))
 
-(def class->table (index-on :class tables))
+(def class-name->table (index-on :class-name tables))
 (def name->table (index-on :name tables))
-
-(defn- from-db-record
+(defn class->table [cls]
+  {:post [(not= nil %)]}
+  (class-name->table (.getName cls)))
+(defn from-db-record
   [table-name]
   {:pre [(keyword? table-name)]}
   (let [field (keyword (str (name table-name) "/object"))]

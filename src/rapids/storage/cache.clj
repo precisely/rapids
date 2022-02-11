@@ -65,15 +65,15 @@
   Returns - list of CacheProxy objects"
   ([type field-constraints] (cache-find! type field-constraints {}))
   ([type field-constraints query-constraints]
-   (let [existing             (filter-records (map :object (vals (get *cache* type)))
-                                              field-constraints {})
-         excluded-ids         (mapv :id existing)
-         storage-constraints  (if (empty? excluded-ids)
-                                field-constraints
-                                (conj field-constraints [:id :not-in excluded-ids]))
-         new-objects          (vec (c/find-records! type storage-constraints query-constraints))
-         result               (concat existing new-objects)
-         filtered-result      (filter-records result [] query-constraints)]
+   (let [existing            (filter-records (map :object (vals (get *cache* type)))
+                                             field-constraints {})
+         excluded-ids        (mapv :id existing)
+         storage-constraints (if (empty? excluded-ids)
+                               field-constraints
+                               (conj field-constraints [:id :not-in excluded-ids]))
+         new-objects         (vec (c/find-records! type storage-constraints query-constraints))
+         result              (concat existing new-objects)
+         filtered-result     (filter-records result [] query-constraints)]
      (map set-cache-entry new-objects)
      (map #(->CacheProxy (class %) (:id %) %) filtered-result))))
 ;;
@@ -119,9 +119,9 @@
 ;;
 ;; Private Helpers
 ;;
-(defn- matches? [val {:keys [eq lt gt lte gte in] :as tests}]
-  (let [ops {:eq =, :lt <, :gt >, :lte <=, :gte >=, :in #(in? %2 %1)}]
-    (loop [[[key constraint] & remaining-tests] (select-keys tests [:eq :lt :gt :lte :gte :in])]
+(defn- matches? [val {:keys [eq not-eq lt gt lte gte in not-in contains] :as tests}]
+  (let [ops {:eq =, :not-eq not=, :lt <, :gt >, :lte <=, :gte >=, :in #(in? %2 %1) :contains #(in? %1 %2) :not-in #(not (in? %2 %1))}]
+    (loop [[[key constraint] & remaining-tests] (select-keys tests [:eq :not-eq :lt :gt :lte :gte :in :not-in :contains])]
       (let [test (key ops)]
         (if (test val constraint)
           (if remaining-tests
@@ -129,22 +129,22 @@
             true)
           false)))))
 
-(defn- find-in-cache [cls field {:keys [eq lt gt lte gte in] :as tests}]
-  (filter #(matches? (field %1) tests) (map :object (vals (get *cache* cls)))))
+(defn- find-in-cache [cls field {:keys [eq not-eq lt gt lte gte in not-in contains] :as tests}]
+  (filter #(matches? (field %1) tests) (map :object (vals (get *cache* (.getName cls))))))
 
 (defn get-cache-entry [cls id]
-  (get-in *cache* [cls id]))
+  (get-in *cache* [(.getName cls) id]))
 
 (defn set-cache-entry
   ([inst] (set-cache-entry inst nil))
   ([inst op]
-   {:pre  [(not (nil? inst))]
-    :post [(get-in *cache* [(class inst) (:id inst)])]}
-   (let [cls         (class inst)
+   {:pre  [(not (nil? inst)) (not (instance? CacheProxy inst))]
+    :post [(get-in *cache* [(-> inst class (.getName)) (:id inst)])]}
+   (let [cls-name    (-> inst class (.getName))
          id          (:id inst)
          cache-entry {:object inst
                       :op     op}]
-     (setf! *cache* update-in [cls id]
+     (setf! *cache* update-in [cls-name id]
             (constantly cache-entry))
      cache-entry)))
 

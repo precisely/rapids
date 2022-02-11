@@ -61,7 +61,7 @@
   "Pushes an item onto one of the queues of a pool.
   p - a pool
   field - one of :sinks, :sources, :buffer
-  val - object to pdush
+  val - object to push
 
   Returns: updated-pool"
   [p field val]
