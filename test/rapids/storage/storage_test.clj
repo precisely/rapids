@@ -34,19 +34,21 @@
 (deftest ^:unit LowLevelCacheTest
   (testing "cache entry operations"
     (testing "set-cache-entry sets a cache entry"
-      (let [inst (Foo. 123 "hello")]
+      (let [inst (Foo. 123 "hello")
+            foo-class-name (-> Foo (.getName))]
         (binding [*cache* {}]
           (set-cache-entry inst :update)
-          (is (= (get-in *cache* [Foo 123])
+          (is (= (get-in *cache* [foo-class-name 123])
                  {:object inst :op :update}))
           (let [changed-inst (assoc inst :val "goodbye")]
             (set-cache-entry changed-inst :update)
-            (is (= (get-in *cache* [Foo 123])
+            (is (= (get-in *cache* [foo-class-name 123])
                    {:object changed-inst :op :update}))))))
 
     (testing "get-cache-entry gets a cache entry"
-      (let [inst (Foo. 123 :hello)]
-        (binding [*cache* {Foo {123 {:object inst}}}]
+      (let [inst (Foo. 123 :hello)
+            foo-class-name (-> Foo (.getName))]
+        (binding [*cache* {foo-class-name {123 {:object inst}}}]
           (is (= (get-cache-entry Foo 123)
                  {:object inst})))))))
 
@@ -74,12 +76,12 @@
             (is (instance? Foo (thaw-record (get-in @(:records (current-storage)) [Foo 2]))))
             (is (nil? (get-in *cache* [Foo 2])))
             (cache-get! Foo 2)
-            (is (instance? Foo (:object (get-in *cache* [Foo 2])))))
+            (is (instance? Foo (:object (get-in *cache* [(.getName Foo) 2])))))
           (testing "CacheProxy.update object in the cache, but the item does not change in storage"
             (.update (->CacheProxy Foo 2) #(assoc % :val :updated))
             (is (= (->CacheProxy Foo 2) (cache-get! Foo 2)))
             (is (= (Foo. 2 :updated)
-                   (get-in rapids.storage.globals/*cache* [Foo 2 :object])))
+                   (get-in rapids.storage.globals/*cache* [(.getName Foo) 2 :object])))
             (is (= (get-record! Foo 2) (Foo. 2 :initial))))))
       (testing "finally, items are updated in the storage"
         (ensure-connection

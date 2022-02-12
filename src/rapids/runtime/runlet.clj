@@ -15,7 +15,7 @@
 
 (defn run? [o]
   (and (s/cache-proxy? o)
-       (= Run (.theClass o))))
+       (= (.getName Run) (-> o (.theClass) (.getName)))))
 
 (defn resolve-run [o]
   (let [run-id (if (run? o) (:id o) o)

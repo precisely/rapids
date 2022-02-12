@@ -8,9 +8,12 @@
             [next.jdbc :as jdbc]
             [migratus.core :as migratus]
             [rapids.objects.run :as r]
+            [rapids.objects.pool :as p]
+            [rapids.support.util :as util]
             [honey.sql.helpers :as h]
             [honey.sql :as sql])
-  (:import [rapids.objects.run Run]))
+  (:import [rapids.objects.run Run]
+           [rapids.objects.pool Pool]))
 (def test-jdbc-url (env :test-postgres-jdbc-url))
 (def test-storage (when test-jdbc-url (->postgres-storage {:jdbcUrl test-jdbc-url})))
 
@@ -40,8 +43,8 @@
 (deftest ^:integration PostgresStorageTest
   (if-not test-jdbc-url
     (println "Skipping PostgresStorageTest. Please set TEST_POSTGRES_JDBC_URL env variable to enable this test.")
-    (testing "Using the storage protocol"
-      (testing "to CRUD"
+    (testing "Using the storage protocol to do"
+      (testing "CRUD operations on Runs"
         (clear-test-db!)
         (with-open [cnxn (jdbc/get-connection (:db test-storage))] ; get a separate direct cnxn to the db for testing
           (with-storage test-storage
@@ -61,6 +64,30 @@
                 (testing "find-records! should find existing records using field index"
                   (is (= (map :id (find-records! Run [[:state :eq :complete]]))
                          (map :id [r1])))))))))
+      (testing "CRUD operations on Pools"
+        (clear-test-db!)
+        (with-open [cnxn (jdbc/get-connection (:db test-storage))] ; get a separate direct cnxn to the db for testing
+          (with-storage test-storage
+            (ensure-connection
+              (let [pool      (p/make-pool 0)
+                    buff-pool (p/pool-push (p/make-pool 2) :buffer :foo)]
+                (testing "create-records!"
+                  (is (= 0 (:count (exec-one! cnxn "select count(*) from pools;"))))
+                  (create-records! [pool buff-pool])
+                  (is (= 2 (:count (exec-one! cnxn "select count(*) from pools;")))))
+                (testing "get-records! should get pools by id"
+                  (is (= (get-records! Pool [(:id pool) (:id buff-pool)]) [pool buff-pool])))
+                (testing "update-records! should update the pool"
+                  (is (= 1 (count (:buffer buff-pool))))
+                  (is (= 1 (-> (exec-one! cnxn ["select object from pools where id = ?" (:id buff-pool)])
+                               ((from-db-record :pools))
+                               :buffer
+                               count)))
+                  (update-records! [(p/pool-push buff-pool :buffer :bar)])
+                  (is (= 2 (-> (exec-one! cnxn ["select object from pools where id = ?" (:id buff-pool)])
+                               ((from-db-record :pools))
+                               :buffer
+                               count)))))))))
       (testing "to access Runs using the suspend expiry index"
         (clear-test-db!)
         (with-storage test-storage
