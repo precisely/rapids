@@ -11,7 +11,7 @@
 (defn pool? [o]
   (and o
     (instance? CacheProxy o)
-    (= Pool (.theClass o))))
+    (= (.getName Pool) (-> o (.theClass) (.getName)))))
 
 (declare pool-pop! pool-push!)
 
