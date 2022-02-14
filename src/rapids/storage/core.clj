@@ -3,9 +3,9 @@
 ;; Do not reference
 ;;
 (ns rapids.storage.core
-  (:require rapids.storage.cache
-            rapids.storage.connection-wrapper
-            [potemkin :refer [import-vars]]))
+  (:require [potemkin :refer [import-vars]]
+            [rapids.storage.cache]
+            [rapids.storage.connection-wrapper]))
 
 (potemkin/import-vars
   [rapids.storage.globals

@@ -1,7 +1,7 @@
 (ns rapids.objects.pool_test
   (:require [clojure.test :refer :all]
             [rapids.objects.pool :refer :all])
-  (:import [rapids.objects.pool Pool]))
+  (:import (rapids.objects.pool Pool)))
 
 (deftest ^:unit PoolTest
   (testing "make-pool returns a pool instance"

@@ -3,9 +3,9 @@
 ;;
 (ns rapids.storage.connection-wrapper
   (:require
-    [rapids.storage.protocol :as p]
+    [clojure.string :as str]
     [rapids.storage.globals :refer :all]
-    [clojure.string :as str]))
+    [rapids.storage.protocol :as p]))
 
 (declare instances-of? instances-of-same?)
 (defn transaction-begin! []

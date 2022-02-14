@@ -2,10 +2,10 @@
 ;; Quick and dirty in memory storage implementation meant mainly for testing.
 ;;
 (ns rapids.implementations.in-memory-storage
-  (:require [rapids.storage.protocol :refer :all]
+  (:require [java-time :as t]
             [rapids.storage.in-memory-filter :refer [filter-records]]
-            [java-time :as t]
-            [rapids.support.util :refer [new-uuid ifit]]))
+            [rapids.storage.protocol :refer :all]
+            [rapids.support.util :refer [ifit new-uuid]]))
 
 (defn conn-records
   ([c] (-> c :storage :records))

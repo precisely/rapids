@@ -1,17 +1,17 @@
 (ns rapids.runtime.persistence_test
   (:require [clojure.test :refer :all]
-            [rapids.runtime.persistence :refer :all]
-            [rapids.language.pool-ops :refer [->pool put-in! pool-id pool?]]
+            [rapids.language.pool-ops :refer [->pool pool-id pool? put-in!]]
+            [rapids.objects.address :as a]
             [rapids.objects.pool :refer [raw-pool?]]
-            [rapids.storage.protocol :refer [thaw-record freeze-record frozen?]]
-            [test-helpers :refer :all]
-            [rapids.runtime.core :refer [with-run current-run]]
             [rapids.objects.run :as r]
             [rapids.objects.stack-frame :as sf]
+            [rapids.runtime.core :refer [current-run with-run]]
+            [rapids.runtime.persistence :refer :all]
             [rapids.storage.cache :refer [ensure-cached-connection]]
-            [rapids.objects.address :as a]
             [rapids.storage.core :as s]
-            [rapids.storage.globals :refer [*cache*]])
+            [rapids.storage.globals :refer [*cache*]]
+            [rapids.storage.protocol :refer [freeze-record frozen? thaw-record]]
+            [test-helpers :refer :all])
   (:import (rapids.objects.run Run)))
 
 (defn make-run-with-bindings [& {:keys [] :as keys}]

@@ -1,8 +1,8 @@
 (ns ^:unit rapids.language.expire_test
   (:require [clojure.test :refer :all]
-            [test-helpers :refer :all]
             [rapids :refer :all]
-            [rapids.storage.core :as s]))
+            [rapids.storage.core :as s]
+            [test-helpers :refer :all]))
 
 (deflow expiring-flow []
   (input! :permit "foo" :expires (now) :default :default-input))

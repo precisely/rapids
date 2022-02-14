@@ -1,7 +1,7 @@
 (ns rapids.support.util
   (:require [clojure.java.io :as io])
-  (:import (java.util UUID Properties)
-           (clojure.lang Namespace Cons Atom)))
+  (:import (clojure.lang Atom Cons Namespace)
+           (java.util Properties UUID)))
 
 (defn refers-to?
   "Dereferences a symbol or var and applies pred to the referenced value"

@@ -1,17 +1,17 @@
 (ns rapids-test
   (:require [clojure.test :refer :all]
-            [rapids :refer :all]
-            [rapids.storage.core :as storage :refer [cache-proxy?]]
-            [test-helpers :refer [flush-cache! proxy-field with-test-env-run get-run-record get-pool-record throws-error-output run-in-state?]]
-            [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
-            [rapids.partitioner.core :refer [partition-flow-body]]
-            [rapids.support.debug :refer :all]
-            [test-helpers :refer :all]
             [expectations.clojure.test
-             :refer [defexpect expect expecting more->
-                     approximately between between' functionally
+             :refer [approximately between between' defexpect
+                     expect expecting functionally more->
                      side-effects]]
-            [rapids.objects.address :as address])
+            [rapids :refer :all]
+            [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
+            [rapids.objects.address :as address]
+            [rapids.partitioner.core :refer [partition-flow-body]]
+            [rapids.storage.core :as storage :refer [cache-proxy?]]
+            [rapids.support.debug :refer :all]
+            [test-helpers :refer [flush-cache! get-pool-record get-run-record proxy-field run-in-state? throws-error-output with-test-env-run]]
+            [test-helpers :refer :all])
   (:import (clojure.lang ExceptionInfo)))
 
 (deftest ^:language DefaultStorageTest

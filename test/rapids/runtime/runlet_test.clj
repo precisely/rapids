@@ -1,16 +1,16 @@
 (ns rapids.runtime.runlet-test
   (:require [clojure.test :refer :all]
-            [test-helpers :refer :all]
             [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]
             [rapids.objects.address :as a]
             [rapids.objects.flow :as flow]
             [rapids.objects.run :as r]
-            [rapids.runtime.runlet :refer :all]
-            [rapids.objects.stack-frame :as sf]
-            [rapids.storage.core :as s :refer [ensure-cached-connection cache-get! cache-insert!
-                                               with-storage ensure-connection]]
             [rapids.objects.signals :as signals]
-            [rapids.objects.startable :as startable])
+            [rapids.objects.stack-frame :as sf]
+            [rapids.objects.startable :as startable]
+            [rapids.runtime.runlet :refer :all]
+            [rapids.storage.core :as s :refer [cache-get! cache-insert! ensure-cached-connection
+                                               ensure-connection with-storage]]
+            [test-helpers :refer :all])
   (:import (rapids.objects.run Run)))
 
 (deftest ^:unit RunSerialization

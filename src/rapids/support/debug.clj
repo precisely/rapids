@@ -3,8 +3,8 @@
   (:require [clojure.pprint :as pprint]
             [clojure.walk :as walk]
             [rapids.objects.address :as a]
-            [rapids.partitioner.partition-set :as pset]
-            [rapids.objects.flow :as flow])
+            [rapids.objects.flow :as flow]
+            [rapids.partitioner.partition-set :as pset])
   (:import (clojure.lang MapEntry PersistentHashSet)))
 (defn macroexpand-pprint [form]
   (binding [pprint/*print-suppress-namespaces* true]

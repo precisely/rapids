@@ -1,7 +1,7 @@
 (ns rapids.language.flow
   (:require [rapids.objects.address :refer [->address]]
-            [rapids.partitioner.core :refer [partition-fn-set-def partition-flow-body]]
-            [rapids.objects.flow :refer [->Flow with-flow-definitions in-flow-definition-context?]]
+            [rapids.objects.flow :refer [->Flow in-flow-definition-context? with-flow-definitions]]
+            [rapids.partitioner.core :refer [partition-flow-body partition-fn-set-def]]
             [rapids.support.util :refer [qualify-symbol]]))
 
 (defmacro deflow

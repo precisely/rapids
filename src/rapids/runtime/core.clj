@@ -1,10 +1,10 @@
 (ns rapids.runtime.core
-  (:require rapids.runtime.run-loop
-            rapids.runtime.runlet
-            rapids.runtime.calling
-            rapids.runtime.persistence
-            rapids.runtime.expire
-            [potemkin :refer [import-vars]]))
+  (:require [potemkin :refer [import-vars]]
+            [rapids.runtime.calling]
+            [rapids.runtime.expire]
+            [rapids.runtime.persistence]
+            [rapids.runtime.run-loop]
+            [rapids.runtime.runlet]))
 
 (import-vars
   [rapids.runtime.run-loop start! continue! interrupt! get-run find-runs]

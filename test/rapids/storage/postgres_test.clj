@@ -1,19 +1,19 @@
 (ns rapids.storage.postgres-test
   (:require [clojure.test :refer :all]
-            [test-helpers :refer [env]]
-            [rapids.implementations.postgres-storage :refer :all]
-            [rapids.storage.core :refer :all]
-            [rapids.objects.signals :refer [make-suspend-signal]]
-            [rapids.language.time :refer [now from-now years]]
-            [next.jdbc :as jdbc]
-            [migratus.core :as migratus]
-            [rapids.objects.run :as r]
-            [rapids.objects.pool :as p]
-            [rapids.support.util :as util]
+            [honey.sql :as sql]
             [honey.sql.helpers :as h]
-            [honey.sql :as sql])
-  (:import [rapids.objects.run Run]
-           [rapids.objects.pool Pool]))
+            [migratus.core :as migratus]
+            [next.jdbc :as jdbc]
+            [rapids.implementations.postgres-storage :refer :all]
+            [rapids.language.time :refer [from-now now years]]
+            [rapids.objects.pool :as p]
+            [rapids.objects.run :as r]
+            [rapids.objects.signals :refer [make-suspend-signal]]
+            [rapids.storage.core :refer :all]
+            [rapids.support.util :as util]
+            [test-helpers :refer [env]])
+  (:import (rapids.objects.pool Pool)
+           (rapids.objects.run Run)))
 (def test-jdbc-url (env :test-postgres-jdbc-url))
 (def test-storage (when test-jdbc-url (->postgres-storage {:jdbcUrl test-jdbc-url})))
 

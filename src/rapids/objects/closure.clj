@@ -12,13 +12,13 @@
 ;;; contains the address of the clojure function and the bindings.
 ;;;
 (ns rapids.objects.closure
-  (:require [rapids.objects.flow :as flow]
+  (:require [rapids.objects.address :as a]
+            [rapids.objects.flow :as flow]
             [rapids.objects.startable :as s]
-            [rapids.objects.address :as a]
             [rapids.support.defrecordfn :refer [defrecordfn]]
             [rapids.support.util :refer [in? unqualified-symbol?]])
-  (:import (rapids.objects.startable Startable)
-           (clojure.lang Named)))
+  (:import (clojure.lang Named)
+           (rapids.objects.startable Startable)))
 
 (defrecordfn Closure
   [address bindings suspending?]

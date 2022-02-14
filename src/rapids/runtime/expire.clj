@@ -1,12 +1,12 @@
 (ns rapids.runtime.expire
-  (:require [rapids.runtime.run-loop :refer [continue!]]
-            [rapids.runtime.runlet :refer [with-run current-run]]
-            [rapids.language.time :refer [now]]
-            [rapids.storage.globals :refer [current-storage]]
-            [rapids.storage.core :refer [ensure-cached-connection cache-get! cache-find! with-storage]]
-            [taoensso.timbre :as log]
+  (:require [clojure.core.async :refer [<! go-loop timeout]]
             [clojure.stacktrace :as stacktrace]
-            [clojure.core.async :refer [go-loop <! timeout]])
+            [rapids.language.time :refer [now]]
+            [rapids.runtime.run-loop :refer [continue!]]
+            [rapids.runtime.runlet :refer [current-run with-run]]
+            [rapids.storage.core :refer [cache-find! cache-get! ensure-cached-connection with-storage]]
+            [rapids.storage.globals :refer [current-storage]]
+            [taoensso.timbre :as log])
   (:import (rapids.objects.run Run)))
 
 (defn get-expired-runs

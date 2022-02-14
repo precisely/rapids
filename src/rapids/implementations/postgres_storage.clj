@@ -1,27 +1,27 @@
 (ns rapids.implementations.postgres-storage
-  (:require [rapids.storage.protocol :as p]
-            rapids.objects.run
-            rapids.objects.pool
-            [rapids.support.util :refer [in?]]
-            [next.jdbc :as jdbc]
-            [next.jdbc.types :refer [as-other]]
-            [next.jdbc.connection :as connection]
-            [next.jdbc.prepare :refer [SettableParameter]]
+  (:require [clojure.string :as str]
             [honey.sql :as sql]
             [honey.sql.helpers :as h]
             [migratus.core :as migratus]
-            [taoensso.timbre :as log]
-            [clojure.string :as str]
+            [next.jdbc :as jdbc]
+            [next.jdbc.connection :as connection]
+            [next.jdbc.prepare :refer [SettableParameter]]
+            [next.jdbc.result-set :as rs]
+            [next.jdbc.types :refer [as-other]]
             [rapids.implementations.json-converter :refer [->json <-json]]
-            [next.jdbc.result-set :as rs])
-  (:import (rapids.objects.run Run)
-           (rapids.objects.pool Pool)
+            [rapids.objects.pool]
+            [rapids.objects.run]
+            [rapids.storage.protocol :as p]
+            [rapids.support.util :refer [in?]]
+            [taoensso.timbre :as log])
+  (:import (clojure.lang IPersistentMap IPersistentVector)
            (com.zaxxer.hikari HikariDataSource)
+           (java.sql PreparedStatement)
+           (org.postgresql.util PGobject)
            (org.slf4j LoggerFactory)
            (org.slf4j.event Level)
-           (org.postgresql.util PGobject)
-           (clojure.lang IPersistentMap IPersistentVector)
-           (java.sql PreparedStatement)))
+           (rapids.objects.pool Pool)
+           (rapids.objects.run Run)))
 
 (declare from-db-record to-db-record exec-one! exec! class->table table->name check-class
          field-caster keys-to-db-field json-field is-json-field? run-to-record pool-to-record)

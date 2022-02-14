@@ -1,9 +1,9 @@
 (ns rapids
-  (:require rapids.runtime.core
-            rapids.language.core
-            rapids.language.time
+  (:require [potemkin :refer [import-vars]]
             [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]
-            [potemkin :refer [import-vars]]))
+            [rapids.language.core]
+            [rapids.language.time]
+            [rapids.runtime.core]))
 
 (import-vars
   [rapids.language.core

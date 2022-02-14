@@ -1,8 +1,8 @@
 (ns rapids.partitioner.closure
   (:require [clojure.spec.alpha :as s]
             [rapids.objects.closure :refer :all]
-            [rapids.partitioner.partition-utils :refer :all]
             [rapids.partitioner.partition-set :as pset]
+            [rapids.partitioner.partition-utils :refer :all]
             [rapids.support.util :refer :all]))
 
 (declare extract-fn-defs)

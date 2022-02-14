@@ -1,14 +1,14 @@
 (ns rapids.partitioner.partition
   (:require [rapids.objects.address :as a]
-            [rapids.objects.flow :as flow]
             [rapids.objects.closure :refer [->Closure]]
+            [rapids.objects.flow :as flow]
             [rapids.objects.signals :refer [suspending-operator?]]
             [rapids.partitioner.closure :as closure]
             [rapids.partitioner.partition-set :as pset]
             [rapids.partitioner.partition-utils :refer :all]
-            [rapids.partitioner.recur :refer [with-tail-position with-binding-point *recur-binding-point* *tail-position*]]
-            [rapids.support.util :refer :all]
-            [rapids.support.debug :refer :all])
+            [rapids.partitioner.recur :refer [*recur-binding-point* *tail-position* with-binding-point with-tail-position]]
+            [rapids.support.debug :refer :all]
+            [rapids.support.util :refer :all])
   (:import (clojure.lang ArityException LazySeq)))
 
 ;;;; Partitioner

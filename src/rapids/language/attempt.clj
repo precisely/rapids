@@ -52,16 +52,16 @@
 ;;   (finally ...))
 
 (ns rapids.language.attempt
-  (:require [rapids.language.flow :refer [flow]]
-            [rapids.objects.run :refer [get-dynamic-value get-dynamic-values]]
-            [rapids.runtime.runlet :refer [run? with-run current-run update-run!]]
-            [rapids.storage.cache :refer [cache-get! ensure-cached-connection]]
-            [rapids.runtime.cc :refer [callcc]]
-            [rapids.runtime.calling :refer [universal-call]]
+  (:require [clojure.tools.macro :refer [macrolet]]
+            [rapids.language.flow :refer [flow]]
             [rapids.objects.interruptions :refer :all]
+            [rapids.objects.run :refer [get-dynamic-value get-dynamic-values]]
+            [rapids.runtime.calling :refer [universal-call]]
+            [rapids.runtime.cc :refer [callcc]]
             [rapids.runtime.globals :refer :all]
-            [rapids.support.util :refer :all]
-            [clojure.tools.macro :refer [macrolet]])
+            [rapids.runtime.runlet :refer [current-run run? update-run! with-run]]
+            [rapids.storage.cache :refer [cache-get! ensure-cached-connection]]
+            [rapids.support.util :refer :all])
   (:import (clojure.lang Compiler$CompilerException)))
 
 (defn handler-form? [o] (and (list? o) (= 'handle (first o))))

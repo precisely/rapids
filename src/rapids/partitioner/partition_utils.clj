@@ -1,8 +1,8 @@
 (ns rapids.partitioner.partition-utils
-  (:require [rapids.support.util :refer [ifit in? unqualified-symbol?]]
+  (:require [clojure.set :refer [difference intersection]]
             [clojure.walk :refer [postwalk]]
-            [clojure.set :refer [intersection difference]]
-            [rapids.objects.address :as a]))
+            [rapids.objects.address :as a]
+            [rapids.support.util :refer [ifit in? unqualified-symbol?]]))
 
 ;;
 ;; HELPERS

@@ -6,9 +6,9 @@
 ;;
 (ns rapids.runtime.runlet
   (:require [rapids.objects.run :as r]
-            [rapids.runtime.globals :refer :all]
+            [rapids.objects.signals :refer [make-suspend-signal suspend-signal?]]
             [rapids.objects.stack-frame :as sf]
-            [rapids.objects.signals :refer [suspend-signal? make-suspend-signal]]
+            [rapids.runtime.globals :refer :all]
             [rapids.storage.core :as s]
             [rapids.support.util :refer :all])
   (:import (rapids.objects.run Run)))

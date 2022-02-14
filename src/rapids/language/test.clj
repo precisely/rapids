@@ -21,13 +21,13 @@
 ;;;;         :state :complete)))
 
 (ns rapids.language.test
-  (:require [rapids :refer :all]
+  (:require [clojure.core.match :refer [match]]
+            [clojure.core.match.regex]
             [clojure.test :refer :all]
             [clojure.tools.macro :refer [macrolet]]
-            [rapids.storage.core :as s]
+            [rapids :refer :all]
             [rapids.implementations.in-memory-storage :as imrs]
-            [clojure.core.match :refer [match]]
-            [clojure.core.match.regex]))
+            [rapids.storage.core :as s]))
 
 (declare branch)
 

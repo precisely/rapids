@@ -1,14 +1,14 @@
 (ns rapids.language.pool-ops-test
   (:require [clojure.test :refer :all]
-            [rapids :refer [with-storage current-run]]
+            [rapids :refer [current-run with-storage]]
             [rapids.implementations.in-memory-storage :refer :all]
+            [rapids.language.pool-ops :refer :all]
+            [rapids.objects.run :as r]
             [rapids.objects.signals :refer [suspend-signal?]]
             [rapids.runtime.runlet :refer [with-run]]
-            [rapids.objects.run :as r]
             [rapids.storage.core :as s]
-            [rapids.language.pool-ops :refer :all]
-            [test-helpers :refer :all]
-            [spy.core :as spy]))
+            [spy.core :as spy]
+            [test-helpers :refer :all]))
 
 (deftest ^:unit UnbufferedPoolTests
   (testing "An empty unbuffered pool, when putting in"

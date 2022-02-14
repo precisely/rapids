@@ -2,7 +2,7 @@
 ;; The CacheProxy class
 ;;
 (ns rapids.storage.CacheProxy
-  (:require [rapids.storage.cache :refer [cache-exists? ensure-raw-object get-cache-entry set-cache-entry ensure-cached-connection]]
+  (:require [rapids.storage.cache :refer [cache-exists? ensure-cached-connection ensure-raw-object get-cache-entry set-cache-entry]]
             [rapids.storage.globals :refer [*strict-proxy*]])
   (:gen-class
     :implements [clojure.lang.ILookup]                      ; for ease of use
