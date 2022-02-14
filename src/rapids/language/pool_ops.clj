@@ -1,12 +1,12 @@
 (ns rapids.language.pool-ops
   (:require [rapids.language.flow :refer [deflow]]
-            [rapids.runtime.core :refer [current-run continue!]]
             [rapids.language.operators :refer [input!]]
-            [rapids.support.util :refer [new-uuid]]
-            [rapids.objects.pool :refer [raw-pool? make-pool pool-push pool-pop]]
-            [rapids.storage.core :as s])
-  (:import (rapids.storage CacheProxy)
-           (rapids.objects.pool Pool)))
+            [rapids.objects.pool :refer [make-pool pool-pop pool-push raw-pool?]]
+            [rapids.runtime.core :refer [continue! current-run]]
+            [rapids.storage.core :as s]
+            [rapids.support.util :refer [new-uuid]])
+  (:import (rapids.objects.pool Pool)
+           (rapids.storage CacheProxy)))
 
 (defn pool? [o]
   (and o

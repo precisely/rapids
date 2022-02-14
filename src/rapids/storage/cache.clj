@@ -12,8 +12,8 @@
 ;;       Typically, with-transaction
 ;;
 (ns rapids.storage.cache
-  (:require [rapids.storage.globals :refer [ensure-connection *cache*]]
-            [rapids.storage.connection-wrapper :as c]
+  (:require [rapids.storage.connection-wrapper :as c]
+            [rapids.storage.globals :refer [*cache* ensure-connection]]
             [rapids.storage.in-memory-filter :refer [filter-records]]
             [rapids.support.util :refer :all])
   (:import (rapids.storage CacheProxy)))

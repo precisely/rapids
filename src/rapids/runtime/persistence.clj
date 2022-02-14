@@ -3,17 +3,17 @@
 ;; But some objects require special handling.
 ;;
 (ns rapids.runtime.persistence
-  (:require rapids.objects.run
-            rapids.objects.flow
-            rapids.objects.pool
-            [clojure.main :as main]
+  (:require [clojure.main :as main]
             [clojure.string :as str]
-            [rapids.support.util :refer :all]
-            [rapids.storage.core :as s])
-  (:import (rapids.objects.flow Flow)
-           (rapids.objects.run Run)
+            [rapids.objects.flow]
+            [rapids.objects.pool]
+            [rapids.objects.run]
+            [rapids.storage.core :as s]
+            [rapids.support.util :refer :all])
+  (:import (clojure.lang AFunction Var)
+           (rapids.objects.flow Flow)
            (rapids.objects.pool Pool)
-           (clojure.lang AFunction Var)
+           (rapids.objects.run Run)
            (rapids.storage CacheProxy)))
 
 (defn debug-result [msg & args]

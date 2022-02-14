@@ -1,20 +1,20 @@
 -0 (ns rapids.runtime.run-loop
      (:require
-       [rapids.storage.core :refer :all]
-       [rapids.objects.startable :as startable]
-       [rapids.objects.closure :refer [closure? closure-name]]
-       [rapids.objects.interruptions :refer [interruption? ->interruption]]
-       [rapids.runtime.raise :refer [raise-partition-fn-address]]
-       [rapids.support.util :refer :all]
-       [rapids.runtime.runlet :refer [with-run current-run initialize-run-for-runlet pop-stack! suspend-run!
-                                      update-run! run? push-stack! interrupt-run! set-index!]]
-       [rapids.objects.signals :refer [suspend-signal? binding-change-signal? ->BindingChangeSignal]]
+       [rapids.objects.closure :refer [closure-name closure?]]
+       [rapids.objects.interruptions :refer [->interruption interruption?]]
+       [rapids.objects.run :as r]
+       [rapids.objects.signals :refer [->BindingChangeSignal binding-change-signal? suspend-signal?]]
        [rapids.objects.stack-frame :as sf]
-       [rapids.objects.run :as r])
-     (:import (rapids.objects.run Run)
+       [rapids.objects.startable :as startable]
+       [rapids.runtime.raise :refer [raise-partition-fn-address]]
+       [rapids.runtime.runlet :refer [current-run initialize-run-for-runlet interrupt-run! pop-stack! push-stack!
+                                      run? set-index! suspend-run! update-run! with-run]]
+       [rapids.storage.core :refer :all]
+       [rapids.support.util :refer :all])
+     (:import (clojure.lang ExceptionInfo Keyword)
               (rapids.objects CurrentContinuationChange)
-              (clojure.lang Keyword ExceptionInfo)
-              (rapids.objects.interruptions Interruption)))
+              (rapids.objects.interruptions Interruption)
+              (rapids.objects.run Run)))
 
 (declare start! continue!)
 (declare start-eval-loop! next-stack-fn!)

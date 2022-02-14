@@ -6,12 +6,12 @@
     [clojure.spec.alpha :as s]
     [clojure.tools.macro :refer [macrolet]]
     [java-time :as t]
-    [rapids.objects.signals :as signals]
     [rapids.objects.address :as a]
+    [rapids.objects.signals :as signals]
     [rapids.objects.stack-frame :as sf]
     [rapids.support.util :refer :all])
-  (:import (java.util UUID Vector)
-           (clojure.lang Keyword Cons Symbol Var PersistentHashMap)))
+  (:import (clojure.lang Cons Keyword PersistentHashMap Symbol Var)
+           (java.util UUID Vector)))
 
 (defrecord Run
   [^UUID id

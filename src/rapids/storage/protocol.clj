@@ -1,6 +1,6 @@
 (ns rapids.storage.protocol
-  (:require [rapids.support.util :refer [sausage-to-snake snake-to-sausage]]
-            [clojure.string :refer [split join]]
+  (:require [clojure.string :refer [join split]]
+            [rapids.support.util :refer [sausage-to-snake snake-to-sausage]]
             [taoensso.nippy :refer [freeze thaw]]))
 
 (defprotocol Storage

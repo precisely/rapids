@@ -1,9 +1,9 @@
 (ns rapids.language.operators
-  (:require [rapids.runtime.runlet :as rt]
-            [rapids.runtime.run-loop :as rl]
+  (:require [clojure.spec.alpha :as s]
             [rapids.objects.signals :as signals]
-            [taoensso.timbre :as log]
-            [clojure.spec.alpha :as s])
+            [rapids.runtime.run-loop :as rl]
+            [rapids.runtime.runlet :as rt]
+            [taoensso.timbre :as log])
   (:import (java.time LocalDateTime)))
 
 (s/def ::json (s/or

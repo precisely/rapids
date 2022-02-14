@@ -1,10 +1,10 @@
 (ns rapids.storage.storage_test
   (:require [clojure.test :refer :all]
-            [rapids.storage.globals :refer [*cache*]]
-            [rapids.storage.protocol :refer [thaw-record]]
-            [rapids.storage.cache :refer [set-cache-entry get-cache-entry]]
+            [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]
+            [rapids.storage.cache :refer [get-cache-entry set-cache-entry]]
             [rapids.storage.core :refer :all]
-            [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]))
+            [rapids.storage.globals :refer [*cache*]]
+            [rapids.storage.protocol :refer [thaw-record]]))
 
 (defrecord Foo [id val])
 

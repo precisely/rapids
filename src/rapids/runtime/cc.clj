@@ -6,10 +6,10 @@
 ;; of the
 ;;
 (ns rapids.runtime.cc
-  (:require [rapids.runtime.runlet :refer [current-run update-run!]]
+  (:require [rapids.language.flow :refer [deflow flow]]
+            [rapids.runtime.calling :refer [fcall]]
             [rapids.runtime.run-loop :refer [->CurrentContinuationChange]]
-            [rapids.language.flow :refer [flow deflow]]
-            [rapids.runtime.calling :refer [fcall]]))
+            [rapids.runtime.runlet :refer [current-run update-run!]]))
 
 (defmacro ^{:arglists '([f] [])} callcc
  "Call with current continuation. Saves the current state of the stack, and calls f

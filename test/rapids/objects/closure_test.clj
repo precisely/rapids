@@ -1,8 +1,8 @@
 (ns rapids.objects.closure-test
-  (:require [clojure.test :refer :all]
-            [clojure.core.match :refer [match]]
-            [rapids.objects.closure :refer :all]
+  (:require [clojure.core.match :refer [match]]
+            [clojure.test :refer :all]
             [rapids.objects.address :as a]
+            [rapids.objects.closure :refer :all]
             [rapids.partitioner.closure :refer [closure-constructor]]
             [rapids.partitioner.partition-set :as pset]))
 

@@ -1,8 +1,8 @@
 (ns rapids.partitioner.core
-  (:require rapids.partitioner.partition-utils
-            rapids.partitioner.partition
-            rapids.partitioner.partition-set
-            [potemkin :refer [import-vars]]))
+  (:require [potemkin :refer [import-vars]]
+            [rapids.partitioner.partition]
+            [rapids.partitioner.partition-set]
+            [rapids.partitioner.partition-utils]))
 
 (import-vars
   [rapids.partitioner.partition-utils bindings-expr-from-params]

@@ -1,18 +1,18 @@
 (ns test-helpers
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [rapids.storage.core :as s]
-            [rapids.objects.run :as r]
-            rapids.objects.pool
-            [rapids.runtime.runlet :as runlet]
-            [spy.core :as spy]
             [potemkin :refer [import-vars]]
+            [potemkin :refer [import-vars]]
+            [rapids.language.test]
+            [rapids.objects.pool]
+            [rapids.objects.run :as r]
+            [rapids.runtime.runlet :as runlet]
+            [rapids.storage.core :as s]
             [rapids.storage.core :as storage]
-            rapids.language.test
-            [potemkin :refer [import-vars]])
+            [spy.core :as spy])
   (:import (java.util Properties)
-           (rapids.objects.run Run)
-           (rapids.objects.pool Pool)))
+           (rapids.objects.pool Pool)
+           (rapids.objects.run Run)))
 
 (import-vars
   [rapids.language.test with-test-storage with-test-env flush-cache!])

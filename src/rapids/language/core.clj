@@ -1,10 +1,10 @@
 (ns rapids.language.core
-  (:require rapids.language.flow
-            rapids.language.pool-ops
-            rapids.language.attempt
-            rapids.runtime.cc
-            rapids.runtime.core
-            rapids.language.operators))
+  (:require [rapids.language.attempt]
+            [rapids.language.flow]
+            [rapids.language.operators]
+            [rapids.language.pool-ops]
+            [rapids.runtime.cc]
+            [rapids.runtime.core]))
 
 (defmacro declare-suspending
   "defs the supplied var names as suspending operators, useful for making forward declarations."

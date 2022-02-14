@@ -1,10 +1,10 @@
 (ns rapids.objects.flow
   (:require [rapids.objects.address :as a]
-            [rapids.support.util :refer [refers-to? qualify-symbol]]
+            [rapids.objects.startable :as c]
             [rapids.support.defrecordfn :refer [defrecordfn]]
-            [rapids.objects.startable :as c])
-  (:import (rapids.objects.startable Startable)
-           (clojure.lang Named)))
+            [rapids.support.util :refer [qualify-symbol refers-to?]])
+  (:import (clojure.lang Named)
+           (rapids.objects.startable Startable)))
 
 (defrecordfn Flow
   [;; Global symbol defined as this flow

@@ -1,8 +1,8 @@
 (ns rapids.runtime.run-loop-test
   (:require [clojure.test :refer :all]
             [rapids :refer :all]
-            [rapids.storage.connection-wrapper :refer [create-records!]]
             [rapids.objects.run :as r]
+            [rapids.storage.connection-wrapper :refer [create-records!]]
             [test-helpers :refer :all]))
 
 (defn id-set [c] (set (map :id c)))

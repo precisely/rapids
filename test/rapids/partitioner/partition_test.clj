@@ -1,13 +1,13 @@
 (ns rapids.partitioner.partition_test
-  (:require [clojure.test :refer :all]
-            [rapids.support.util :refer :all]
-            [clojure.core.match :refer [match]]
-            [rapids.partitioner.core :refer :all]
-            [rapids.partitioner.partition :refer [partition-vector-expr partition-set-expr partition-binding-expr]]
-            [rapids.partitioner.partition-set :refer [addresses]]
-            [rapids.objects.address :as address]
+  (:require [clojure.core.match :refer [match]]
+            [clojure.test :refer :all]
             [rapids.language.operators :as operators]
-            [rapids.objects.address :as a])
+            [rapids.objects.address :as address]
+            [rapids.objects.address :as a]
+            [rapids.partitioner.core :refer :all]
+            [rapids.partitioner.partition :refer [partition-binding-expr partition-set-expr partition-vector-expr]]
+            [rapids.partitioner.partition-set :refer [addresses]]
+            [rapids.support.util :refer :all])
   (:import (rapids.objects.flow Flow)))
 
 (declare PARTITION-ADDRESS MAIN)                            ; get rid of symbol resolution warnings

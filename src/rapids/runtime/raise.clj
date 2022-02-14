@@ -1,10 +1,10 @@
 (ns rapids.runtime.raise
-  (:require [rapids.runtime.calling :refer [fcall]]
-            [rapids.runtime.runlet :as rl]                  ; required to get deflow to compile
-            [rapids.language.flow :refer [deflow]]
-            [rapids.objects.address :refer [->address]]
+  (:require [rapids.language.flow :refer [deflow]]
+            [rapids.objects.address :refer [->address]]                  ; required to get deflow to compile
             [rapids.objects.interruptions :refer [interruption?]]
-            [rapids.runtime.globals :refer [*attempts*]]))
+            [rapids.runtime.calling :refer [fcall]]
+            [rapids.runtime.globals :refer [*attempts*]]
+            [rapids.runtime.runlet :as rl]))
 
 ;; TODO: determine why rapids.runtime.runlet is required to get this to compile
 ;;       for some reason, the (fcall...) forms below cause a compiler error of
