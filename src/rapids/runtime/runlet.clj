@@ -15,11 +15,11 @@
 
 (defn run? [o]
   (and (s/cache-proxy? o)
-       (= (.getName Run) (-> o (.theClass) (.getName)))))
+    (= (.getName Run) (-> o (.theClass) (.getName)))))
 
 (defn resolve-run [o]
   (let [run-id (if (run? o) (:id o) o)
-        run (s/cache-get! Run run-id)]
+        run    (s/cache-get! Run run-id)]
     (assert (run? run) ("Unable to locate Run" o))
     run))
 
@@ -48,7 +48,9 @@
   "Updates the current run, returning the new run"
   [& {:keys [] :as kvs}]
   {:pre [(r/valid-run-data? kvs)]}
-  (.update (current-run) #(merge % kvs)))
+  (let [result (.update (current-run) #(merge % kvs))]
+    (assert (not (and (:suspend result) (-> result :state (= :complete)))))
+    result))
 
 (defn initialize-run-for-runlet []
   (update-run! :suspend nil, :output [], :error-message nil, :error-info nil))
@@ -79,10 +81,10 @@
       (with-run maybe-run
         (apply set-index! maybe-kvs))
       (update-run! :index (reduce (fn [m [k v]]
-                                     (let [ks (if (vector? k) k [k])]
-                                       (assoc-in m ks v)))
-                                   (current-run :index)
-                                   (partition 2 kvs))))))
+                                    (let [ks (if (vector? k) k [k])]
+                                      (assoc-in m ks v)))
+                            (current-run :index)
+                            (partition 2 kvs))))))
 
 (defn add-responses! [& responses]
   (let [current-response (current-run :output)]
@@ -138,19 +140,19 @@
   {:pre [(var? lhs)]}
   (letfn [(assoc-dynamics [dynvar val]
             (loop [[bindings & dynamics] (reverse (current-run :dynamics))
-                   new-dynamics []]                         ; concat
+                   new-dynamics []] ; concat
               (if (contains? bindings dynvar)
                 (vec (doall (reverse (concat (conj new-dynamics (assoc bindings dynvar val)) dynamics))))
                 (if (empty? dynamics)
                   (throw (ex-info "Attempt to set! run dynamic which has not been bound"
-                                  {:var dynvar :value val}))
+                           {:var dynvar :value val}))
                   (recur dynamics (conj new-dynamics bindings))))))]
     (update-run! :dynamics (assoc-dynamics lhs rhs))))
 
 (defn enter-binding-body [f, bindings, _]
   (push-thread-bindings bindings)
   (try (f)
-       (catch Exception e#
-         (pop-run-bindings!)
-         (throw e#))
-       (finally (pop-thread-bindings))))
+    (catch Exception e#
+      (pop-run-bindings!)
+      (throw e#))
+    (finally (pop-thread-bindings))))

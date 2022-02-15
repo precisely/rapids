@@ -92,6 +92,7 @@
                          (ensure-cached-connection
                            (with-run run-id
                              (interrupt-run!)
+                             (initialize-run-for-runlet)
                              (push-stack! raise-partition-fn-address {} 'interrupt)
                              (start-eval-loop! (next-stack-fn!) i)
                              (current-run))))

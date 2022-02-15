@@ -3,8 +3,7 @@
             [clojure.stacktrace :as stacktrace]
             [rapids.language.time :refer [now]]
             [rapids.runtime.run-loop :refer [continue!]]
-            [rapids.runtime.runlet :refer [current-run with-run]]
-            [rapids.storage.core :refer [cache-find! cache-get! ensure-cached-connection with-storage]]
+            [rapids.storage.core :refer [cache-find! ensure-cached-connection with-storage]]
             [rapids.storage.globals :refer [current-storage]]
             [taoensso.timbre :as log])
   (:import (rapids.objects.run Run)))
