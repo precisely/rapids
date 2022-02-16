@@ -3,14 +3,14 @@
   (:import (clojure.lang RT)
            (java.util.concurrent.atomic AtomicInteger)))
 
-(def original-gensym gensym)
 (def ^:dynamic *gensym-counter*)
 (defn stable-gensym
   ([] (stable-gensym "G__"))
   ([s] (symbol (str s (swap! *gensym-counter* inc)))))
 
 (defmacro with-stable-gensym [& body]
-  `(let [prev-id#            (field-utils/*read-static-field RT "id" true)]
+  `(let [prev-id#            (field-utils/*read-static-field RT "id" true)
+         original-gensym#    gensym]
      (binding [*gensym-counter* (atom 0)]
        (alter-var-root #'gensym (constantly stable-gensym))
        (try
@@ -19,5 +19,5 @@
            result#)
          (finally
            (field-utils/*write-static-field RT "id" prev-id# true)
-           (alter-var-root #'gensym (constantly original-gensym)))))))
+           (alter-var-root #'gensym (constantly original-gensym#)))))))
 
