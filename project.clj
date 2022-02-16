@@ -44,6 +44,7 @@
                  [com.taoensso/timbre "5.1.2"]
                  [com.fzakaria/slf4j-timbre "0.3.21"]       ; needed by next.jdbc
                  [potemkin "0.4.5"]
+                 [clojure-interop/apache-commons-lang "1.0.0"]
 
                  ;; database
                  [org.postgresql/postgresql "42.3.1"]

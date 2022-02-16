@@ -4,6 +4,7 @@
     <option name="projectFiles">
       <set>
         <option value="file://$PROJECT_DIR$/../pia-server/project.clj" />
+        <option value="file://$PROJECT_DIR$/../rapids/project.clj" />
       </set>
     </option>
   </component>
