@@ -2,7 +2,8 @@
   (:require [clojure.set :refer [difference intersection]]
             [clojure.walk :refer [postwalk]]
             [rapids.objects.address :as a]
-            [rapids.support.util :refer [ifit in? unqualified-symbol?]]))
+            [rapids.support.util :refer [unqualified-symbol?]]
+            [clojure.string :as str]))
 
 ;;
 ;; HELPERS
@@ -13,14 +14,6 @@
   ([params] (bindings-expr-from-params params params))
   ([key-params, arg-params]
    `(hash-map ~@(interleave (map keyword key-params) arg-params))))
-
-(defn macroexpand-keeping-metadata
-  [expr]
-  (let [expr-meta (meta expr)
-        mexpr (macroexpand expr)]
-    (if expr-meta
-      (if mexpr (with-meta mexpr expr-meta))
-      mexpr)))
 
 (defn constant? [o]
   (or (number? o) (boolean? o) (string? o) (keyword? o)
@@ -42,10 +35,10 @@
 (def ^:dynamic *partitioning-expr* nil)
 (defn throw-partition-error
   ([msg & args]
-   (let [m (meta *partitioning-expr*)
-         line (:line m)
-         loc (if line (format " at line %s" line) "")
-         title (format "Failed while partitioning %s%s. " *partitioning-expr* loc)
+   (let [m      (meta *partitioning-expr*)
+         line   (:line m)
+         loc    (if line (format " at line %s" line) "")
+         title  (format "Failed while partitioning %s%s. " *partitioning-expr* loc)
          detail (if msg (apply format msg args) "")]
      (throw (ex-info (str title detail)
               (assoc m
@@ -63,8 +56,8 @@
 (defn closure-captured-bindings
   "Given a form and a vector of unqualified symbols, returns the symbols which appear in form"
   [fn-params fn-body env-params]
-  (let [form-symbols (unqualified-symbols-in fn-body)
-        body-bindings (intersection form-symbols (set env-params))
+  (let [form-symbols      (unqualified-symbols-in fn-body)
+        body-bindings     (intersection form-symbols (set env-params))
         captured-bindings (difference body-bindings (set fn-params))]
     (vec captured-bindings)))
 
