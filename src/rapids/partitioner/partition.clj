@@ -9,7 +9,8 @@
             [rapids.partitioner.recur :refer [*recur-binding-point* *tail-position* with-binding-point with-tail-position]]
             [rapids.support.debug :refer :all]
             [rapids.support.util :refer :all]
-            [rapids.partitioner.macroexpand :refer [partition-macroexpand partition-macroexpand-1 exclude-from-gensym-replacement]])
+            [rapids.partitioner.macroexpand
+             :refer [partition-macroexpand partition-macroexpand-1 exclude-from-gensym-replacement stable-symbol]])
   (:import (clojure.lang ArityException LazySeq)))
 
 ;;;; Partitioner
@@ -360,9 +361,9 @@
 
   to something like ...
 
-  (let [*a*123 (foo), *b*124 (bar)] ; gensymed symbols used to partition the values
-    (push-dynamic-bindings! {#'*a* *a*123, #'*b* *b*124})
-    (push-thread-dynamic-bindings {#'*a* *a*123, #'*b* *b*124})
+  (let [<<1>> (foo), <<2>> (bar)] ; gensymed symbols used to partition the values
+    (push-dynamic-bindings! {#'*a* <<1>>, #'*b* <<2>>})
+    (push-thread-dynamic-bindings {#'*a* <<1>>, #'*b* <<2>>})
     (try ...body
        (finally (pop-thread-dynamic-bindings))
     (pop-dynamic-bindings!))
@@ -376,7 +377,7 @@
         body-address    (a/child address 1)
         [_ bindings & body] expr
         [dynvars, args] (map vec (reverse-interleave bindings 2))
-        keys            (map (comp partition-macroexpand gensym name) dynvars) ; binding allows qualified syms; let does not!
+        keys            (repeatedly (count dynvars) stable-symbol)
         body-bindings   (map #(vector %1 %2) dynvars keys)
         bindings-map    (into {} (map (fn [[lhs rhs]] `[(var ~lhs) ~rhs]) body-bindings))
         modifier        (make-dynamic-binding-body-modifier bindings-map)
@@ -424,7 +425,7 @@
 
         branch-addr address
 
-        test-result (parameter-symbol (a/child address 0))
+        test-result (stable-symbol)
         start       (if test-suspend?
                       `(resume-at [~branch-addr, [~@params], ~test-result], ~test-start)
                       (with-meta `(if ~test ~then-start ~else-start) (meta expr)))
@@ -574,7 +575,7 @@
     (let [address    (a/child address op)
           [_ & args] expr
           value-expr (call-form args)
-          keys       (map partition-macroexpand (make-implicit-parameters address args)) ;
+          keys       (make-implicit-parameters args)
           pcall-body [(call-form keys)]
           [start, pset, suspend?]
           (partition-bindings keys args partition-address address params

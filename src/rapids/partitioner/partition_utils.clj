@@ -3,7 +3,7 @@
             [clojure.walk :refer [postwalk]]
             [rapids.objects.address :as a]
             [rapids.support.util :refer [unqualified-symbol?]]
-            [clojure.string :as str]))
+            [rapids.partitioner.macroexpand :refer [stable-symbol]]))
 
 ;;
 ;; HELPERS
@@ -22,14 +22,11 @@
       (every? constant? (keys o))
       (every? constant? (vals o)))))
 
-(defn parameter-symbol [address]
-  (symbol (a/point-to-string address)))
-
-(defn make-implicit-parameters [address args]
+(defn make-implicit-parameters [args]
   (map-indexed (fn [i v]
                  (if (or (constant? v) (symbol? v))
                    v
-                   (parameter-symbol (a/child address i))))
+                   (stable-symbol)))
     args))
 
 (def ^:dynamic *partitioning-expr* nil)

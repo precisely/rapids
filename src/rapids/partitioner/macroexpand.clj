@@ -24,11 +24,12 @@
 (defn stable-symbol
   "Given a symbol, returns a new unique symbol within a gensym context which is guaranteed to be
   the same across macroexpansions of the same code."
-  [old-sym]
-  (or (get @(gensym-map) old-sym)
-    (let [new-sym (symbol (str "<<" (swap! (gensym-counter) inc) ">>"))]
-      (swap! (gensym-map) assoc old-sym new-sym)
-      new-sym)))
+  ([] (stable-symbol (gensym)))
+  ([old-sym]
+   (or (get @(gensym-map) old-sym)
+     (let [new-sym (symbol (str "<<" (swap! (gensym-counter) inc) ">>"))]
+       (swap! (gensym-map) assoc old-sym new-sym)
+       new-sym))))
 (defn exclude-from-gensym-replacement [symbols]
   (let [symbols (cond
                   (symbol? symbols) #{symbols}
