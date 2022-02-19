@@ -1,11 +1,9 @@
 (ns rapids.partitioner.partition_test
   (:require [clojure.core.match :refer [match]]
             [clojure.test :refer :all]
-            [rapids.language.operators :as operators]
             [rapids.objects.address :as address]
-            [rapids.objects.address :as a]
             [rapids.partitioner.core :refer :all]
-            [rapids.partitioner.partition :refer [partition-binding-expr partition-set-expr partition-vector-expr]]
+            [rapids.partitioner.partition :refer [partition-set-expr partition-vector-expr]]
             [rapids.partitioner.partition-set :refer [addresses]]
             [rapids.support.util :refer :all])
   (:import (rapids.objects.flow Flow)))

@@ -37,7 +37,7 @@
       (is (if-match [['clojure.core/fn _ [{:keys ['a 'b]}]
                       ['clojure.core/binding [] ['* 'a 'b]]]
 
-                     (partition-fn-def {addr1 (->Partition '[a b] '[(* a b)])} addr1)]
+                     (partition-fn-def {addr1 (->Partition '[a b] '[(* a b)])} addr1 (atom 0))]
             true)))
 
     (testing "partition-fn-set-def"

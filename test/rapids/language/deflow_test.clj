@@ -43,4 +43,10 @@
       (let [run (start! prepost-conditions [2])]
         (is (= (:state run) :running))
         (is (thrown-with-msg? AssertionError #"Assert failed\: \(< % 10\)"
-              (continue! (:id run) :input 100)))))))
+              (continue! (:id run) :input 100)))))
+
+    (testing "it should macroexpand to identical code each time"
+      (let [flow-code '(deflow foo [count]
+                         (doseq [iter count] (<*)))] ; doseq produces gensyms
+        (is (= (macroexpand flow-code)
+              (macroexpand flow-code)))))))

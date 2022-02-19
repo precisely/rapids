@@ -63,9 +63,9 @@
 
 (defn partition-fn-def
   "Returns the code which defines the partition fn at address"
-  [pset address]
+  [pset address counter]
   (let [cdef (get pset address)
-        name (gensym (name (:flow address)))
+        name (symbol (str (name (:flow address)) (swap! counter inc)))
         params (:params cdef)
         dynamics (filter dynamic? params)                   ; TODO: disallow binding system dynamic vars - security issue
         dynamic-bindings (vec (flatten (map #(vector % %) dynamics)))]
@@ -76,8 +76,9 @@
 (defn partition-fn-set-def
   "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"
   [pset]
-  (let [pfdefs (map (fn [[address _]]
-                     [`(quote ~(:point address)) (partition-fn-def pset address)]) (dissoc pset :unforced))]
+  (let [counter (atom 0)
+        pfdefs (map (fn [[address _]]
+                     [`(quote ~(:point address)) (partition-fn-def pset address counter)]) (dissoc pset :unforced))]
     `(hash-map ~@(apply concat pfdefs))))
 
 (defn combine
