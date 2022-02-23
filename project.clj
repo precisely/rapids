@@ -44,8 +44,8 @@
                  [com.taoensso/timbre "5.1.2"]
                  [com.fzakaria/slf4j-timbre "0.3.21"]       ; needed by next.jdbc
                  [potemkin "0.4.5"]
-                 [org.apache.commons/commons-lang3 "3.12.0"]
-                 [clojure-interop/apache-commons-lang "1.0.0"]
+                 [buddy/buddy-core "1.7.1"]
+                 [net.clojars.aneilm/lein-project-reader "0.0.1"]
 
                  ;; database
                  [org.postgresql/postgresql "42.3.1"]

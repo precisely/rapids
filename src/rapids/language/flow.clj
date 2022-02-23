@@ -1,9 +1,18 @@
 (ns rapids.language.flow
   (:require [rapids.objects.address :refer [->address]]
-            [rapids.objects.flow :refer [->Flow in-flow-definition-context? with-flow-definitions]]
+            [rapids.objects.flow :refer [->Flow in-flow-definition-context? with-flow-definitions flow-symbol?]]
             [rapids.partitioner.core :refer [partition-flow-body partition-fn-set-def]]
             [rapids.support.util :refer [qualify-symbol]]
-            [rapids.partitioner.macroexpand :refer [with-gensym-context]]))
+            [rapids.partitioner.macroexpand :refer [with-gensym-context]]
+            [rapids.objects.version :as v]))
+
+(defn merge-flows [flow1 flow2]
+  (update (update flow1 :entry-points merge (:entry-points flow2))
+    :partition-fns (:partition-fns flow2)))
+
+(defn get-existing-flow [qual-sym]
+  (let [v (find-var qual-sym)]
+    (if (bound? v) (var-get v))))
 
 (defmacro deflow
   "Define a flow, using the same semantics as defn.
@@ -16,12 +25,18 @@
     (with-flow-definitions name
       (if-not (string? docstring?)
         (with-meta `(deflow ~name "" ~docstring? ~@fdecl) (meta &form))
-        (let [qualified-name (qualify-symbol name)
+        (let [qualified-name (if (qualified-symbol? name) name (qualify-symbol name))
               address        (->address qualified-name)
               [entry-fn-def, pset] (partition-flow-body (meta &form) address fdecl)
-              flow-form      `(let [pfn-set# ~(partition-fn-set-def pset)]
-                                (->Flow '~qualified-name, ~entry-fn-def, pfn-set#))]
-          `(def ^{:doc ~docstring?} ~name ~flow-form))))))
+              [pfn-defs address-map-def] (partition-fn-set-def name pset)]
+          `(let [pfn-map#       ~address-map-def
+                 new-flow#      (->Flow '~qualified-name, {(v/module-version) ~entry-fn-def}, pfn-map#)
+                 existing-flow# (get-existing-flow '~qualified-name)]
+             (if existing-flow#
+               (merge-flows existing-flow# new-flow#)
+               (def ^{:doc ~docstring?} ~name new-flow#))
+             ~@pfn-defs
+             (var ~qualified-name)))))))
 
 (defmacro deflow-
   "Same as deflow, defining a non-public flow"

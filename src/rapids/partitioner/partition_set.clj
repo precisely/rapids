@@ -1,5 +1,9 @@
 (ns rapids.partitioner.partition-set
-  (:require [rapids.objects.address :as a :refer [address?]]))
+  (:require [rapids.objects.address :as a :refer [address?]]
+            [taoensso.nippy :as nippy]
+            [buddy.core.hash :as hash]
+            [buddy.core.codecs :as codecs]
+            [rapids.support.util :as util]))
 
 ;;;; PartitionSet
 
@@ -26,7 +30,7 @@
 (defn partition-set? [o] (map? o))
 
 (defn create []
-  {:unforced #{}})                                          ;; unforced partitions may be dropped by partitioning functions
+  {:unforced #{}})            ;; unforced partitions may be dropped by partitioning functions
 ;; closure partitions are always FORCED
 
 (defn remove-unforced [pset]
@@ -61,25 +65,46 @@
     (resolve o)
     (-> o meta :dynamic)))
 
+(defn partition-hash [pdef]
+  (-> pdef nippy/freeze hash/sha1 codecs/bytes->hex))
+
 (defn partition-fn-def
   "Returns the code which defines the partition fn at address"
-  [pset address counter]
-  (let [cdef (get pset address)
-        name (symbol (str (name (:flow address)) (swap! counter inc)))
-        params (:params cdef)
-        dynamics (filter dynamic? params)                   ; TODO: disallow binding system dynamic vars - security issue
+  [flow-name pdef]
+  (let [phash            (partition-hash pdef)
+        pfn-name         (symbol (str flow-name "_" phash))
+        params           (:params pdef)
+        dynamics         (filter dynamic? params) ; TODO: disallow binding system dynamic vars - security issue
         dynamic-bindings (vec (flatten (map #(vector % %) dynamics)))]
-    `(fn ~name [{:keys ~params}]
-       (binding ~dynamic-bindings
-         ~@(:body cdef)))))
+    [pfn-name
+     `(defn ~pfn-name [{:keys ~params}]
+        (binding ~dynamic-bindings
+          ~@(:body pdef)))]))
 
 (defn partition-fn-set-def
-  "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"
-  [pset]
-  (let [counter (atom 0)
-        pfdefs (map (fn [[address _]]
-                     [`(quote ~(:point address)) (partition-fn-def pset address counter)]) (dissoc pset :unforced))]
-    `(hash-map ~@(apply concat pfdefs))))
+  "Generates [fn-defs, `(hash-map address1 qualified-fn-name1...)]`"
+  [flow-name pset]
+  (if-let [pset-entries (seq (dissoc pset :unforced))]
+    (loop [[[address pdef] & rest-pset] pset-entries
+           pfdefs              []
+           address-map-entries []]
+      (let [[pf-name pfdef] (partition-fn-def flow-name pdef)
+            pfdefs (conj pfdefs pfdef)
+            qual-pf-name (util/qualify-symbol pf-name)
+            address-map-entries (concat address-map-entries [address `(quote ~qual-pf-name)])]
+        (if rest-pset
+          (recur rest-pset pfdefs address-map-entries)
+          [pfdefs
+           `(hash-map ~@address-map-entries)])))
+    [() {}]))
+
+#_(let [pfdefs (map (fn [[address pdef]]
+                      (let [point (:point address)
+                            [pfn-name pfn-def] (partition-fn-def pdef)]
+                        [`(quote ~point) `(quote ~pfn-name) pfn-def]))
+                 (dissoc pset :unforced))]
+    `[(hash-map)
+      (hash-map ~@(apply concat pfdefs))])
 
 (defn combine
   [& psets]

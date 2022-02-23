@@ -2,12 +2,13 @@
   (:require [clojure.test :refer :all]
             [matchure.core :refer :all]
             [rapids.objects.address :as address]
-            [rapids.partitioner.partition-set :refer :all]))
+            [rapids.partitioner.partition-set :refer :all]
+            [rapids.support.util :refer [qualify-symbol]]))
 
-(declare main)                                              ; get rid of symbol resolution warnings
+(declare main)                ; get rid of symbol resolution warnings
 
 (deftest ^:unit PartitionSet
-  (let [addr (address/->address `main)
+  (let [addr  (address/->address `main)
         addr1 (address/child addr 1)
         addr2 (address/child addr 2)
         addr3 (address/child addr 3)
@@ -34,25 +35,30 @@
                 (set [addr1 addr2 addr3]))))))
 
     (testing "partition-fn-def"
-      (is (if-match [['clojure.core/fn _ [{:keys ['a 'b]}]
-                      ['clojure.core/binding [] ['* 'a 'b]]]
-
-                     (partition-fn-def {addr1 (->Partition '[a b] '[(* a b)])} addr1 (atom 0))]
-            true)))
+      (is (if-match [[?name ['clojure.core/defn ?fname [{:keys ['a 'b]}]
+                             ['clojure.core/binding [] ['* 'a 'b]]]]
+                     (partition-fn-def `foo (->Partition '[a b] '[(* a b)]))]
+            (= name fname))))
 
     (testing "partition-fn-set-def"
-      (is (if-match [['clojure.core/hash-map
-                      ?a1 ['clojure.core/fn _ [{:keys ['a 'b]}] ['clojure.core/binding [] ['* 'a 'b]]]
-                      ?a2 ['clojure.core/fn _ [{:keys ['a 'c]}] ['clojure.core/binding [] ['+ 'c 'a]]]]
-                     (partition-fn-set-def {addr1 (->Partition '[a b] '[(* a b)])
-                                            addr2 (->Partition '[a c] '[(+ c a)])})]
-            (and (= a1 `'~(:point addr1)) (= a2 `'~(:point addr2))))))
+      (is (if-match [[[['clojure.core/defn ?f1 [{:keys ['a 'b]}] ['clojure.core/binding [] ['* 'a 'b]]]
+                       ['clojure.core/defn ?f2 [{:keys ['a 'c]}] ['clojure.core/binding [] ['+ 'c 'a]]]]
+                      ['clojure.core/hash-map
+                       ?a1 ['quote ?f1-sym]
+                       ?a2 ['quote ?f2-sym]]]
+                     (partition-fn-set-def 'foo {addr1 (->Partition '[a b] '[(* a b)])
+                                                 addr2 (->Partition '[a c] '[(+ c a)])})]
+            (and
+              (= a1 addr1)
+              (= a2 addr2)
+              (= (qualify-symbol f1) f1-sym)
+              (= (qualify-symbol f2) f2-sym)))))
 
 
     (testing "forced and unforced addresses"
-      (let [full-pset (create)
-            full-pset (add full-pset addr1 '[keep] '[this] true)
-            full-pset (add full-pset addr2 '[drop] '[this])
+      (let [full-pset   (create)
+            full-pset   (add full-pset addr1 '[keep] '[this] true)
+            full-pset   (add full-pset addr2 '[drop] '[this])
             forced-pset (remove-unforced full-pset)]
         (is (contains? full-pset addr1))
         (is (contains? full-pset addr2))

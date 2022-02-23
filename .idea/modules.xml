@@ -2,8 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/../pia-server/pia-server.iml" filepath="$PROJECT_DIR$/../pia-server/pia-server.iml" />
-      <module fileurl="file://$PROJECT_DIR$/../pia-server/checkouts/rapids/rapids.iml" filepath="$PROJECT_DIR$/../pia-server/checkouts/rapids/rapids.iml" />
+      <module fileurl="file://$PROJECT_DIR$/rapids.iml" filepath="$PROJECT_DIR$/rapids.iml" />
     </modules>
   </component>
 </project>

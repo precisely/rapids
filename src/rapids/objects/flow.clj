@@ -1,6 +1,7 @@
 (ns rapids.objects.flow
   (:require [rapids.objects.address :as a]
             [rapids.objects.startable :as c]
+            [rapids.objects.version :as v]
             [rapids.support.defrecordfn :refer [defrecordfn]]
             [rapids.support.util :refer [qualify-symbol refers-to?]])
   (:import (clojure.lang Named)
@@ -10,7 +11,7 @@
   [;; Global symbol defined as this flow
    name
    ;; Function with arbitrary signature
-   entry-point
+   entry-points
    ;; A map of address-point strings to functions of the form (fn [{:keys [...]}])
    partition-fns]
 
@@ -27,7 +28,7 @@
 
   Startable
   (c/call-entry-point [this args]
-    (apply (get this :entry-point) args)))
+    (apply (get-in this [:entry-points (v/module-version)]) args)))
 
 (defn flow? [o]
   (instance? Flow o))
@@ -58,7 +59,8 @@
   {:pre [(a/address? address)
          (map? bindings)]}
   (let [flow (a/resolved-flow address)
-        pfn  (get-in flow [:partition-fns (:point address)])]
+        pfn  (some-> (get-in flow [:partition-fns address])
+               resolve var-get)]
     (if-not (fn? pfn)
       (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
                       {:type        :system-error

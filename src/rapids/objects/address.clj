@@ -1,8 +1,8 @@
 (ns rapids.objects.address
-  (:require [clojure.string :as string]
-            [clojure.test :refer [is]])
+  (:require [rapids.objects.version :as v])
   (:import (clojure.lang Symbol)
-           (java.util Vector)))
+           (java.util Vector)
+           (rapids.objects.version Version)))
 
 ;; Address identifies a point in a flow.
 ;; While addresses can be generated for any point in the tree,
@@ -38,7 +38,9 @@
 ;; or by providing an implementation which prevents associng.
 ;;
 (defrecord Address
-  [^Symbol flow, ^Vector point])
+  [^Symbol flow, ^Version version, ^Vector point]
+  Object
+  (toString [this] (pr-str this)))
 
 (defn address? [o] (instance? Address o))
 
@@ -47,6 +49,7 @@
   {:pre [(qualified-symbol? symbol)]}
   (Address.
     symbol
+    (v/module-version)
     (mapv simplify-if-symbol point)))
 
 (defn point-to-string [address]
@@ -62,7 +65,7 @@
 
 (defn to-string
   [a]
-  (str "$" (.getName (:flow a)) (point-to-string a)))
+  (str (.getName (:flow a)) "_" (-> a :version v/version->string) "_" (point-to-string a)))
 
 (defn child
   [address & point]
@@ -96,5 +99,5 @@
 (defmethod print-method Address
   [o w]
   (print-simple
-    (str "(->Address '" (:flow o) " '" (:point o) ")")
+    (str "(->Address '" (:flow o) " " (pr-str (:version o)) " '" (:point o) ")")
     w))

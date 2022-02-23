@@ -10,7 +10,8 @@
             [rapids.runtime.runlet :refer :all]
             [rapids.storage.core :as s :refer [cache-get! cache-insert! ensure-cached-connection
                                                ensure-connection with-storage]]
-            [test-helpers :refer :all])
+            [test-helpers :refer :all]
+            [rapids.objects.version :as v])
   (:import (rapids.objects.run Run)))
 
 (deftest ^:unit RunSerialization
@@ -55,5 +56,5 @@
           (let [loaded-parent-run (get-run-record (:id parent-run))
                 deserialized-foo (-> loaded-parent-run :stack first :bindings :foo-flow)]
             (is (flow/flow? deserialized-foo))
-            (is (fn? (:entry-point deserialized-foo)))
+            (is (fn? (get-in deserialized-foo [:entry-points (v/module-version)])))
             (is (= 9 (startable/call-entry-point foo [3])))))))))
