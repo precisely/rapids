@@ -1,4 +1,4 @@
-(ns rapids.partitioner.partition_set_test
+(ns rapids.partitioner.partition-set-test
   (:require [clojure.test :refer :all]
             [matchure.core :refer :all]
             [rapids.objects.address :as address]
@@ -34,7 +34,7 @@
           (is (= (set (keys (addresses combination)))
                 (set [addr1 addr2 addr3]))))))
 
-    (testing "partition-fn-def"
+    #_(testing "partition-fn-def"
       (is (if-match [[?name ['clojure.core/defn ?fname [{:keys ['a 'b]}]
                              ['clojure.core/binding [] ['* 'a 'b]]]]
                      (partition-fn-def `foo (->Partition '[a b] '[(* a b)]))]
@@ -46,8 +46,8 @@
                       ['clojure.core/hash-map
                        ?a1 ['quote ?f1-sym]
                        ?a2 ['quote ?f2-sym]]]
-                     (partition-fn-set-def 'foo {addr1 (->Partition '[a b] '[(* a b)])
-                                                 addr2 (->Partition '[a c] '[(+ c a)])})]
+                     (partition-fn-set-def {addr1 (->Partition '[a b] '[(* a b)])
+                                            addr2 (->Partition '[a c] '[(+ c a)])})]
             (and
               (= a1 addr1)
               (= a2 addr2)

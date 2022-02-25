@@ -4,16 +4,29 @@
             [rapids.objects.version :as v]
             [rapids.support.defrecordfn :refer [defrecordfn]]
             [rapids.support.util :refer [qualify-symbol refers-to?]])
-  (:import (clojure.lang Named)
-           (rapids.objects.startable Startable)))
+  (:import (clojure.lang Named IPersistentMap Symbol)
+           (rapids.objects.startable Startable)
+           (rapids.objects.version Version)))
 
 (defrecordfn Flow
   [;; Global symbol defined as this flow
-   name
-   ;; Function with arbitrary signature
-   entry-points
-   ;; A map of address-point strings to functions of the form (fn [{:keys [...]}])
-   partition-fns]
+   ^Symbol name
+
+   ^Version version
+
+   ^String doc
+
+   ;; Map of major version numbers to functions with user-defined signatures
+   ^IPersistentMap entry-points
+
+   ;; Map of addresses to functions of the form (fn [{:keys [...]}])
+   ^IPersistentMap partition-hashes
+
+   ;; Map of addresses to partition parameter lists
+   ^IPersistentMap partition-params
+
+   ;; Map of partition hashes to partition functions
+   ^IPersistentMap partition-fns]
 
   :fn (fn [this & _]
         (throw (ex-info (str "Improperly invoked flow: " (:name this) ". Use start!, fcall or fapply when flow is bound dynamically.")
@@ -59,7 +72,8 @@
   {:pre [(a/address? address)
          (map? bindings)]}
   (let [flow (a/resolved-flow address)
-        pfn  (some-> (get-in flow [:partition-fns address])
+        partition-hash (get-in flow [:partition-hashes address])
+        pfn  (some->> (get-in flow [:partition-fns partition-hash])
                resolve var-get)]
     (if-not (fn? pfn)
       (throw (ex-info (str "Attempt to continue flow at undefined partition " address)

@@ -1,18 +1,11 @@
 (ns rapids.language.flow
   (:require [rapids.objects.address :refer [->address]]
             [rapids.objects.flow :refer [->Flow in-flow-definition-context? with-flow-definitions flow-symbol?]]
+            [rapids.language.flow-utils :refer :all]
             [rapids.partitioner.core :refer [partition-flow-body partition-fn-set-def]]
             [rapids.support.util :refer [qualify-symbol]]
             [rapids.partitioner.macroexpand :refer [with-gensym-context]]
             [rapids.objects.version :as v]))
-
-(defn merge-flows [flow1 flow2]
-  (update (update flow1 :entry-points merge (:entry-points flow2))
-    :partition-fns (:partition-fns flow2)))
-
-(defn get-existing-flow [qual-sym]
-  (let [v (find-var qual-sym)]
-    (if (bound? v) (var-get v))))
 
 (defmacro deflow
   "Define a flow, using the same semantics as defn.
@@ -28,15 +21,25 @@
         (let [qualified-name (if (qualified-symbol? name) name (qualify-symbol name))
               address        (->address qualified-name)
               [entry-fn-def, pset] (partition-flow-body (meta &form) address fdecl)
-              [pfn-defs address-map-def] (partition-fn-set-def name pset)]
-          `(let [pfn-map#       ~address-map-def
-                 new-flow#      (->Flow '~qualified-name, {(v/module-version) ~entry-fn-def}, pfn-map#)
-                 existing-flow# (get-existing-flow '~qualified-name)]
-             (if existing-flow#
-               (merge-flows existing-flow# new-flow#)
-               (def ^{:doc ~docstring?} ~name new-flow#))
-             ~@pfn-defs
-             (var ~qualified-name)))))))
+              [pfn-map-def, phash-map-def, params-map-def] (partition-fn-set-def pset)
+              version        (v/module-version)]
+          `(do (declare ~name)
+             (let [existing-var#  (find-var '~qualified-name)
+                   existing-flow# (if (and existing-var# (bound? existing-var#)) (var-get existing-var#))
+                   new-flow#      (->Flow
+                                     '~qualified-name
+                                     ~version
+                                     ~docstring?
+                                     {~(:major version) ~entry-fn-def}
+                                     ~phash-map-def
+                                     ~params-map-def
+                                     ~pfn-map-def)]
+               (if existing-flow#
+                 (let [merged# (merge-flows existing-flow# new-flow#)]
+                   (alter-var-root existing-var# (constantly merged#))
+                   (alter-meta! existing-var# assoc :doc merged#))
+                 (def ^{:doc ~docstring?} ~name new-flow#))
+               (find-var '~qualified-name))))))))
 
 (defmacro deflow-
   "Same as deflow, defining a non-public flow"
@@ -67,3 +70,4 @@
     (with-flow-definitions flow-symbols
       `(let ~flow-bindings
          ~@body))))
+

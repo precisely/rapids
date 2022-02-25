@@ -13,7 +13,9 @@
   [^Integer major,
    ^Integer minor,
    ^Integer patch,
-   ^Boolean snapshot])
+   ^Boolean snapshot]
+  Object
+  (toString [this] (pr-str this)))
 
 (defn module-version
   "Return the module"
@@ -23,10 +25,33 @@
   ([]
    {:post [(instance? Version %)]}
    (if (bound? #'*rapids-module-version*) *rapids-module-version*
-     (alter-var-root #'*rapids-module-version* (constantly (-> (read-project) :version string->version))))))
+     (-> (read-project) :version string->version))))
+
+(defn flatten-version [{major :major, minor :minor, patch :patch}] [major minor patch])
+
+(defn num-sequence>
+  "Tests two sequences of numbers from left to right, returning true if s1>s2"
+  [s1 s2]
+  (let [[s1num & s1rest] s1
+        [s2num & s2rest] s2
+        s1num (or s1num 0)
+        s2num (or s2num 0)]
+    (if (> s1num s2num) true
+      (if (< s1num s2num) false
+        (if (or s1rest s2rest)
+          (num-sequence> s1rest s2rest)
+          false)))))
+
+(defn version> [v1 v2] (num-sequence> (flatten-version v1) (flatten-version v2)))
 
 (defn version->string [v]
   (str (:major v) "." (:minor v) "." (:patch v) (if (:snapshot v) "-SNAPSHOT" "")))
+
+(defn version-change
+  "Returns [level v1-level v2-level] if versions differ, where level = :major|:minor|:patch"
+  [v1 v2]
+  (-> (drop-while (fn [[_ v1n v2n]] (= v1n v2n)) (map #(vector %1 %2 %3) [:major :minor :patch :snapshot] (flatten-version v1) (flatten-version v2)))
+    first))
 
 (defn string->version [v]
   (let [[major minor patch] (str/split v #"\.")

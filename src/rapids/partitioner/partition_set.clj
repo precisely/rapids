@@ -68,43 +68,37 @@
 (defn partition-hash [pdef]
   (-> pdef nippy/freeze hash/sha1 codecs/bytes->hex))
 
-(defn partition-fn-def
+(defn partition-fn-entry
   "Returns the code which defines the partition fn at address"
-  [flow-name pdef]
-  (let [phash            (partition-hash pdef)
-        pfn-name         (symbol (str flow-name "_" phash))
+  [pdef]
+  (let [phash            (symbol (partition-hash pdef))
         params           (:params pdef)
         dynamics         (filter dynamic? params) ; TODO: disallow binding system dynamic vars - security issue
         dynamic-bindings (vec (flatten (map #(vector % %) dynamics)))]
-    [pfn-name
-     `(defn ~pfn-name [{:keys ~params}]
+    [`(quote ~phash)
+     params
+     `(fn ~(symbol phash) [{:keys ~params}]
         (binding ~dynamic-bindings
           ~@(:body pdef)))]))
 
 (defn partition-fn-set-def
-  "Generates [fn-defs, `(hash-map address1 qualified-fn-name1...)]`"
-  [flow-name pset]
+  "Generates [partition-fn-map, partition-hash-map, param-map]"
+  [pset]
   (if-let [pset-entries (seq (dissoc pset :unforced))]
     (loop [[[address pdef] & rest-pset] pset-entries
-           pfdefs              []
-           address-map-entries []]
-      (let [[pf-name pfdef] (partition-fn-def flow-name pdef)
-            pfdefs (conj pfdefs pfdef)
-            qual-pf-name (util/qualify-symbol pf-name)
-            address-map-entries (concat address-map-entries [address `(quote ~qual-pf-name)])]
+           pfn-map-entries   []
+           param-map-entries []
+           phash-map-entries []]
+      (let [[phash params pf-def] (partition-fn-entry pdef)
+            pfn-map-entries   (conj pfn-map-entries phash pf-def)
+            phash-map-entries (conj phash-map-entries address phash)
+            param-map-entries (conj param-map-entries address `(quote ~params))]
         (if rest-pset
-          (recur rest-pset pfdefs address-map-entries)
-          [pfdefs
-           `(hash-map ~@address-map-entries)])))
-    [() {}]))
-
-#_(let [pfdefs (map (fn [[address pdef]]
-                      (let [point (:point address)
-                            [pfn-name pfn-def] (partition-fn-def pdef)]
-                        [`(quote ~point) `(quote ~pfn-name) pfn-def]))
-                 (dissoc pset :unforced))]
-    `[(hash-map)
-      (hash-map ~@(apply concat pfdefs))])
+          (recur rest-pset pfn-map-entries phash-map-entries param-map-entries)
+          [`(hash-map ~@pfn-map-entries)
+           `(hash-map ~@phash-map-entries)
+           `(hash-map ~@param-map-entries)])))
+    [{} {} {}]))
 
 (defn combine
   [& psets]

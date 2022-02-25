@@ -38,18 +38,23 @@
 ;; or by providing an implementation which prevents associng.
 ;;
 (defrecord Address
-  [^Symbol flow, ^Version version, ^Vector point]
+  [^Symbol flow, ^String version, ^Vector point]
   Object
   (toString [this] (pr-str this)))
 
 (defn address? [o] (instance? Address o))
+
+(defn major-minor-version-string []
+  (let [{major :major minor :minor} (v/module-version)]
+    (assert (and (number? major) (number? minor)))
+    (str major "." minor)))
 
 (defn ->address
   [symbol & point]
   {:pre [(qualified-symbol? symbol)]}
   (Address.
     symbol
-    (v/module-version)
+    (major-minor-version-string)
     (mapv simplify-if-symbol point)))
 
 (defn point-to-string [address]
@@ -99,5 +104,5 @@
 (defmethod print-method Address
   [o w]
   (print-simple
-    (str "(->Address '" (:flow o) " " (pr-str (:version o)) " '" (:point o) ")")
+    (str "(->Address '" (:flow o) " " (-> o :version pr-str) " '" (:point o) ")")
     w))

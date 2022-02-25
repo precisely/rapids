@@ -10,7 +10,8 @@
             [rapids.support.debug :refer :all]
             [rapids.support.util :refer :all]
             [rapids.partitioner.macroexpand
-             :refer [partition-macroexpand partition-macroexpand-1 exclude-from-gensym-replacement stable-symbol]])
+             :refer [partition-macroexpand partition-macroexpand-1 exclude-from-gensym-replacement stable-symbol]]
+            [clojure.string :as str])
   (:import (clojure.lang ArityException LazySeq)))
 
 ;;;; Partitioner
@@ -762,7 +763,7 @@
 
   ([m address fdecl params]
    (let [sigs             (extract-signatures fdecl)
-         entry-point-name (str (a/to-string address) "__entry-point")
+         entry-point-name (symbol (str (-> address :flow name str) "__" (str/replace (:version address) #"[.]" "-")))
          [psets, sig-defs] (reverse-interleave
                              (apply concat
                                (map-indexed
@@ -772,7 +773,7 @@
                                  sigs))
                              2)
          pset             (apply pset/combine psets)
-         entry-fn-def     `(fn ~(symbol entry-point-name) ~@sig-defs)]
+         entry-fn-def     `(fn ~entry-point-name ~@sig-defs)]
      [entry-fn-def, pset])))
 
 (defn partition-signature
