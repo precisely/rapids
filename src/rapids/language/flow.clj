@@ -1,11 +1,12 @@
 (ns rapids.language.flow
   (:require [rapids.objects.address :refer [->address]]
-            [rapids.objects.flow :refer [->Flow in-flow-definition-context? with-flow-definitions flow-symbol?]]
+            [rapids.objects.flow :refer [->Flow in-flow-definition-context? with-flow-definitions]]
             [rapids.language.flow-utils :refer :all]
             [rapids.partitioner.core :refer [partition-flow-body partition-fn-set-def]]
             [rapids.support.util :refer [qualify-symbol]]
             [rapids.partitioner.macroexpand :refer [with-gensym-context]]
-            [rapids.objects.version :as v]))
+            [rapids.objects.version :as v]
+            [rapids.objects.module :refer [current-module]]))
 
 (defmacro deflow
   "Define a flow, using the same semantics as defn.
@@ -20,20 +21,23 @@
         (with-meta `(deflow ~name "" ~docstring? ~@fdecl) (meta &form))
         (let [qualified-name (if (qualified-symbol? name) name (qualify-symbol name))
               address        (->address qualified-name)
-              [entry-fn-def, pset] (partition-flow-body (meta &form) address fdecl)
+              [entry-fn-def, entry-fn-params, pset] (partition-flow-body (meta &form) address fdecl)
               [pfn-map-def, phash-map-def, params-map-def] (partition-fn-set-def pset)
-              version        (v/module-version)]
+              version        (v/current-version)
+              major-version  (:major version)]
           `(do (declare ~name)
              (let [existing-var#  (find-var '~qualified-name)
                    existing-flow# (if (and existing-var# (bound? existing-var#)) (var-get existing-var#))
                    new-flow#      (->Flow
-                                     '~qualified-name
-                                     ~version
-                                     ~docstring?
-                                     {~(:major version) ~entry-fn-def}
-                                     ~phash-map-def
-                                     ~params-map-def
-                                     ~pfn-map-def)]
+                                    '~qualified-name
+                                    (current-module :name)
+                                    ~version
+                                    ~docstring?
+                                    {~major-version ~entry-fn-def}
+                                    {~major-version ~entry-fn-params}
+                                    ~phash-map-def
+                                    ~params-map-def
+                                    ~pfn-map-def)]
                (if existing-flow#
                  (let [merged# (merge-flows existing-flow# new-flow#)]
                    (alter-var-root existing-var# (constantly merged#))

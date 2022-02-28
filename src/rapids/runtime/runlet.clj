@@ -29,7 +29,6 @@
   `(binding [*current-run-id* (:id (resolve-run ~run-or-id))]
      ~@body))
 
-
 (defn current-run
   "Returns the current run, or optionally returns a field of the current run.
 
@@ -40,6 +39,9 @@
    (get-in (current-run) fields))
   ([]
    (s/cache-get! Run *current-run-id*)))
+
+(defn current-address []
+  (-> (current-run :stack) last :address))
 
 ;;
 ;; Operations

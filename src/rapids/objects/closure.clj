@@ -15,10 +15,8 @@
   (:require [rapids.objects.address :as a]
             [rapids.objects.flow :as flow]
             [rapids.objects.startable :as s]
-            [rapids.support.defrecordfn :refer [defrecordfn]]
-            [rapids.support.util :refer [in? unqualified-symbol?]])
-  (:import (clojure.lang Named)
-           (rapids.objects.startable Startable)))
+            [rapids.support.defrecordfn :refer [defrecordfn]])
+  (:import (clojure.lang Named)))
 
 (defrecordfn Closure
   [address bindings suspending?]
@@ -26,18 +24,15 @@
         (if suspending?
           (throw (ex-info "Attempt to call suspending closure directly. Use fcall, fapply or start!"
                    {:object this}))
-          (s/call-entry-point this args)))
+          (s/begin this (-> this s/version :major) args)))
 
   Named
   (getNamespace [this] (.getNamespace (-> this address symbol)))
-  (getName [this] (-> this :address a/to-string))
+  (getName [this] (-> this :address a/to-string)))
 
-  Startable
-  (s/call-entry-point [this args]
-    (let [closure-fn (flow/call-partition (:address this) (:bindings this))] ; generate the closure with the bindings
-      (apply closure-fn args))))
+(s/make-startable Closure #(-> % :address :flow resolve)
+  :begin (fn [this _ args]    ; ignore the version because a closure contains its own version inside the address
+           (let [closure-fn (flow/call-partition (:address this) (:bindings this))] ; generate the closure with the bindings
+             (apply closure-fn args))))
 
 (defn closure? [o] (instance? Closure o))
-
-(defn closure-name [c]
-  (-> c :address a/to-string))

@@ -1,13 +1,7 @@
 (ns rapids.objects.version
-  (:require [taoensso.nippy :as nippy]
-            [buddy.core.hash :as hash]
-            [buddy.core.codecs :as codecs]
-            [lein-project-reader.core :refer [read-project]]
-            [clojure.string :as str]))
+  (:require [clojure.string :as str]))
 
 (declare string->version)
-
-(def ^:dynamic *rapids-module-version*)
 
 (defrecord Version
   [^Integer major,
@@ -17,17 +11,17 @@
   Object
   (toString [this] (pr-str this)))
 
-(defn module-version
-  "Return the module"
+(def ^:dynamic *current-version* (->Version 0 0 0 false))
+
+(defn current-version
   ([level]
    {:pre [(#{:major :minor :patch :snapshot} level)]}
-   (level *rapids-module-version*))
+   (level *current-version*))
   ([]
    {:post [(instance? Version %)]}
-   (if (bound? #'*rapids-module-version*) *rapids-module-version*
-     (-> (read-project) :version string->version))))
+   *current-version*))
 
-(defn flatten-version [{major :major, minor :minor, patch :patch}] [major minor patch])
+(defn- flatten-version [{major :major, minor :minor, patch :patch}] [major minor patch])
 
 (defn num-sequence>
   "Tests two sequences of numbers from left to right, returning true if s1>s2"
@@ -43,9 +37,7 @@
           false)))))
 
 (defn version> [v1 v2] (num-sequence> (flatten-version v1) (flatten-version v2)))
-
-(defn version->string [v]
-  (str (:major v) "." (:minor v) "." (:patch v) (if (:snapshot v) "-SNAPSHOT" "")))
+(def version= =)
 
 (defn version-change
   "Returns [level v1-level v2-level] if versions differ, where level = :major|:minor|:patch"
@@ -62,10 +54,23 @@
         snapshot? (boolean (and (string? snapshot?) (-> snapshot? str/upper-case (= "SNAPSHOT"))))]
     (->Version major minor patch snapshot?)))
 
-(defmacro version [versionstr & body]
-  {:pre [(string? versionstr)]}
-  `(binding [*rapids-module-version* ~(string->version versionstr)]
-     ~@body))
+(defn version->vector [v]
+  (vec (map v [:major :minor :patch :snapshot])))
+
+(defn version->string [v]
+  (str (:major v) "." (:minor v) "." (:patch v) (if (:snapshot v) "-SNAPSHOT" "")))
+
+(defn version? [o]
+  (and o (instance? Version o)))
+
+(defn ->version [o]
+  (cond
+    (string? o) (string->version o)
+    (seq? o) (apply ->Version o)
+    (version? o) o
+    :else (throw (ex-info "Unexpected value to ->version. Expecting string or sequence"
+                   {:type   :fatal-error
+                    :object o}))))
 
 (defmethod print-method Version
   [o w]

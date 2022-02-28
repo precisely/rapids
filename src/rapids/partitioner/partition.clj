@@ -768,13 +768,13 @@
                              (apply concat
                                (map-indexed
                                  (fn [idx sig]
-                                   ()
                                    (partition-signature m (a/child address idx) sig params))
                                  sigs))
                              2)
          pset             (apply pset/combine psets)
+         entry-fn-params  (sort-by count (map first sig-defs))
          entry-fn-def     `(fn ~entry-point-name ~@sig-defs)]
-     [entry-fn-def, pset])))
+     [entry-fn-def, entry-fn-params, pset])))
 
 (defn partition-signature
   "Returns a pset and and a partitioned sig definition.

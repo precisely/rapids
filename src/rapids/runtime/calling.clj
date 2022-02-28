@@ -1,5 +1,7 @@
 (ns rapids.runtime.calling
-  (:require [rapids.objects.startable :as startable])
+  (:require [rapids.runtime.runlet :refer [current-address]]
+            [rapids.objects.address :refer [address-module address-major-version]]
+            [rapids.objects.startable :as startable])
   (:import (clojure.lang IFn)))
 
 ;;
@@ -25,10 +27,20 @@
 ;; Unfortunately, no one has built a typed Lisp yet.
 (defn universal-call [obj args]
   (cond
-    (startable/startable? obj) (startable/call-entry-point obj args)
+    ;; startable
+    (startable/startable? obj)
+    (let [caddr (current-address)]
+      (if (some-> caddr address-module (= (startable/module obj)))
+        ;; same
+        (startable/begin obj args (address-major-version caddr))
+        (let [current-requirements (-> caddr :flow resolve :requirements)
+              required-version     (get current-requirements (startable/module obj))]
+          (startable/begin obj args required-version))))
+
+    ;; simple function
     (instance? IFn obj) (apply obj args)
     :otherwise (throw (ex-info "Attempt to call object which doesn't implement Startable or IFn"
-                        {:type :runtime-error
+                        {:type   :runtime-error
                          :object obj}))))
 
 (defn ^:suspending fcall [obj & args]
@@ -38,6 +50,6 @@
   ([flow] (universal-call flow ()))
   ([flow a1] (universal-call flow a1))
   ([flow a1 a2] (universal-call flow (cons a1 a2)))
-  ([flow a1 a2 a3] (universal-call flow (cons a1 (cons a2 a3))))
+  ([flow a1 a2 a3] (universal-call flow (list* a1 a2 a3)))
   ([flow a1 a2 a3 & args]
-   (universal-call flow (cons a1 (cons a2 (cons a3 (concat (butlast args) (last args))))))))
+   (universal-call flow (list* a1 a2 a3 (concat (butlast args) (last args))))))

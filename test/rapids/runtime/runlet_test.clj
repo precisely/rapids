@@ -56,5 +56,5 @@
           (let [loaded-parent-run (get-run-record (:id parent-run))
                 deserialized-foo (-> loaded-parent-run :stack first :bindings :foo-flow)]
             (is (flow/flow? deserialized-foo))
-            (is (fn? (get-in deserialized-foo [:entry-points (v/module-version)])))
-            (is (= 9 (startable/call-entry-point foo [3])))))))))
+            (is (fn? (get-in deserialized-foo [:entry-points (v/current-version)])))
+            (is (= 9 (startable/begin foo [3])))))))))

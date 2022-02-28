@@ -1,16 +1,18 @@
 (ns rapids.objects.flow
   (:require [rapids.objects.address :as a]
-            [rapids.objects.startable :as c]
-            [rapids.objects.version :as v]
             [rapids.support.defrecordfn :refer [defrecordfn]]
-            [rapids.support.util :refer [qualify-symbol refers-to?]])
+            [rapids.support.util :refer [qualify-symbol refers-to?]]
+            [rapids.objects.startable :as startable])
   (:import (clojure.lang Named IPersistentMap Symbol)
            (rapids.objects.startable Startable)
            (rapids.objects.version Version)))
 
+(declare call-entry-point)
 (defrecordfn Flow
   [;; Global symbol defined as this flow
    ^Symbol name
+
+   ^Symbol module
 
    ^Version version
 
@@ -18,6 +20,9 @@
 
    ;; Map of major version numbers to functions with user-defined signatures
    ^IPersistentMap entry-points
+
+   ;; Map of major version numbers to entry point parameter vectors
+   ^IPersistentMap entry-point-parameters
 
    ;; Map of addresses to functions of the form (fn [{:keys [...]}])
    ^IPersistentMap partition-hashes
@@ -30,7 +35,7 @@
 
   :fn (fn [this & _]
         (throw (ex-info (str "Improperly invoked flow: " (:name this) ". Use start!, fcall or fapply when flow is bound dynamically.")
-                        {:type :runtime-error})))
+                 {:type :runtime-error})))
 
   Object
   (toString [this] (format "#<Flow %s (%d partitions)>" (:name this) (-> this :partition-fns count)))
@@ -40,8 +45,11 @@
   (getName [this] (-> this :name name))
 
   Startable
-  (c/call-entry-point [this args]
-    (apply (get-in this [:entry-points (v/module-version)]) args)))
+  (flow-name [this] (:name this))
+  (version [this] (:version this))
+  (module [this] (:module this))
+  (requirements [this ])
+  (begin [this args major-version] (call-entry-point this args major-version)))
 
 (defn flow? [o]
   (instance? Flow o))
@@ -63,27 +71,40 @@
 
 (defn flow-symbol? [o]
   (and (symbol? o)
-       (or (refers-to? flow? o)
-           (*defining-flows* (qualify-symbol o)))))
+    (or (refers-to? flow? o)
+      (*defining-flows* (qualify-symbol o)))))
 
 (defn call-partition
   "Executes the partition function at address with the given bindings"
   [address bindings]
   {:pre [(a/address? address)
          (map? bindings)]}
-  (let [flow (a/resolved-flow address)
+  (let [flow           (a/resolved-flow address)
         partition-hash (get-in flow [:partition-hashes address])
-        pfn  (some->> (get-in flow [:partition-fns partition-hash])
-               resolve var-get)]
+        pfn            (some->> (get-in flow [:partition-fns partition-hash])
+                         resolve var-get)]
     (if-not (fn? pfn)
       (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
-                      {:type        :system-error
-                       :object      pfn
-                       :object-type (type pfn)})))
+               {:type        :system-error
+                :object      pfn
+                :object-type (type pfn)})))
     (pfn bindings)))
+
+(defn call-entry-point [this args major-version]
+  {:pre [(flow? this) (seq? args) (if major-version (number? major-version))]}
+  (let [major-version (or major-version (-> this startable/version :major))]
+    (if-let [entry-point (get-in this [:entry-points major-version])]
+      (apply entry-point args)
+      (throw (ex-info (str "Attempt to call flow entry point. Major version level unsupported: "
+                        major-version)
+               ({:type             :fatal-error
+                 :flow-name        (:name this)
+                 :supported-levels (-> this :entry-points keys)
+                 :requested-level  major-version}))))))
 
 (defmethod print-method Flow
   [o w]
   (print-simple
     (str "#<Flow " (:name o) ">")
     w))
+

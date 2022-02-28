@@ -1,6 +1,5 @@
 -0 (ns rapids.runtime.run-loop
      (:require
-       [rapids.objects.closure :refer [closure-name closure?]]
        [rapids.objects.interruptions :refer [->interruption interruption?]]
        [rapids.objects.run :as r]
        [rapids.objects.signals :refer [->BindingChangeSignal binding-change-signal? suspend-signal?]]
@@ -8,12 +7,11 @@
        [rapids.objects.startable :as startable]
        [rapids.runtime.raise :refer [raise-partition-fn-address]]
        [rapids.runtime.runlet :refer [current-run initialize-run-for-runlet interrupt-run! pop-stack! push-stack!
-                                      run? set-index! suspend-run! update-run! with-run]]
+                                      run? suspend-run! update-run! with-run]]
        [rapids.storage.core :refer :all]
        [rapids.support.util :refer :all])
-     (:import (clojure.lang ExceptionInfo Keyword)
+     (:import (clojure.lang ExceptionInfo )
               (rapids.objects CurrentContinuationChange)
-              (rapids.objects.interruptions Interruption)
               (rapids.objects.run Run)))
 
 (declare start! continue!)
@@ -26,15 +24,14 @@
   ([startable args & {:keys [index] :or {index {}}}]
    {:pre [(startable/startable? startable) (map? index) (sequential? args)]
     :post [(run? %)]}
-   (let [startable-name (name startable)
-         start-form (prn-str `(~startable-name ~@args))]
+   (let [{name :name version :version} (startable/requirement startable)]
      (ensure-cached-connection
-       (with-run (cache-insert! (r/make-run {:state      :running,
-                                             :start-form start-form
-                                             :dynamics   []
-                                             :index     index}))
+       (with-run (cache-insert! (r/make-run {:state        :running,
+                                             :dynamics     []
+                                             :requirements {name version}
+                                             :index        index}))
          ;; create the initial stack-fn to kick of the process
-         (start-eval-loop! (fn [_] (startable/call-entry-point startable args)))
+         (start-eval-loop! (fn [_] (startable/begin startable args)))
          (current-run))))))
 
 (defn continue!

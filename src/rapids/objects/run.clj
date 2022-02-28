@@ -4,13 +4,9 @@
 (ns rapids.objects.run
   (:require
     [clojure.spec.alpha :as s]
-    [clojure.tools.macro :refer [macrolet]]
-    [java-time :as t]
-    [rapids.objects.address :as a]
     [rapids.objects.signals :as signals]
-    [rapids.objects.stack-frame :as sf]
     [rapids.support.util :refer :all])
-  (:import (clojure.lang Cons Keyword PersistentHashMap Symbol Var)
+  (:import (clojure.lang Cons Keyword PersistentHashMap Symbol Var IPersistentMap)
            (java.util UUID Vector)))
 
 (defrecord Run
@@ -21,6 +17,7 @@
    ^Object response
    ^Vector dynamics
    ^UUID interruption-id
+   ^IPersistentMap requirements ; a map of flows to
    ^PersistentHashMap index])
 
 (def ^:const RunStates #{:running :error :complete :interrupted})
@@ -35,9 +32,9 @@
                 Var x
                 Symbol (resolve x))]
      (->> (:dynamics run)
-          reverse
-          (filter #(contains? % v))
-          (map #(get % v not-found))))))
+       reverse
+       (filter #(contains? % v))
+       (map #(get % v not-found))))))
 
 (defn get-dynamic-value
   "Gets the current binding for symbol or var s"
@@ -50,45 +47,42 @@
             (let [pred ({:id            uuid?
                          :state         RunStates
                          :stack         seq?
-                         :index        map?
+                         :index         map?
                          :dynamics      vector?
                          :interrupt     (some-fn nil? uuid?)
                          :parent-id     (some-fn nil? uuid?)
                          :error-info    (some-fn nil? map?)
                          :error-message (some-fn nil? string?)
-                         :output      (constantly true)
+                         :requirements  map?
+                         :output        (constantly true)
                          :result        (constantly true)
                          :suspend       (some-fn nil? signals/suspend-signal?)} key)
                   val  (get kvs key)]
               (if pred
                 (pred val)
                 (throw (ex-info "Invalid key for Run" {:key key})))))
-          (keys kvs)))
+    (keys kvs)))
 
 (defn make-run
   ([] (make-run {}))
-  ([{:keys [id, stack, state, response, result, dynamics index]
-     :or   {id       (new-uuid)
-            state    :running
-            stack    ()
-            response []
-            dynamics []
-            index   {}}
+  ([{:keys [id, stack, state, response, result, dynamics requirements index]
+     :or   {id           (new-uuid)
+            state        :running
+            stack        ()
+            response     []
+            dynamics     []
+            requirements {}
+            index        {}}
      :as   fields}]
    {:pre  [(RunStates state)]
     :post [(s/assert ::run %)]}
    (map->Run (into (or fields {})
-                   {:id           id,
-                    :state        state,
-                    :stack        stack,
-                    :output     response,
-                    :result       result
-                    :dynamics     dynamics
-                    :cached-state :created
-                    :index       index}))))
-
-;(defmethod print-method Run
-;  [o w]
-;  (print-simple
-;    (str "#<Run " (:id o) " " (:start-form o) ">")
-;    w))
+               {:id           id,
+                :state        state,
+                :stack        stack,
+                :output       response,
+                :result       result
+                :requirements requirements
+                :dynamics     dynamics
+                :cached-state :created
+                :index        index}))))

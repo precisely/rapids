@@ -1,8 +1,7 @@
 (ns rapids.objects.address
   (:require [rapids.objects.version :as v])
   (:import (clojure.lang Symbol)
-           (java.util Vector)
-           (rapids.objects.version Version)))
+           (java.util Vector)))
 
 ;; Address identifies a point in a flow.
 ;; While addresses can be generated for any point in the tree,
@@ -38,29 +37,34 @@
 ;; or by providing an implementation which prevents associng.
 ;;
 (defrecord Address
-  [^Symbol flow, ^String version, ^Vector point]
+  [^Symbol flow, ^Vector fingerprint, ^Vector point]
   Object
   (toString [this] (pr-str this)))
 
 (defn address? [o] (instance? Address o))
-
-(defn major-minor-version-string []
-  (let [{major :major minor :minor} (v/module-version)]
+(defn read-project [])
+(defn fingerprint []
+  (let [{major :major, minor :minor} (v/current-version)]
     (assert (and (number? major) (number? minor)))
-    (str major "." minor)))
+    [(read-project) major minor]))
 
+(defn major-minor-version [])
 (defn ->address
   [symbol & point]
   {:pre [(qualified-symbol? symbol)]}
   (Address.
     symbol
-    (major-minor-version-string)
+    (major-minor-version)
     (mapv simplify-if-symbol point)))
+
+(defn address-major-version [this] (-> this :version second))
+(defn address-minor-version [this] (-> this :version (nth 2)))
+(defn address-module [this] (-> this :fingerprint first))
 
 (defn point-to-string [address]
   (letfn [(two-digit-num? [elt]
             (or (and (number? elt) (> elt 9))
-                (if-let [str->num (try (Integer/parseInt (str elt)) (catch Exception e))]
+                (if-let [str->num (try (Integer/parseInt (str elt)) (catch Exception _))]
                   (> str->num 9))))
           (stringify-point-elt [elt]
             (if (two-digit-num? elt)
