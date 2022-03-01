@@ -6,7 +6,7 @@ Rapids lets you build workflows using functional programming techniques. Unlike 
 (defn [name docstring? & sigs] ...)
 (deflow [name docstring? & sigs] ...)
 ```
-The code bodies inside `deflow` can include most Clojure expressions, such as function calls, literals of all kinds, special operators, macros and Java interop. `deflow` bodies can also use some special operators which allow programs to work over arbitrarily long time scales. Suspending for input, handling interruptions while suspended, and sending data to the outside world as  
+The code bodies inside `deflow` can include most Clojure expressions, such as function calls, literals of all kinds, special operators, macros and Java interop. `deflow` bodies can also use some special operators which allow programs to work over arbitrarily long time scales. Flows are typically used in the context of web interactions to build scalable web services that need to manage complex state. Flows are defined much like functions:
 
 ```clojure
 (defn multiply [x y]
@@ -16,12 +16,9 @@ The code bodies inside `deflow` can include most Clojure expressions, such as fu
   (* x y))
 ```
 
-So far so good. But running flows 
+The `deflow` form adds a few key operators which allow the programmer to wait for input from an external entity. 
 
-
-What `deflow` adds are a few key operators which permit the workflow code to operate over very long time scales without consuming volatile memory or compute resources while waiting for input. 
-
-Use the `input!` operator, usually written `<*`, to pause the workflow for input. Think of the asterisk as a globe representing the real world. This operator says "get data from the real world".
+Use the `input!` operator, usually written `<*`, to pause the workflow for input. 
 
 
  I.e., it takes inputs and produces an output. Along the way several interactions with one or more people may be necessary, but from our perspective as Rapids programmers, this is secondary.  We call these workflow functions "Flows", and refer to this approach as "functional Human Computer Interaction programming".

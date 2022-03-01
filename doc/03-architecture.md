@@ -24,7 +24,7 @@
 
   The `input!` function represents a point where execution pauses for input. The compiler recognizes `input!` as a suspending expression - a point where execution pauses. Execution resumes when the system receives data from an external event (e.g., the user provides their name to a client, and the client generates an HTTP `POST` request on the rapids server). When execution resumes, the user's input (the "data") is bound to the `name` variable (the "input-key"). Note that bindings (in this case just one symbol, `excited?`) are preserved in the second half of the code body.
 
-First let's jump to the output of the compiler to get a flavor of what is going on.
+First let's jump to the output of the macro to get a flavor of what is going on. This is a slightly simplified version of what the macro produces:
 
 ```clojure
 #Flow {
@@ -39,7 +39,7 @@ First let's jump to the output of the compiler to get a flavor of what is going 
    #address[greeting 1 let 0 1]    (fn [{:keys [excited?, name]}]
                                      (output! (str "Hi, " name))
                                      (output! (if excited?
-                                                   "It's super duper, duper, duper, duper, duper, duper, duper, duper, (breathes) duper, duper, duper, duper, duper, duper, duper nice to meet you!"
+                                                   "It's super duper, duper nice to meet you!"
                                                    "Nice to meet you."))
                                      name)}}
 ```

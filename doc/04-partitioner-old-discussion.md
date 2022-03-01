@@ -1,4 +1,4 @@
-## Detailed discussion 
+# Partitioner - detailed discussion 
  
  1) During the partitioning (compiler) phase, the abstract syntax tree is analyzed by recursively walking the tree. The compiler examines each expression and determines whether it is a suspending expression. Suspending expressions include invocations of the `input!` function, invocations of flows or expressions which contain nested suspending expressions.
  

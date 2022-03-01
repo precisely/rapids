@@ -42,7 +42,7 @@
                  [org.clojure/data.codec "0.1.1"]
                  [com.taoensso/nippy "3.1.1"]
                  [com.taoensso/timbre "5.1.2"]
-                 [com.fzakaria/slf4j-timbre "0.3.21"]       ; needed by next.jdbc
+                 [com.fzakaria/slf4j-timbre "0.3.21"] ; needed by next.jdbc
                  [potemkin "0.4.5"]
                  [org.apache.commons/commons-lang3 "3.12.0"]
                  [clojure-interop/apache-commons-lang "1.0.0"]
@@ -72,7 +72,7 @@
                                   [lein-cloverage "1.2.2"]
                                   [lein-codox "0.10.8"]]}}
   :repl-options {:init-ns rapids}
-
+  :codox {:doc-paths []}
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
                                       :username      ~(env :maven-repo-aws-access-key-id)
                                       :passphrase    ~(env :maven-repo-aws-access-key-secret)
