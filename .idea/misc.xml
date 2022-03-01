@@ -3,8 +3,7 @@
   <component name="LeiningenProjectsManager">
     <option name="projectFiles">
       <set>
-        <option value="file://$PROJECT_DIR$/../pia-server/project.clj" />
-        <option value="file://$PROJECT_DIR$/../rapids/project.clj" />
+        <option value="file://$PROJECT_DIR$/project.clj" />
       </set>
     </option>
   </component>
