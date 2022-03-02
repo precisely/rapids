@@ -1,7 +1,6 @@
 (ns rapids.storage.postgres-test
   (:require [clojure.test :refer :all]
             [honey.sql :as sql]
-            [honey.sql.helpers :as h]
             [migratus.core :as migratus]
             [next.jdbc :as jdbc]
             [rapids.implementations.postgres-storage :refer :all]
@@ -10,8 +9,7 @@
             [rapids.objects.run :as r]
             [rapids.objects.signals :refer [make-suspend-signal]]
             [rapids.storage.core :refer :all]
-            [rapids.support.util :as util]
-            [test-helpers :refer [env]])
+             [test-helpers :refer [env]])
   (:import (rapids.objects.pool Pool)
            (rapids.objects.run Run)))
 (def test-jdbc-url (env :test-postgres-jdbc-url))

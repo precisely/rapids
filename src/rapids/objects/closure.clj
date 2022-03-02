@@ -15,8 +15,7 @@
   (:require [rapids.objects.address :as a]
             [rapids.objects.flow :as flow]
             [rapids.objects.startable :as s]
-            [rapids.support.defrecordfn :refer [defrecordfn]]
-            [rapids.support.util :refer [in? unqualified-symbol?]])
+            [rapids.support.defrecordfn :refer [defrecordfn]])
   (:import (clojure.lang Named)
            (rapids.objects.startable Startable)))
 

@@ -1,6 +1,5 @@
 (ns rapids.storage.protocol
   (:require [clojure.string :refer [join split]]
-            [rapids.support.util :refer [sausage-to-snake snake-to-sausage]]
             [taoensso.nippy :refer [freeze thaw]]))
 
 (defprotocol Storage
@@ -85,13 +84,13 @@
   "Given a class, returns the map constructor e.g., map->MyRecord"
   [cls]
   (let [name-parts (split (.getName cls) #"\.")
-        nsname (join "." (butlast name-parts))
-        name (last name-parts)]
+        nsname     (join "." (butlast name-parts))
+        name       (last name-parts)]
     (symbol nsname (str "map->" name))))
 
 (defn freeze-record
   ([obj]
-   (let [cls (class obj)
+   (let [cls         (class obj)
          ctor-symbol (class-map-ctor-symbol cls)]
      (freeze-record obj ctor-symbol)))
   ([obj ctor-symbol]
