@@ -52,25 +52,20 @@
 ;;   (finally ...))
 
 (ns rapids.language.attempt
-  (:require [clojure.tools.macro :refer [macrolet]]
-            [rapids.language.flow :refer [flow]]
+  (:require [rapids.language.flow :refer [flow]]
             [rapids.objects.interruptions :refer :all]
-            [rapids.objects.run :refer [get-dynamic-value get-dynamic-values]]
             [rapids.runtime.calling :refer [universal-call]]
-            [rapids.runtime.cc :refer [callcc]]
             [rapids.runtime.globals :refer :all]
-            [rapids.runtime.runlet :refer [current-run run? update-run! with-run]]
-            [rapids.storage.cache :refer [cache-get! ensure-cached-connection]]
-            [rapids.support.util :refer :all])
-  (:import (clojure.lang Compiler$CompilerException)))
+            [rapids.runtime.runlet :refer [update-run!]]
+            [rapids.support.util :refer :all]))
 
-(defn handler-form? [o] (and (list? o) (= 'handle (first o))))
-(defn finally-form [o] (and (list? o) (= 'finally (first o))))
+(defn handler-form? [o] (and (seq? o) (= 'handle (first o))))
+(defn finally-form [o] (and (seq? o) (= 'finally (first o))))
 (defn attempt-subclause? [o] (or (handler-form? o) (finally-form o)))
 
 (defn expand-handler [ccvar h-form finally-flow]
   (let [[_ i-name ivar & body] h-form
-        m (meta h-form)
+        m    (meta h-form)
         line (if-let [lnum (:line m)] (str " at line " lnum) "")]
     (assert (keyword? i-name)
       (str "First argument to attempt handler should be a keyword" line))
@@ -85,7 +80,7 @@
 
 (defn normalize-restart-def [r]
   (let [restart (cond
-                  (list? r) (let [[name & body] r
+                  (seq? r) (let [[name & body] r
                                   [description & sigs] (if (-> body first string?)
                                                          body `(nil ~@body))]
                               {:name        name
@@ -111,7 +106,7 @@
                                            (rapids/fcall ~restart-cc
                                              (rapids/fapply ~(:do nrdef) args#)))}))
         nrestartdefs (map normalize-restart-def restartdefs)
-        restart-map `(hash-map ~@(apply concat (map #(vector (:name %), (make-restart %)) nrestartdefs)))]
+        restart-map  `(hash-map ~@(apply concat (map #(vector (:name %), (make-restart %)) nrestartdefs)))]
     `(set! *attempts* (cons (-> *attempts* first (update :restarts merge ~restart-map))
                         (rest *attempts*)))))
 
@@ -119,12 +114,12 @@
 ;; attempt unrolls to a callcc form which establishes interruption handlers
 ;;
 (defmacro attempt [& forms]
-  (let [body (doall (take-while #(not (attempt-subclause? %)) forms))
-        handlers (doall (take-while handler-form? (nthrest forms (count body))))
-        final-forms (doall (nthrest forms (+ (count body) (count handlers))))
-        _ (assert (<= (count final-forms) 1) (str "Unexpected forms in attempt block" final-forms))
+  (let [body         (doall (take-while #(not (attempt-subclause? %)) forms))
+        handlers     (doall (take-while handler-form? (nthrest forms (count body))))
+        final-forms  (doall (nthrest forms (+ (count body) (count handlers))))
+        _            (assert (<= (count final-forms) 1) (str "Unexpected forms in attempt block" final-forms))
         finally-body (doall (rest (first final-forms)))
-        attempt-cc (gensym "attempt-cc")
+        attempt-cc   (gensym "attempt-cc")
         finally-flow (gensym "finally")]
     `(rapids/callcc
        (rapids/flow [~attempt-cc]
@@ -154,7 +149,7 @@
   ;(if (not (bound? *attempts*))
   ;  (throw (ex-info (str "Defining a restart is only allowed in an attempt body:" &form)
   ;           {:form &form})))
-  (let [restart-cc (gensym "restart-cc")
+  (let [restart-cc  (gensym "restart-cc")
         restart-map (generate-restart-map restarts restart-cc)]
     `(rapids/callcc (rapids/flow [~restart-cc]
                       ~restart-map

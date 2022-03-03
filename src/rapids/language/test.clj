@@ -105,7 +105,7 @@
                 (let [e 5]
                   ...)))))"
   (letfn [(branch? [x]
-            (and (list? x) (-> x first #{`branch 'branch})))
+            (and (seq? x) (-> x first #{`branch 'branch})))
           (expand-branch [[op bindings doc & forms]]
             {:pre [(#{'branch `branch} op)
                    (string? doc)
