@@ -52,8 +52,12 @@
     (assert (not (and (:suspend result) (-> result :state (= :complete)))))
     result))
 
-(defn initialize-run-for-runlet []
-  (update-run! :suspend nil, :output [], :error-message nil, :error-info nil))
+(defn initialize-run-for-runlet
+  ([] (initialize-run-for-runlet false))
+  ([preserve-output]
+   (let [args [:suspend nil, :error-message nil, :error-info nil]
+         args (if preserve-output args (conj args :output []))]
+     (apply update-run! args))))
 
 (defn push-stack! [address bindings input-key]
   {:post [(run? %)

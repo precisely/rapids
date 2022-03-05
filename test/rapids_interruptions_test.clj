@@ -79,7 +79,7 @@
               i (->interruption :bar)
               run (interrupt! run i)]
 
-          (testing "the run goes into :interrupted mode as the handler waits for input"
+          (testing "the run goes contains an interrupt-id when the handler waits for input"
             (is (uuid? (:interrupt run))))
 
           (testing "attempting to continue without providing the interrupt results in an exception"

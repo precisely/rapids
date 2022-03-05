@@ -23,7 +23,7 @@
    ^UUID interruption-id
    ^PersistentHashMap index])
 
-(def ^:const RunStates #{:running :error :complete :interrupted})
+(def ^:const RunStates #{:running :error :complete})
 
 (defn get-dynamic-values
   "Returns a lazy sequence of bindings, innermost to outermost, for the dynamic var (or symbol representing a dynamic var,

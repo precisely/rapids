@@ -1,10 +1,9 @@
 (ns rapids.language.pool-ops
-  (:require [rapids.language.flow :refer [deflow]]
+  (:require [rapids.runtime.run-loop :refer [defer]]
             [rapids.language.operators :refer [input!]]
-            [rapids.objects.pool :refer [make-pool pool-pop pool-push raw-pool?]]
+            [rapids.objects.pool :refer [make-pool pool-pop pool-push]]
             [rapids.runtime.core :refer [continue! current-run]]
-            [rapids.storage.core :as s]
-            [rapids.support.util :refer [new-uuid]])
+            [rapids.storage.core :as s])
   (:import (rapids.objects.pool Pool)
            (rapids.storage CacheProxy)))
 
@@ -55,7 +54,7 @@
     (let [run-id (pool-pop! p :sinks)
           value (pool-pop! p :buffer)]
       ; continue the next run, passing it the put-in value
-      (continue! run-id :input value :permit (pool-id p))
+      (defer #(continue! run-id :input value :permit (pool-id p) :preserve-output true))
       nil)))
 
 (defn ^:suspending take-out!
@@ -85,7 +84,7 @@
 
      ;; STEP 2: if there are sources suspended by put-in!, continue the oldest one
      (if-not (pool-queue-empty? p :sources)
-       (continue! (pool-pop! p :sources) :permit (pool-id p)))
+       (defer #(continue! (pool-pop! p :sources) :permit (pool-id p) :preserve-output true)))
      result)))
 
 ;;

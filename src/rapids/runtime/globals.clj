@@ -11,5 +11,3 @@
        :doc "A list of attempts most recent first"}
   *attempts*
   ())
-
-

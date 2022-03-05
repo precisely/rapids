@@ -29,7 +29,7 @@
                       v]))
     (into {})))
 
-(defproject precisely/rapids "0.9.5"
+(defproject precisely/rapids "0.9.6-SNAPSHOT"
   :description "A Clojure DSL for scripting user flows"
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
