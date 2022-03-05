@@ -1,35 +1,6 @@
-;;; XXX: Dirty workaround to allow referencing environment variables in
-;;; project.clj. This approach echoes the envvar library (and, indeed,
-;;; reimplements it). See https://github.com/gcv/envvar. This is necessary
-;;; because Leiningen middleware is resolved too late to use environment
-;;; variables in some places in the project map. Specifically, repository
-;;; resolution happens too early.
-;;;
-;;; Note that Leiningen's built-in repository credentials mechanism is not used
-;;; here because GPG setup for credentials files is inconsistent with how all
-;;; other credentials to third-party services are stored.
+(defn env [x] (eval (System/getenv x)))
 
-(require '[clojure.java.io :as io]
-  '[clojure.string :as str])
-
-(def env
-  (->> (merge
-         (into {} (System/getenv))
-         (into {} (System/getProperties))
-         (let [env-file (io/file ".env")]
-           (if (.exists env-file)
-             (let [props (java.util.Properties.)]
-               (.load props (io/input-stream env-file))
-               props)
-             {})))
-    (map (fn [[k v]] [(-> (str/lower-case k)
-                        (str/replace "_" "-")
-                        (str/replace "." "-")
-                        (keyword))
-                      v]))
-    (into {})))
-
-(defproject precisely/rapids "0.9.6-SNAPSHOT"
+(defproject precisely/rapids "0.9.6"
   :description "A Clojure DSL for scripting user flows"
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
@@ -72,8 +43,8 @@
   :repl-options {:init-ns rapids}
   :codox {:doc-paths []}
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
-                                      :username      ~(env :maven-repo-aws-access-key-id)
-                                      :passphrase    ~(env :maven-repo-aws-access-key-secret)
+                                      :username      #=(env "MAVEN_REPO_AWS_ACCESS_KEY_ID")
+                                      :passphrase    #=(env "MAVEN_REPO_AWS_ACCESS_KEY_SECRET")
                                       :sign-releases false}]]
 
   :test-selectors {:default     (complement :integration)
