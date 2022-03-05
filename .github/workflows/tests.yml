@@ -5,21 +5,30 @@ on:
     branches: [ master, dev ]
   pull_request:
     branches: [ master, dev ]
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Run the build with tmate debugging enabled (https://github.com/marketplace/actions/debugging-with-tmate)'
+        required: false
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install dependencies
-      run: lein deps
-
     ## Useful for debugging problems - CI will pause and provide an ssh connection
-#    - name: Setup tmate session
-#      uses: mxschmitt/action-tmate@v3
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
+      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.debug_enabled }}
+
+    - name: Install dependencies
+      env:
+        MAVEN_REPO_AWS_ACCESS_KEY_ID: ${{secrets.MAVEN_REPO_AWS_ACCESS_KEY_ID}}
+        MAVEN_REPO_AWS_ACCESS_KEY_SECRET: ${{secrets.MAVEN_REPO_AWS_ACCESS_KEY_SECRET}}
+        AWS_REGION: us-east-1
+      run: lein deps
 
     - name: Run tests
       run: lein test

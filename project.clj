@@ -26,7 +26,6 @@
                  [metosin/jsonista "0.3.5"]]
   :aot [rapids.storage.CacheProxy rapids.objects.CurrentContinuationChange]
   :clean-targets ^{:protect false} ["target"]
-  :plugins [[s3-wagon-private "1.3.4"]]
   :profiles {:dev {
                    :source-paths ["src"]
                    :dependencies [[expectations/clojure-test "1.2.1"]
@@ -40,7 +39,8 @@
                                   [lein-localrepo "0.5.4"]
                                   [lein-cloverage "1.2.2"]
                                   [lein-codox "0.10.8"]
-                                  [lein-pprint "1.3.2"]]}}
+                                  [lein-pprint "1.3.2"]
+                                  [s3-wagon-private "1.3.4"]]}}
   :repl-options {:init-ns rapids}
   :codox {:doc-paths []}
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
