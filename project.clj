@@ -39,7 +39,8 @@
                                   [migratus-lein "0.7.3"]
                                   [lein-localrepo "0.5.4"]
                                   [lein-cloverage "1.2.2"]
-                                  [lein-codox "0.10.8"]]}}
+                                  [lein-codox "0.10.8"]
+                                  [lein-pprint "1.3.2"]]}}
   :repl-options {:init-ns rapids}
   :codox {:doc-paths []}
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
