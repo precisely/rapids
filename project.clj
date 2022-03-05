@@ -6,7 +6,7 @@
   :license {:name "All Rights Reserved"
             :url  "https://precise.ly/rapids"}
   :dependencies [[org.clojure/clojure "1.10.3"]
-                 [org.clojure/core.async "1.3.610"]
+                 [org.clojure/core.async "1.5.648"]
                  [org.clojure/core.match "1.0.0"]
                  [clojure.java-time "0.3.3"]
                  [org.clojure/tools.macro "0.1.5"]
@@ -17,11 +17,11 @@
                  [potemkin "0.4.5"]
 
                  ;; database
-                 [org.postgresql/postgresql "42.3.1"]
+                 [org.postgresql/postgresql "42.3.3"]
                  [seancorfield/next.jdbc "1.2.659"]
-                 [com.github.seancorfield/honeysql "2.1.829"]
+                 [com.github.seancorfield/honeysql "2.2.868"]
                  [danlentz/clj-uuid "0.1.9"]
-                 [migratus "1.3.5"]
+                 [migratus "1.3.6"]
                  [hikari-cp "2.13.0"]
                  [metosin/jsonista "0.3.5"]]
   :aot [rapids.storage.CacheProxy rapids.objects.CurrentContinuationChange]
@@ -30,10 +30,10 @@
                    :source-paths ["src"]
                    :dependencies [[expectations/clojure-test "1.2.1"]
                                   [org.clojure/core.match "1.0.0"]
-                                  [philoskim/debux "0.8.1"]
+                                  [philoskim/debux "0.8.2"]
                                   [tortue/spy "2.9.0"]
                                   [org.clojars.justiniac/matchure "0.13.1"]
-                                  [org.clojure/tools.namespace "1.1.0"]]
+                                  [org.clojure/tools.namespace "1.2.0"]]
                    :plugins      [[lein-ancient "1.0.0-RC3"]
                                   [migratus-lein "0.7.3"]
                                   [lein-localrepo "0.5.4"]
