@@ -1,34 +1,42 @@
 # Introduction to Rapids
 
-Rapids lets you build workflows using functional programming techniques. Unlike a function, a workflow needs to pause for arbitrarily long periods while it  waits for a human (or robot) to complete a task and possibly enter some data. In Rapids, workflows ("Flows") are defined using the `deflow` macro, which is analogous to Clojure's `defn`. The arguments are the same:
+Rapids makes it easy to create sophisticated user interaction flows - for example chatbots or intelligent assistants, personalized onboarding experiences, or situations where multiple users need to be coordinated. The key idea is to represent human computer interactions as functions. Rapids calls these interaction functions "flows".
+
+## Defining user interaction functions (flows)
+
+Unlike regular CPU-bound functions, a flow may pause for arbitrarily long periods while it  waits for a human (or other external entity) to complete a task and possibly enter some data. Flows are defined using the `deflow` macro, which is analogous to Clojure's `defn`. The argument lists look the same:
 
 ```clojure
 (defn [name docstring? & sigs] ...)
 (deflow [name docstring? & sigs] ...)
 ```
-The code bodies inside `deflow` can include most Clojure expressions, such as function calls, literals of all kinds, special operators, macros and Java interop. `deflow` bodies can also use some special operators which allow programs to work over arbitrarily long time scales. Flows are typically used in the context of web interactions to build scalable web services that need to manage complex state. Flows are defined much like functions:
 
+The code bodies inside `deflow` can include most Clojure expressions, such as function calls, literals of all kinds, special operators, macros and Java interop. `deflow` bodies permit using some special operators. Flows are typically used in the context of building web applications that need to manage complex user interactions state.
+
+Here's a highly repetitive chatbot that keeps greeting people by name:
 ```clojure
-(defn multiply [x y]
-  (* x y))
-  
-(deflow multiply [x y]
-  (* x y))
+(deflow greeting-bot []
+  (loop []
+    (output! "What is your name?")
+    (let [user-name (input!)]
+      (when (not= user-name "stop")
+        (input! (str "Hello, " user-name))
+        (recur))))) 
 ```
 
-The `deflow` form adds a few key operators which allow the programmer to wait for input from an external entity. 
+### Getting input and producing output 
 
-Use the `input!` operator, usually written `<*`, to pause the workflow for input. 
+### Starting and continuing a run
 
+### Anonymous flows and higher order flows
 
- I.e., it takes inputs and produces an output. Along the way several interactions with one or more people may be necessary, but from our perspective as Rapids programmers, this is secondary.  We call these workflow functions "Flows", and refer to this approach as "functional Human Computer Interaction programming".
+### Setting time outs
 
-Flows are defined using the `deflow` macro, which has a similar signature and behavior to Clojure's `defn`:
+### Indexing and finding runs
 
-```clojure
-(deflow chatbot []
-  )
-```
+### Coordinating runs
 
+### Defering actions for later
 
- 
+### Interrupting runs
+

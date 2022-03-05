@@ -106,8 +106,21 @@ The `find-runs` API allows for queries on multiple fields and JSON subfields of 
 Rapids works by saving the runtime state in non-volatile storage. This capability can be provided by implementing the protocols, in rapids.storage.protocol: Storage and StorageConnection. The library contains implementations of an in memory implementation (used for testing) and a Postgres-based implementation.
 
 ### Set up a local PostgresStorage Backend
-#### Create a database
+#### Installing Postgresql
+We use:
 ```shell
+brew install postgresql
+# To start postgresql for the first time:
+brew services start postgresql
+# To restart postgresql after an upgrade:
+brew services restart postgresql
+#Or, if you don't want/need a background service you can just run:
+/usr/local/opt/postgresql/bin/postgres -D /usr/local/var/postgres
+
+```
+#### Create databases
+```shell
+createdb rapids-test 
 createdb rapids_storage # or any name you prefer
 ```
 

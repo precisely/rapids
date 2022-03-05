@@ -35,9 +35,9 @@
 (defmacro with-storage
   "Override the existing storage. This may be useful if multiple storages are used."
   [storage & body]
-  `(binding [*storage* ~storage
+  `(binding [*storage*    ~storage
              *connection* nil
-             *cache* nil]
+             *cache*      nil]
      ~@body))
 
 (defn get-connection
@@ -49,9 +49,9 @@
   "Establishes a new connection with the current storage"
   [& body]
   `(binding [*connection* (get-connection *storage*)
-             *cache* nil]
+             *cache*      nil]
      (try ~@body
-          (finally (p/close *connection*)))))
+       (finally (p/close *connection*)))))
 
 (defmacro ensure-connection
   "Ensures *connection* is a valid connection"

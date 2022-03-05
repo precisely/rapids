@@ -66,7 +66,7 @@
   ([type field-constraints] (cache-find! type field-constraints {}))
   ([type field-constraints query-constraints]
    (let [existing            (filter-records (map :object (vals (get *cache* type)))
-                                             field-constraints {})
+                               field-constraints {})
          excluded-ids        (mapv :id existing)
          storage-constraints (if (empty? excluded-ids)
                                field-constraints
@@ -103,7 +103,10 @@
         result)
       (catch Exception e
         (c/transaction-rollback!)
-        (throw e)))))
+        (throw e))
+      (catch Throwable t
+        (println "caught throwable" t)
+        (throw t)))))
 
 (defmacro ensure-cached-connection
   "Ensures a transactional cache and connection exists then executes body in the context
@@ -145,7 +148,7 @@
          cache-entry {:object inst
                       :op     op}]
      (setf! *cache* update-in [cls-name id]
-            (constantly cache-entry))
+       (constantly cache-entry))
      cache-entry)))
 
 (defn ensure-raw-object
@@ -154,12 +157,12 @@
   {:pre [(instance? Class cls)
          (not (nil? id))]}
   (or (:object (get-cache-entry cls id))
-      (if-let [obj (c/get-record! cls id)]
-        (do (set-cache-entry obj) obj)
-        (throw (ex-info "Object not found."
-                        {:type  ::not-found
-                         :class cls
-                         :id    id})))))
+    (if-let [obj (c/get-record! cls id)]
+      (do (set-cache-entry obj) obj)
+      (throw (ex-info "Object not found."
+               {:type  ::not-found
+                :class cls
+                :id    id})))))
 
 (defn ->CacheProxy
   ([cls id] (->CacheProxy cls id nil))
