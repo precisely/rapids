@@ -24,7 +24,6 @@
   (:require [clojure.core.match :refer [match]]
             [clojure.core.match.regex]
             [clojure.test :refer :all]
-            [clojure.tools.macro :refer [macrolet]]
             [rapids :refer :all]
             [rapids.implementations.in-memory-storage :as imrs]
             [rapids.storage.core :as s]))

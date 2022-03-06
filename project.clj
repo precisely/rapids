@@ -9,7 +9,6 @@
                  [org.clojure/core.async "1.5.648"]
                  [org.clojure/core.match "1.0.0"]
                  [clojure.java-time "0.3.3"]
-                 [org.clojure/tools.macro "0.1.5"]
                  [org.clojure/data.codec "0.1.1"]
                  [com.taoensso/nippy "3.1.1"]
                  [com.taoensso/timbre "5.1.2"]
@@ -28,12 +27,14 @@
   :profiles {:dev {
                    :source-paths ["src"]
                    :dependencies [[expectations/clojure-test "1.2.1"]
+                                  [org.clojure/tools.macro "0.1.5"]
                                   [org.clojure/core.match "1.0.0"]
                                   [philoskim/debux "0.8.2"]
                                   [tortue/spy "2.9.0"]
                                   [org.clojars.justiniac/matchure "0.13.1"]
                                   [org.clojure/tools.namespace "1.2.0"]]
                    :plugins      [[lein-ancient "1.0.0-RC3"]
+                                  [com.gearswithingears/shrubbery "0.4.1"] ; protocol spies & stubs
                                   [migratus-lein "0.7.3"]
                                   [lein-cloverage "1.2.2"]
                                   [s3-wagon-private "1.3.4"]]}}
