@@ -20,7 +20,6 @@
                  [org.postgresql/postgresql "42.3.3"]
                  [seancorfield/next.jdbc "1.2.659"]
                  [com.github.seancorfield/honeysql "2.2.868"]
-                 [danlentz/clj-uuid "0.1.9"]
                  [migratus "1.3.6"]
                  [hikari-cp "2.13.0"]
                  [metosin/jsonista "0.3.5"]]
@@ -36,10 +35,7 @@
                                   [org.clojure/tools.namespace "1.2.0"]]
                    :plugins      [[lein-ancient "1.0.0-RC3"]
                                   [migratus-lein "0.7.3"]
-                                  [lein-localrepo "0.5.4"]
                                   [lein-cloverage "1.2.2"]
-                                  [lein-codox "0.10.8"]
-                                  [lein-pprint "1.3.2"]
                                   [s3-wagon-private "1.3.4"]]}}
   :repl-options {:init-ns rapids}
   :codox {:doc-paths []}

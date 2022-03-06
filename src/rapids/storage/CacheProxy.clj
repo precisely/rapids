@@ -50,7 +50,7 @@
           (-> this (.theId) str)
           (into {} (:recent @(.state this)))))
 
-(defn recent-instance
+(defn- recent-instance
   "Returns the most recent instance of the object pointed at by the CacheProxy"
   [this]
   (let [state (.state this)]
@@ -92,8 +92,8 @@
                  (throw e))))))))
 
 (defn -rawData
-  "Attempts to get the object from the cache, if the cache exists, otherwise returns the most recent copy.
-  This behavior is useful for providing a view onto cached objects after the transaction has completed.
+  "Guards access to the raw object, only allowing retrieval when the cache isn't available.
+  This is to protect against the raw object being exposed to the stack within a runlet.
 
   Returns the raw Clojure record (e.g., a Run or Pool instance) or nil."
   [this]
