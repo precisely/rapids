@@ -28,7 +28,7 @@
           (s/call-entry-point this args)))
 
   Named
-  (getNamespace [this] (.getNamespace (-> this address symbol)))
+  (getNamespace [this] (.getNamespace (-> this :address :flow)))
   (getName [this] (-> this :address a/to-string))
 
   Startable
