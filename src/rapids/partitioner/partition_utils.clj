@@ -22,11 +22,23 @@
       (every? constant? (keys o))
       (every? constant? (vals o)))))
 
-(defn make-implicit-parameters [args]
-  (map-indexed (fn [i v]
-                 (if (or (constant? v) (symbol? v))
-                   v
-                   (stable-symbol)))
+(defn var-expr? [o]
+  (and (seq? o)
+    (-> o count (= 2))
+    (-> o first (= 'var))))
+
+(defn quote-expr? [o]
+  (and (seq? o)
+    (-> o count (= 2))
+    (-> o first (= 'quote))))
+
+(defn make-implicit-parameters
+  "Given a list of expressions representing function arguments, returns parameters, if needed or the input form."
+  [args]
+  (map (fn [v]
+         (if (or (constant? v) (symbol? v) (var-expr? v) (quote-expr? v))
+           v
+           (stable-symbol)))
     args))
 
 (def ^:dynamic *partitioning-expr* nil)
