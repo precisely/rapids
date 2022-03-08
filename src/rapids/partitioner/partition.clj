@@ -596,6 +596,90 @@
       [`(let [~@let-bindings] ~@body)]
       body)))
 
+(defn partition-bindings-new
+  "Partitions a sequence of symbols and expressions representing bindings. This supports
+  let-binding and function argument evaluation.
+
+  Given keys= [s1..sn], exprs= [e1...en], accumulate?, p-addr, addr, params,
+  s1...sn = binding symbols
+  e1...en = expressions
+  accumulate? = boolean representing that binding k(i-1) should be available when evaluating e(i)
+      this should be true for let binding and false for function arguments.
+  p-addr = partition address of the currently accumulating partition
+  addr = address of the expression containing the bindings (used to generate unique addresses for each binding argument)
+  body-addr = partition address containing the code body to be executed with the given bindings
+    - for example, the body of a let expression, or an address which will contain the function invokation expression
+      to be used with the given bindings
+    - this can be the same as addr
+  params = vector of symbols in the current lexical environment
+
+  Returns:
+  [
+    start - start expression
+    pset - partition set
+    suspending-count - number of suspending expressions encountered.
+      an optimization can be applied to function expressions when a single suspending expression
+      is provided as the first argument.
+    final-partition-pset - partition set of the last suspending expression (may be nil)
+    final-bindings-index - index into syms and args, bindings/evaluation which the caller is responsible for
+                           This value is 0 when no suspending arguments are encountered or 1+ index of the final
+                           suspending expression.
+    final-params - params for the final partition (includes the input key of the last suspending expr)
+  ]"
+  [syms args accumulate? p-addr addr body-addr params]
+  (if (empty? syms)
+    [nil nil 0 nil [] [] params]
+    (let [pset                (atom (pset/create))
+          final-pset          (atom (pset/create)) ; this stores the final pset, which is reported separately from main pset
+          partition-params    (atom params)
+          current-bindings    (atom [])
+          p-addr              (atom p-addr)
+          arg-addr            (atom (a/child addr 0))
+          start               (atom nil)
+          scount              (atom 0) ; suspending-count
+          final-binding-index (atom 0)
+          pset-add-resume-at  (fn [pset p-addr next-addr start-expr bindings params input-key]
+                                {:pre [(a/address? p-addr) (a/address? next-addr) (a/address? next-addr)
+                                       (not (atom? start-expr)) (vector? bindings) (vector? params) (symbol? input-key)]}
+                                (pset/add pset p-addr params
+                                  (make-let-body bindings
+                                    [`(resume-at [~next-addr ~params ~input-key]
+                                        ~start-expr)])
+                                  true))]
+      (loop [[sym & next-syms] syms
+             [arg & next-args] args
+             index 0]
+        (let [[arg-start, arg-pset, suspend?] (partition-expr arg, @p-addr, @arg-addr, @partition-params)
+              _          (swap! arg-addr a/increment)
+              next-addr  (if (empty? next-args) body-addr @arg-addr)
+              next-index (inc index)]
+          (if suspend?
+            (do
+              ;; add the final-pset to pset before combining it with previous psets...
+              (swap! pset pset/combine @final-pset)
+
+              ;; set the final-pset to the the arg-pset and a partition to resume at the next-address
+              (reset! final-pset
+                (pset-add-resume-at arg-pset @p-addr next-addr arg-start @current-bindings @partition-params sym))
+
+
+              (reset! final-binding-index next-index) ;; bindings in the current partition
+              (if accumulate?
+                (swap! partition-params (comp vec concat) (conj (mapv first @current-bindings) sym)))
+              (reset! current-bindings [])
+              (reset! p-addr next-addr)
+              (swap! scount inc)
+              (swap! start #(or % arg-start)))
+            (do
+              (swap! current-bindings conj [sym arg])))
+
+          (swap! arg-addr a/increment)
+
+          (if-not (empty? next-syms)
+            (recur next-syms next-args next-index))))
+      [@start, @pset, @scount, @final-pset, @final-binding-index, @partition-params])))
+
+
 (defn partition-bindings
   "Partitions the bindings, and executes `body` in that context. Note:
   this function does not partition `body` - it merely pastes the supplied
