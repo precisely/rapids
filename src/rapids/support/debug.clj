@@ -16,6 +16,6 @@
   (binding [pprint/*print-suppress-namespaces* true]
     (pprint/pprint (macroexpand-1 form))))
 
-(defn macroexpand-pprint-1 [form n]
+(defn macroexpand-pprint-n [form n]
   (binding [pprint/*print-suppress-namespaces* true]
     (pprint/pprint (macroexpand-n form n))))
