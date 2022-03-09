@@ -60,7 +60,8 @@
                        (partition-macroexpand 'g123))))))
 
     (testing "excludes global defs from gensym replacement in macroexpand"
-      (is (= var123 :foo))
-      (is (not (nil? (resolve `var123))))
-      (is (= `var123 (with-gensym-context (partition-macroexpand `var123)))))))
-
+      ;; the test runs in the rapids namespace, for some reason
+      ;; so we need to explicitly bind the current namespace
+      (binding [*ns* (find-ns 'rapids.partitioner.partition-macroexpand-test)]
+        (is (not (nil? (resolve 'var123))))
+        (is (= 'var123 (with-gensym-context (partition-macroexpand 'var123))))))))
