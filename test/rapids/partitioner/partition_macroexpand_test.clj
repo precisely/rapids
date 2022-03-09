@@ -6,6 +6,8 @@
   (let [s (gensym)]
     `(list ~s)))
 
+(def var123 :foo)
+
 (deftest ^:unit partition-macroexpand-test
   (testing "partition macroexpander"
     (testing "macroexpanding autosyms results in non-equal lists "
@@ -15,7 +17,7 @@
       (is (=
             (with-gensym-context (partition-macroexpand `(a#)))
             (with-gensym-context (partition-macroexpand `(a#))))))
-#_#_#_#_#_
+
     (testing "macroexpanding gensyms results in non-equal lists "
       (is (not=
             (with-gensym-context (macroexpand `(test-macro)))
@@ -44,5 +46,21 @@
     (testing "expanding clojure.core macros works as expected"
       (is (=
             (with-gensym-context (partition-macroexpand '(doseq [a '(1 2 3)] (println a))))
-            (with-gensym-context (partition-macroexpand '(doseq [a '(1 2 3)] (println a)))))))))
+            (with-gensym-context (partition-macroexpand '(doseq [a '(1 2 3)] (println a)))))))
+
+    (testing "gensym-replacement? detects our gensym-replacement symbols"
+      (is (gensym-replacement? '<<123>>))
+      (is (not (gensym-replacement? '<<foo>>)))
+      (is (not (gensym-replacement? '<123>))))
+
+    (testing "with-gensym-excluded-symbols should prevent symbols from being replaced"
+      (is (not= 'g123 (with-gensym-context (partition-macroexpand 'var123))))
+      (is (= 'g123 (with-gensym-context
+                     (with-gensym-excluded-symbols '[g123]
+                       (partition-macroexpand 'g123))))))
+
+    (testing "excludes global defs from gensym replacement in macroexpand"
+      (is (= var123 :foo))
+      (is (not (nil? (resolve `var123))))
+      (is (= `var123 (with-gensym-context (partition-macroexpand `var123)))))))
 

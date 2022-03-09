@@ -10,7 +10,7 @@
             [rapids.support.debug :refer :all]
             [rapids.support.util :refer :all]
             [rapids.partitioner.macroexpand
-             :refer [partition-macroexpand partition-macroexpand-1 exclude-from-gensym-replacement stable-symbol]])
+             :refer [partition-macroexpand partition-macroexpand-1 with-gensym-excluded-symbols stable-symbol]])
   (:import (clojure.lang ArityException LazySeq)))
 
 ;;;; Partitioner
@@ -632,7 +632,8 @@
          pset              (pset/create)]
         (if key
           (let [[arg-start, arg-pset, suspend?]
-                (partition-expr arg, partition-address, arg-address, params) ;
+                (with-gensym-excluded-symbols params
+                  (partition-expr arg, partition-address, arg-address, params)) ;
 
                 pset         (pset/combine pset arg-pset)
                 next-address (a/increment arg-address)
@@ -785,8 +786,8 @@
   [m address sig params]
   (let [[args & code] sig
         params         (vec (concat (params-from-args args [] (-> m :line)) params))
-        _              (exclude-from-gensym-replacement params)
-        [start-body, pset, _] (partition-body (vec code) address address params)
+        [start-body, pset, _] (with-gensym-excluded-symbols params
+                                (partition-body (vec code) address address params))
         pset           (pset/add pset address params start-body)
         entry-bindings (bindings-expr-from-params params)]
     [pset, `([~@args] (flow/call-partition ~address ~entry-bindings))]))
@@ -796,7 +797,9 @@
 ;;
 
 (defn- params-from-args
-  "given an argument vector, returns a vector of symbols"
+  "given an argument vector, returns a vector of symbols,
+
+  E.g., (params-from-args '[a b & {:keys [c d]}]) => (a b c d)"
   [args params line]
   (let [arg (first args)]
     (cond
