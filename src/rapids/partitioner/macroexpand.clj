@@ -48,13 +48,6 @@
        (swap! (gensym-map) assoc old-sym new-sym)
        new-sym))))
 
-;;(defn exclude-from-gensym-replacement [symbols]
-;;  (let [symbols (cond
-;;                  (symbol? symbols) #{symbols}
-;;                  (sequential? symbols) (set symbols)
-;;                  :else (assert false "Expecting symbol list or set in exclude-from-gensym-replacement"))]
-;;    (swap! (gensym-exclusions) clojure.set/union symbols)))
-
 (defmacro with-gensym-excluded-symbols
   "Prevents certain symbols from being replaced by gensym"
   [symbols & body]
