@@ -22,7 +22,7 @@
       ~@body)))
 
 (defn resume-at-expr? [o]
-  (and (seq? o) (-> o first #{'resume-at `resume-at})))
+  (and (seq? o) (->> o first (contains? #{'resume-at `resume-at}))))
 
 (defn resume-at-expr-data
   ([expr field]
@@ -35,7 +35,7 @@
      {:address address
       :params params
       :input-key input-key
-      :body (rest expr)})))
+      :body (nthrest expr 2)})))
 
 (defn redirect-resume-at [e addr]
   {:pre [(resume-at-expr? e)]}

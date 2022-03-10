@@ -37,7 +37,9 @@
                                   [com.gearswithingears/shrubbery "0.4.1"] ; protocol spies & stubs
                                   [migratus-lein "0.7.3"]
                                   [lein-cloverage "1.2.2"]
-                                  [s3-wagon-private "1.3.4"]]}}
+                                  [s3-wagon-private "1.3.4"]]
+                   :cloverage    {:ns-exclude-call ['rapids.support.defrecordfn/defrecordfn]
+                                  :ns-exclude-regex [#"rapids.support.debug" #"rapids.support.repl"]}}}
   :repl-options {:init-ns rapids.support.repl}
   :codox {:doc-paths []}
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
