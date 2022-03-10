@@ -1,12 +1,6 @@
 (ns rapids.partitioner.partition-utils-test
   (:require [clojure.test :refer :all]
             [rapids.partitioner.partition-utils :refer :all]))
-;;
-;;(deftest ^:unit macroexpand-keeping-metadata-test
-;;  (testing 'macroexpand-keeping-metadata
-;;    (let [expr (with-meta '(and a b) {:column 123 :line 456})]
-;;      (is (= (meta (macroexpand-keeping-metadata expr))
-;;            {:column 123 :line 456})))))
 
 (deftest ^:unit unqualified-symbols-in-test
   (testing "it excludes qualified symbols"
