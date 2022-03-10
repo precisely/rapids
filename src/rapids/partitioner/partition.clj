@@ -110,7 +110,7 @@
     :post [(vector (first %))]}
    (let [dirty-address partition-address]
      (loop [iter-body         body
-            pset              (pset/create)
+            pset              (pset/->pset)
             cur-address       (a/child address 0)
             partition-address partition-address
             part-body         []
@@ -430,7 +430,7 @@
                       `(resume-at [~branch-addr, [~@params], ~test-result], ~test-start)
                       (with-meta `(if ~test ~then-start ~else-start) (meta expr)))
         branch-pset (if test-suspend?
-                      (pset/add (pset/create) branch-addr `[~@params ~test-result]
+                      (pset/add (pset/->pset) branch-addr `[~@params ~test-result]
                         `[(if ~test-result ~then-start ~else-start)]))
         full-pset   (pset/combine test-pset branch-pset then-pset else-pset)
         suspend?    (or test-suspend? then-suspend? else-suspend?)]
@@ -494,7 +494,7 @@
           ;; recur expressions in addition to suspending recur expressions.
           loop-partition-body    [`(loop [~@(apply concat (map #(vector % %) loop-params))] ~@start-body)]
           loop-partition-params  (vec (concat loop-params params))
-          loop-pset              (pset/add (pset/create) loop-partition loop-partition-params loop-partition-body)
+          loop-pset              (pset/add (pset/->pset) loop-partition loop-partition-params loop-partition-body)
 
           flow-continue-bindings (bindings-expr-from-params loop-partition-params)
           binding-body           `[(flow/call-partition ~loop-partition ~flow-continue-bindings)]
@@ -629,7 +629,7 @@
          params            params ; params provided to this partition
          start             nil
          any-suspend?      false
-         pset              (pset/create)]
+         pset              (pset/->pset)]
         (assert (not (and (nil? key) (not (empty? rest-keys)))))
         (if key
           (let [[arg-start, arg-pset, suspend?]
@@ -776,6 +776,14 @@
          pset             (apply pset/combine psets)
          entry-fn-def     `(fn ~(symbol entry-point-name) ~@sig-defs)]
      [entry-fn-def, pset])))
+
+(defn partition-value-expr
+  "Returns an expression which represents the value of the partition"
+  [p]
+  (let [body (:body p)]
+    (if (-> body count (> 1))
+      `(do ~@body)
+      (first body))))
 
 (defn partition-signature
   "Returns a pset and and a partitioned sig definition.

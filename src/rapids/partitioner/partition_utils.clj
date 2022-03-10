@@ -1,7 +1,6 @@
 (ns rapids.partitioner.partition-utils
   (:require [clojure.set :refer [difference intersection]]
             [clojure.walk :refer [postwalk]]
-            [rapids.objects.address :as a]
             [rapids.support.util :refer [unqualified-symbol?]]
             [rapids.partitioner.macroexpand :refer [stable-symbol]]))
 
@@ -70,3 +69,8 @@
         captured-bindings (difference body-bindings (set fn-params))]
     (vec captured-bindings)))
 
+(defn combine-params
+  "Given two sequences of symbols, returns a vector containing non-duplicate symbols."
+  [p1 p2]
+  {:pre [(vector? p1) (vector? p2)]}
+  (vec (clojure.set/union (set p1) (set p2))))

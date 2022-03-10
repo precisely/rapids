@@ -60,8 +60,9 @@
     (str "$" (apply str (map stringify-point-elt (:point address))))))
 
 (defn to-string
+  "Constructs a name suitable for a function"
   [a]
-  (str "$" (.getName (:flow a)) (point-to-string a)))
+  (str "$" (.getName (:flow a)) (point-to-string a))) 
 
 (defn child
   [address & point]
@@ -102,5 +103,5 @@
   [a w]
   (print-simple
     (let [length (-> a :point count inc)]
-      (apply str (:flow a) (interleave (repeat length ":") (:point a))))
+      (str "#a\"" (apply str (:flow a) (interleave (repeat length ":") (:point a))) \"))
     w))

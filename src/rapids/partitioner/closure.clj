@@ -22,7 +22,7 @@
         captured-params (closure-captured-bindings params, bodies, env-params)
         closure-ctor `(->Closure ~address ~(bindings-expr-from-params captured-params) false)
 
-        pset (pset/add (pset/create) address captured-params [fn-form] true)]
+        pset (pset/add (pset/->pset) address captured-params [fn-form] true)]
     [closure-ctor, pset]))
 
 (defn extract-fn-defs [form]

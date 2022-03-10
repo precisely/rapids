@@ -11,9 +11,9 @@
         addr1 (address/child addr 1)
         addr2 (address/child addr 2)
         addr3 (address/child addr 3)
-        pset1 (add (create) addr1 [] '[1])
-        pset2 (add (create) addr2 [] '[2])
-        pset3 (add (create) addr3 [] '[3])]
+        pset1 (add (->pset) addr1 [] '[1])
+        pset2 (add (->pset) addr2 [] '[2])
+        pset3 (add (->pset) addr3 [] '[3])]
 
     (testing "combine"
       (testing "takes nil as argument"
@@ -50,7 +50,7 @@
 
 
     (testing "forced and unforced addresses"
-      (let [full-pset (create)
+      (let [full-pset (->pset)
             full-pset (add full-pset addr1 '[keep] '[this] true)
             full-pset (add full-pset addr2 '[drop] '[this])
             forced-pset (remove-unforced full-pset)]

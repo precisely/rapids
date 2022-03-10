@@ -13,24 +13,24 @@
 
   Returns:
   value of body"
-  ([[address params input-key] & body]
+  ([[address params input-key] expr]
    (:pre [(a/address? address)
           (vector? params)
           (or (nil? input-key) (symbol? input-key))])
    `(let [bindings# ~(bindings-expr-from-params params)]
       (rapids.runtime.runlet/push-stack! ~address bindings# '~input-key)
-      ~@body)))
+      ~expr)))
 
-(defn resume-at-expr? [o]
+(defn resume-at-form? [o]
   (and (seq? o) (->> o first (contains? #{'resume-at `resume-at}))))
 
-(defn resume-at-expr-data
+(defn resume-at-data
   ([expr field]
    {:pre [(contains? #{:address :params :input-key :body} field)]}
-   (field (resume-at-expr-data expr)))
+   (field (resume-at-data expr)))
 
   ([expr]
-   {:pre [(resume-at-expr? expr)]}
+   {:pre [(resume-at-form? expr)]}
    (let [[address params input-key] (second expr)]
      {:address address
       :params params
@@ -38,9 +38,9 @@
       :body (nthrest expr 2)})))
 
 (defn redirect-resume-at [e addr]
-  {:pre [(resume-at-expr? e)]}
+  {:pre [(resume-at-form? e)]}
   (let [{params    :params
          input-key :input-key
-         body      :body} (resume-at-expr-data e)]
+         body      :body} (resume-at-data e)]
     `(resume-at [~addr ~params ~input-key]
        ~@body)))

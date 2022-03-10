@@ -10,12 +10,12 @@
         params    '[a b]
         expr `(resume-at [~addr ~params ~input-key] ~@body)]
     (testing "resume-at-expr?"
-      (is (= true (resume-at-expr? `(resume-at))))
-      (is (= true (resume-at-expr? expr)))
-      (is (= false (resume-at-expr? `(foo)))))
+      (is (= true (resume-at-form? `(resume-at))))
+      (is (= true (resume-at-form? expr)))
+      (is (= false (resume-at-form? `(foo)))))
 
     (testing "resume-at-data"
-      (let [data (resume-at-expr-data expr)]
+      (let [data (resume-at-data expr)]
         (is (= addr (:address data)))
         (is (= params (:params data)))
         (is (= input-key (:input-key data)))
@@ -25,6 +25,6 @@
       (let [other-address (a/->address `other 123)]
         (is (= other-address
               (-> (redirect-resume-at expr other-address)
-                resume-at-expr-data
+                resume-at-data
                 :address)))))))
 
