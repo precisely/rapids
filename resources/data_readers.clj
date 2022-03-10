@@ -1,0 +1,1 @@
+{a rapids.objects.address/address-reader}
