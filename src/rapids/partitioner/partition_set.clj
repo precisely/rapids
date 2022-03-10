@@ -26,15 +26,23 @@
 (defn partition-set? [o] (map? o))
 
 (defn create []
-  {:unforced #{}})                                          ;; unforced partitions may be dropped by partitioning functions
+  {:unforced #{}})            ;; unforced partitions may be dropped by partitioning functions
 ;; closure partitions are always FORCED
 
 (defn remove-unforced [pset]
   "Returns a partition-set contiaining only the forced partitions"
-  (apply dissoc pset (seq (:unforced pset))))
+  (apply dissoc pset (-> pset :unforced seq)))
 
 (defn size [pset]
   (count (dissoc pset :unforced)))
+
+(defn unroll-do-exprs [body]
+  (->> body
+    (mapcat (fn [expr]
+              (if (and (seq? expr) (-> expr first (= 'do)))
+                (rest expr)
+                [expr])))
+    vec))
 
 (defn add
   ([pset address params body] (add pset address params body false))
@@ -45,9 +53,10 @@
           (vector? body)]}
    (let [unforced (:unforced pset)
          unforced (if force? unforced (conj unforced address))]
-     (assoc pset
-       :unforced unforced
-       address (->Partition (vec params) body)))))
+     (let [body (unroll-do-exprs body)]
+       (assoc pset
+         :unforced unforced
+         address (->Partition (vec params) body))))))
 
 (defn delete
   [pset address]
@@ -64,10 +73,10 @@
 (defn partition-fn-def
   "Returns the code which defines the partition fn at address"
   [pset address counter]
-  (let [cdef (get pset address)
-        name (symbol (str (name (:flow address)) (swap! counter inc)))
-        params (:params cdef)
-        dynamics (filter dynamic? params)                   ; TODO: disallow binding system dynamic vars - security issue
+  (let [cdef             (get pset address)
+        name             (symbol (str (name (:flow address)) (swap! counter inc)))
+        params           (:params cdef)
+        dynamics         (filter dynamic? params) ; TODO: disallow binding system dynamic vars - security issue
         dynamic-bindings (vec (flatten (map #(vector % %) dynamics)))]
     `(fn ~name [{:keys ~params}]
        (binding ~dynamic-bindings
@@ -77,8 +86,8 @@
   "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"
   [pset]
   (let [counter (atom 0)
-        pfdefs (map (fn [[address _]]
-                     [`(quote ~(:point address)) (partition-fn-def pset address counter)]) (dissoc pset :unforced))]
+        pfdefs  (map (fn [[address _]]
+                       [`(quote ~(:point address)) (partition-fn-def pset address counter)]) (dissoc pset :unforced))]
     `(hash-map ~@(apply concat pfdefs))))
 
 (defn combine

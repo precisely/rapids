@@ -61,7 +61,7 @@
 
 (declare partition-body partition-expr partition-fncall-expr
   partition-list-expr partition-flow-invokation-expr partition-flow-body
-  partition-functional-expr partition-bindings partition-bindings-new make-let-body bindings-at-index
+  partition-functional-expr partition-bindings partition-bindings-new make-let-expr bindings-at-index
   partition-if-expr partition-let*-expr partition-fn*-expr
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
   partition-vector-expr partition-map-expr partition-set-expr
@@ -333,7 +333,7 @@
          (partition-body body, final-addr, body-address, final-params, modifier)
 
          bindings        (interleave (nthrest keys final-binding-index) (nthrest args final-binding-index))
-         final-body      (make-let-body bindings
+         final-body      (make-let-expr bindings
                            (if body-suspend? body-start body))
 
          pset            (pset/add final-pset final-addr final-params final-body true)
@@ -586,56 +586,65 @@
 ;;
 ;; Partitioning expressions with bindings
 ;;
-#_(defn partition-functional-expr-new [op, expr, partition-addr, addr, params, make-call-form]
-    {:pre [(vector? params)]}
-    (letfn [(call-form [args]
-              (with-meta (make-call-form args) (meta expr)))
-
-            (call-form-with-bindings-and-args [keys args index]
-              (apply call-form (concat (take-nth index keys))))]
-      (let [[_ & args] expr
-            keys    (make-implicit-parameters args)
-            address (a/child addr op)
-
-            [bind-start, bind-pset, bindings-suspend-count, final-pset, final-binding-index, final-params, final-addr]
-            (partition-bindings keys, args, false, partition-addr, address, addr, params)]
-
-        (cond
-          ;; not suspending
-          (zero? bindings-suspend-count) [(call-form args) nil false]
-
-          ;; final pset can be substituted
-          (= 1 (pset/size final-pset)) ()
-          ) (make-let-body (bindings-at-index keys args final-binding-index)
-              (if body-suspend? body-start body))
-        (if suspending?
-          (let []
-            [bind-start])
-          [(call-form args) nil false]))))
 (defn partition-functional-expr
-  "Partitions a function-like expression - a list with an operator followed
-  by an arbitrary list of arguments.
+  "Partitions expressions where an operator of some kind is applied to a sequence of
+  arguments, evaluated left -> right. E.g., (op arg1 arg2 ...) or [arg1 arg2 arg3] etc.
 
-  Note: op is only used to generate an address
-  make-call-form - is a function which takes a list of parameters and returns
-  a form which represents the functional call"
-  [op, expr, partition-address, address, params, make-call-form]
+  The caller supplies the usual arguments, and a function, make-call-form which takes a sequence
+  of arguments to which the operator should be applied, and returns a valid s-expr."
+  [op, expr, partition-addr, addr, params, make-call-form]
   {:pre [(vector? params)]}
   (letfn [(call-form [args]
-            (with-meta (make-call-form args) (meta expr)))]
-    (let [address    (a/child address op)
-          [_ & args] expr
-          value-expr (call-form args)
-          keys       (make-implicit-parameters args)
-          pcall-body [(call-form keys)]
-          [start, pset, suspend?]
-          (partition-bindings keys args partition-address address params
-            pcall-body)]
-      (if suspend?
-        [start, pset, true]   ; partition bindings has provided the correct result
-        [value-expr, nil, false]))))
+            (with-meta (make-call-form args) (meta expr)))
 
-(defn make-let-body [bindings body]
+          (call-form-with-bindings-and-args [keys args index]
+            (apply call-form (concat (take-nth index keys))))]
+    (let [[_ & args] expr
+          keys    (make-implicit-parameters args)
+          address (a/child addr op)
+
+          [bind-start, bind-pset, bindings-suspend-count, final-pset, final-binding-index, final-params, final-addr]
+          (partition-bindings-new keys, args, false, partition-addr, address, addr, params)]
+
+      (cond
+        ;; not suspending
+        (zero? bindings-suspend-count) [(call-form args) nil false]
+
+        ;; final pset can be substituted
+        (= 1 (pset/size final-pset))
+        (make-let-expr (bindings-at-index keys args final-binding-index)
+          (if body-suspend? body-start body)))
+      (if suspending?
+        (let []
+          [bind-start])
+        [(call-form args) nil false]))))
+
+#_(defn partition-functional-expr
+    "Partitions a function-like expression - a list with an operator followed
+    by an arbitrary list of arguments.
+
+    Note: op is only used to generate an address
+    make-call-form - is a function which takes a list of parameters and returns
+    a form which represents the functional call"
+    [op, expr, partition-address, address, params, make-call-form]
+    {:pre [(vector? params)]}
+    (letfn [(call-form [args]
+              (with-meta (make-call-form args) (meta expr)))]
+      (let [address    (a/child address op)
+            [_ & args] expr
+            value-expr (call-form args)
+            keys       (make-implicit-parameters args)
+            pcall-body [(call-form keys)]
+            [start, pset, suspend?]
+            (partition-bindings keys args partition-address address params
+              pcall-body)]
+        (if suspend?
+          [start, pset, true] ; partition bindings has provided the correct result
+          [value-expr, nil, false]))))
+
+(defn make-let-expr
+  "Returns a vector containing a let-binding expression [(let bindings"
+  [bindings body]
   {:pre [(vector? body)]}
   (let [filtered-bindings (filter (fn [[k v]]
                                     (if (constant? k) ; accept [asdf :foo] but not [:foo asdf]
@@ -643,9 +652,10 @@
                                       [k v]))
                             bindings)
         let-bindings      (vec (apply concat filtered-bindings))]
-    (if (-> let-bindings count (> 0))
-      [`(let [~@let-bindings] ~@body)]
-      body)))
+    (cond
+      (-> let-bindings count (> 0)) `(let [~@let-bindings] ~@body)
+      (-> body count (> 0)) `(do ~@body)
+      :else (first body))))
 
 (defn partition-bindings-new
   "Partitions a sequence of symbols and expressions representing bindings. This supports
@@ -694,9 +704,9 @@
                                 {:pre [(a/address? p-addr) (a/address? next-addr) (a/address? next-addr)
                                        (not (atom? start-expr)) (vector? bindings) (vector? params) (symbol? input-key)]}
                                 (pset/add pset p-addr params
-                                  (make-let-body bindings
-                                    [`(resume-at [~next-addr ~params ~input-key]
-                                        ~start-expr)])
+                                  [(make-let-expr bindings
+                                     [`(resume-at [~next-addr ~params ~input-key]
+                                         ~start-expr)])]
                                   true))]
       (loop [[sym & next-syms] syms
              [arg & next-args] args
@@ -708,12 +718,14 @@
           (if suspend?
             ;; create a new partition
             (do
-              ;; add the final-pset to pset before combining it with previous psets...
+              ;; merge the previous final-pset into the main pset
               (swap! pset pset/combine @final-pset)
 
-              ;; set the final-pset to the the arg-pset and a partition to resume at the next-address
-              (reset! final-pset
-                (pset-add-resume-at arg-pset @p-addr next-addr arg-start @current-bindings @partition-params sym))
+              ;; the arg-pset is the new final-pset
+              (reset! final-pset arg-pset)
+
+              (if start)
+              (pset-add-resume-at arg-pset @p-addr next-addr arg-start @current-bindings @partition-params sym)
 
               (reset! final-binding-index next-index) ;; bindings in the current partition
               (if accumulate?
