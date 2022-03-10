@@ -1,6 +1,6 @@
 (defn env [x] (eval (System/getenv x)))
 
-(defproject precisely/rapids "0.9.8"
+(defproject precisely/rapids "0.9.9-SNAPSHOT"
   :description "A Clojure DSL for scripting user flows"
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
@@ -38,7 +38,7 @@
                                   [migratus-lein "0.7.3"]
                                   [lein-cloverage "1.2.2"]
                                   [s3-wagon-private "1.3.4"]]}}
-  :repl-options {:init-ns rapids}
+  :repl-options {:init-ns rapids.support.repl}
   :codox {:doc-paths []}
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
                                       :username      #=(env "MAVEN_REPO_AWS_ACCESS_KEY_ID")

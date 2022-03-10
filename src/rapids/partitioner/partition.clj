@@ -9,6 +9,7 @@
             [rapids.partitioner.recur :refer [*recur-binding-point* *tail-position* with-binding-point with-tail-position]]
             [rapids.support.debug :refer :all]
             [rapids.support.util :refer :all]
+            [rapids.partitioner.resume-at :refer :all]
             [rapids.partitioner.macroexpand
              :refer [partition-macroexpand partition-macroexpand-1 with-gensym-excluded-symbols stable-symbol]])
   (:import (clojure.lang ArityException LazySeq)))
@@ -66,8 +67,7 @@
   partition-vector-expr partition-map-expr partition-set-expr
   partition-java-interop-expr partition-java-new-expr
   partition-suspend-expr partition-flow-expr partition-callcc-expr
-  partition-case-expr partition-case*-expr partition-binding-expr partition-set!-expr
-  resume-at)
+  partition-case-expr partition-case*-expr partition-binding-expr partition-set!-expr)
 
 (defn default-partition-modifier [p _ _] p)
 (defn partition-body
@@ -630,6 +630,7 @@
          start             nil
          any-suspend?      false
          pset              (pset/create)]
+        (assert (not (and (nil? key) (not (empty? rest-keys)))))
         (if key
           (let [[arg-start, arg-pset, suspend?]
                 (with-gensym-excluded-symbols params
@@ -813,23 +814,3 @@
 (defn- extract-signatures [fdecl]
   (let [[_ _ & sigs] (macroexpand `(fn random-name# ~@fdecl))]
     sigs))
-
-;;
-;; resume-at
-;;
-(defmacro resume-at
-  "Generates code that continues execution at address after body.
-  address - names the partition
-  params - list of parameters needed by the partition
-  input-key - the key to which the value of form will be bound in the partition
-  body - expression which may suspend the run
-
-  Returns:
-  value of body"
-  ([[address params input-key] & body]
-   (:pre [(a/address? address)
-          (vector? params)
-          (or (nil? input-key) (symbol? input-key))])
-   `(let [bindings# ~(bindings-expr-from-params params)]
-      (rapids.runtime.runlet/push-stack! ~address bindings# '~input-key)
-      ~@body)))

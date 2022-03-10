@@ -58,28 +58,6 @@
   [o]
   (or (list? o) (instance? Cons o)))
 
-(defmacro ifit
-  "If with implicit or explicit binding of the test value:
-
-  Usage:
-
-  ;; implicit
-  (if (find-object)
-    (do-something-with-object it))
-
-  ;; explicit
-  (if [myobj (find-object)]
-    (do-something-with-object myobj))
-
-  ;; multiple bindings allowed
-  (if [myobj (find-object) ;; only myobj is tested
-       val  (foo)]  ;; val can be nil
-    (do-something-with myobj val))"
-  ([test then] `(ifit ~test ~then nil))
-  ([test then else]
-   (let [bindings (if (vector? test) test ['it test])]
-    `(let ~bindings (if ~(first bindings) ~then ~else)))))
-
 (defn unqualified-symbol? [o]
   (and (symbol? o) (not (qualified-symbol? o))))
 

@@ -47,7 +47,7 @@
         (is (true? suspend?))
         (testing "the start body should contain a resume-at expression pointing at the next-address, starting with the innermost term"
           (is (match [start]
-                [([`rapids.partitioner.partition/resume-at [next-address ['z] _]
+                [([`rapids.partitioner.resume-at/resume-at [next-address ['z] _]
                    ([`rapids/fcall `fl2 ([`a] :seq)] :seq)] :seq)] true
                 [_] false)))
         (testing "the partition set should contain a partition which evals the outer flow"
@@ -92,7 +92,7 @@
       (testing "initial form first two forms, resuming at the second partition address"
         (is (match [start]
               [[([`a] :seq)
-                ([`rapids.partitioner.partition/resume-at [part2-address [] _]
+                ([`rapids.partitioner.resume-at/resume-at [part2-address [] _]
                   ([`rapids/fcall `fl1] :seq)] :seq)]] true
               [_] false))
         (is (true? suspend?)))
@@ -129,7 +129,7 @@
       (is (= 2 (-> pset addresses count)))
       (is (true? suspend?))
       (is (match [start]
-            [([`rapids.partitioner.partition/resume-at [_ [] _] ([`rapids/fcall `fl1] :seq)] :seq)] true
+            [([`rapids.partitioner.resume-at/resume-at [_ [] _] ([`rapids/fcall `fl1] :seq)] :seq)] true
             [_] false)))))
 
 
@@ -152,5 +152,5 @@
       (is (true? suspend?))
       (testing "one of the two suspending expressions is in start"
         (is (match [start]
-              [([`rapids.partitioner.partition/resume-at [_ [] _] ([`rapids/fcall _] :seq)] :seq)] true
+              [([`rapids.partitioner.resume-at/resume-at [_ [] _] ([`rapids/fcall _] :seq)] :seq)] true
               [_] false))))))
