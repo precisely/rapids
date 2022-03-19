@@ -52,14 +52,19 @@
               (assoc m
                 :type :compiler-error))))))
 
+(defn filter-tree
+  "Returns a  "
+  [pred tree]
+  (filter pred
+    (postwalk #(cond
+                 (seq? %) (flatten %)
+                 (set? %) (flatten (vec %))
+                 (map? %) (flatten (map identity %))
+                 :else %) tree)))
+
 (defn unqualified-symbols-in [form]
   "Returns a set of unqualified symbols appearing in form"
-  (set (filter unqualified-symbol?
-         (postwalk #(cond
-                      (seq? %) (flatten %)
-                      (set? %) (flatten (vec %))
-                      (map? %) (flatten (map identity %))
-                      :else %) form))))
+  (set (filter-tree unqualified-symbol? form)))
 
 (defn closure-captured-bindings
   "Given a form and a vector of unqualified symbols, returns the symbols which appear in form"

@@ -12,11 +12,14 @@
 
 ;;; A Partition is a signature which will be used to create a partition function
 ;;;
-(defrecord Partition [params body])
+(defrecord Partition [params body final])
 
-(defn ->partition [params body]
-  {:pre [(sequential? params) (vector? body)]}
-  (->Partition (vec params) body))
+(defn ->partition
+  "Returns a partition. If final is true, it means the partition body can no longer be changed."
+  ([params body] (->partition params body false))
+  ([params body final]
+   {:pre [(sequential? params) (vector? body)]}
+   (->Partition (vec params) body (boolean final))))
 
 (defn partition? [o] (instance? Partition o))
 
@@ -69,6 +72,8 @@
   (and (symbol? o)
     (resolve o)
     (-> o meta :dynamic)))
+
+(defn get-partition [pset addr] (get pset addr))
 
 (defn partition-fn-def
   "Returns the code which defines the partition fn at address"

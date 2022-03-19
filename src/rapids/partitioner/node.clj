@@ -40,21 +40,18 @@
   ;;    value-address = #a"foo:0"
   ;;    partitions = {#a"foo:0" (->partition [<<1>>] [(myfn2 (myfn <<1>>))])}
 
-  [start                    the starting body
+  [start                      ; the starting expression
    params                     ; params available to the start expression
    value-address              ; the address of the partition which produces the value of this node
    partition-set])            ; a partition-set
 
-(defn suspending-node? [o] (instance? SuspendingNode o))
-
-(defn ->suspending-node
-  "Creates a SuspendingNode, which is returned by the partitioner when a suspending
-   form is encountered."
+(defn ->node
+  "Creates a Node, which is returned by the partitioner."
   ([start params]
-   (->suspending-node start params nil nil))
+   (->node start params nil nil))
   ([start params addr]
    ;; create a suspending node where the result is delivered to the partition at addr
-   (->suspending-node start params addr (stable-symbol)))
+   (->node start params addr (stable-symbol)))
   ([start params addr binding-symbol]
    {:pre [(sequential? params)
           (not (constant? start))
@@ -63,32 +60,63 @@
             (and (a/address? addr)
               (simple-symbol? binding-symbol)))]}
    (let [params (vec params)]
-     (->SuspendingNode `(resume-at [~addr ~params ~binding-symbol] ~start) params
+     (->Node `(resume-at [~addr ~params ~binding-symbol] ~start) params
        addr (pset/add (->pset) addr
               (conj params binding-symbol)
               [binding-symbol])))))
 
-(defn snode-partition-count
+(defn partition-count
   [node] (-> node :partition-set pset/size))
 
-(defn snode-partition-set [n] (-> n :partition-set))
+(defn node-partition-set [n] (-> n :partition-set))
 
-(defn snode-bind-param
-  "Binds the result of the suspending expression to the parameter at the given address "
-  ([node addr] (snode-bind-param node addr (stable-symbol)))
+(defn get-partition
+  "Retrieves the partition at address of the node"
+  [node addr]
+  (-> node node-partition-set (pset/get-partition addr)))
+
+(defn value-partition
+  "Retrieves the partition which returns the value of the node - nil means no value partition exists (aka the node is unbound)"
+  [node]
+  (some->> (:value-address node) (get-partition node)))
+
+(defn is-bound?
+  "True if the node has a value, and "
+  [node]
+  (-> node value-partition boolean))
+
+(defn bind-param
+  "Binds the result of the suspending expression to the parameter at the given address"
+  ([node addr] (bind-param node addr (stable-symbol)))
   ([node addr param]
-   (if (-> node :value-address nil? not)
+   (if (or (-> node :value-address nil? not)
+         (-> node :start resume-at-form?))
      (throw-partition-error "Suspending node start value already bound"))
    (-> node
      (update :start (fn [start] `(resume-at [~addr ~(:params node) ~param] ~start)))
      (update :value-address addr)
      (update :partition-set pset/add addr (conj ~(:params node) param true)))))
 
-(defn snode-update-value [node params expr-fn]
-  (if-let [value-addr (:value-address node)]
-    (-> (get-in node [:partition-set value-addr])
-      (update-in :body expr-fn)
-      (assoc :params expr-fn))
-    (assoc-in node [:partition-set addr] (->partition (node-params node))
-      )))
+(defn update-value-partition
+  "Updates the value partition, using the current value within a new expression.
+  The expr-fn takes an expression which returns the current value, and returns a new expression.
+  A new partition is returned where the body is substituted with the result of applying expression-fn to
+  the current body.
 
+  (update-value-partition {:value-address #a\"foo/bar:0\" "
+  [node expr-fn]
+  (if-let [vp (value-partition node)]
+    ;; value exists...
+    (let [body (:body value-partition)]
+      (assert (not (filter-tree #{'rapids.partitioner.resume-at/resume-at} body))
+        "Attempt to update node value containing resume-at")
+      (-> vp
+        (update :body (fn [body] `[~@(butlast body) ~(expr-fn (last body))]))))
+
+    ;;
+    (throw-partition-error "Attempt to update value of unbound node")))
+
+(defn bind-node-value
+  ""
+  [node node2]
+  )
