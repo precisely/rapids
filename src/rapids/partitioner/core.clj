@@ -1,10 +1,10 @@
 (ns rapids.partitioner.core
   (:require [potemkin :refer [import-vars]]
-            [rapids.partitioner.partition]
-            [rapids.partitioner.partition-set]
+            [rapids.partitioner.methods]
+            [rapids.partitioner.partition-map]
             [rapids.partitioner.partition-utils]))
 
 (import-vars
   [rapids.partitioner.partition-utils bindings-expr-from-params]
-  [rapids.partitioner.partition-set partition-fn-set-def]
-  [rapids.partitioner.partition partition-body partition-expr partition-flow-body])
+  [rapids.partitioner.partition-map partition-fn-set-def]
+  [rapids.partitioner.methods partition-body partition-expr partition-flow-body])

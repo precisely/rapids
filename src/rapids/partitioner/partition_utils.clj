@@ -62,6 +62,11 @@
                  (map? %) (flatten (map identity %))
                  :else %) tree)))
 
+(defn dynamic? [o]
+  (and (symbol? o)
+    (resolve o)
+    (-> o meta :dynamic)))
+
 (defn unqualified-symbols-in [form]
   "Returns a set of unqualified symbols appearing in form"
   (set (filter-tree unqualified-symbol? form)))

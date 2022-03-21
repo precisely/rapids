@@ -1,7 +1,7 @@
 (ns rapids.partitioner.closure
   (:require [clojure.spec.alpha :as s]
             [rapids.objects.closure :refer :all]
-            [rapids.partitioner.partition-set :as pset]
+            [rapids.partitioner.partition-map :as pmap]
             [rapids.partitioner.partition-utils :refer :all]
             [rapids.support.util :refer :all]))
 
@@ -11,9 +11,9 @@
 (defn closure-constructor
   "Given an expr (fn-form) which constructs a function and lexical parameters available for binding,
   returns:
-  [closure-ctor, pset]
+  [closure-ctor, pmap]
   closure-ctor - code for generating the Closure
-  pset - the partition set (this method adds a single partition which generates the closure)"
+  pmap - the partition set (this method adds a single partition which generates the closure)"
   [fn-form address env-params]
   {:pre [(s/assert ::params env-params)]}
   (let [[_, fndefs] (extract-fn-defs fn-form)
@@ -22,8 +22,8 @@
         captured-params (closure-captured-bindings params, bodies, env-params)
         closure-ctor `(->Closure ~address ~(bindings-expr-from-params captured-params) false)
 
-        pset (pset/add (pset/->pset) address captured-params [fn-form] true)]
-    [closure-ctor, pset]))
+        pmap (pmap/add (pmap/->pmap) address captured-params [fn-form] true)]
+    [closure-ctor, pmap]))
 
 (defn extract-fn-defs [form]
   "Returns [name, sigs]"

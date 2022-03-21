@@ -1,20 +1,23 @@
-(ns rapids.partitioner.node
+(ns rapids.partitioner.node_old
   (:require [rapids.partitioner.macroexpand :refer [stable-symbol]]
             [rapids.partitioner.resume-at :refer :all]
-            [rapids.partitioner.partition :refer :all]
             [rapids.partitioner.partition-map :as pmap :refer [->pmap ->partition]]
             [rapids.partitioner.partition-utils :refer :all]
             [rapids.objects.address :as a]))
 
 
 ;;
-;; Nodes are returned by partition-expr functions. A node represents a fragment of the AST,
+;; Nodes are returned by partitioner functions. A node represents a fragment of the AST,
 ;; either a regular expression of a suspending expression. Nodes can be combined with
-;; other nodes to represent larger expressions.
+;; other nodes to represent larger expressions. Simple nodes are just Clojure expressions,
+;; and can be combined simply by substituting the expression into the place where
+;; the value is needed. E.g., if `? = (bar 123)` and we need `(foo ?)`, we get `(foo (bar 123))`.
+;; However, suspending nodes split the computation of a value into potentially multiple
+;; steps, involving one or more continue! inputs.
 ;;
-;; Nodes contain a partition set, mapping from addresses to partitions and two pointers into
-;; the partition set, start-address and value-address. The value partition returns the
-;; value of the expression the node represents. The start partition begins the
+;; Nodes contain a body of code to be executed, a vector of lexically bound parameters,
+;; optionally a partition set (a map from addresses to partitions) and an address which
+;; identifies which partition
 ;;
 
 (defrecord Node
@@ -37,31 +40,35 @@
   ;;    value-address = #a"foo:0"
   ;;    partitions = {#a"foo:0" (->partition [<<1>>] [(myfn2 (myfn <<1>>))])}
 
-  [value                      ; the address of the partition which produces the value of this node
-   pmap])                     ; a partition-map
+  [start                      ; the starting expression
+   params                     ; params available to the start expression
+   value-address              ; the address of the partition which produces the value of this node
+   partition-map])            ; a partition-map
 
-(def ^:const START
-  "A special address used to indicate the initial start partition"
-  (a/->address 'rapids.partitioner/start))
-
-(defn ->start-node
-  "Creates a suspending leaf Node containing a single suspending partition associated with the START address.
-  START partition bodies are eventually incorporated into the bodies of other partitions."
-  [params start-expr]
-  (map->Node {:pmap (pmap/add (->pmap) START params [start-expr] :suspending true)}))
-
-(defn ->value-node
-  "Creates a non-suspending leaf Node, containing a single value partition at a specific address."
-  [addr params expr]
-  (map->Node {:pmap (pmap/add (->pmap) addr params [expr] :suspending false)}))
-
-(defn without-start-partition [node]
-  (update node :pmap pmap/delete START))
+(defn ->node
+  "Creates a Node, which is returned by partitioner methods."
+  ([start params]
+   (->node start params nil nil))
+  ([start params addr]
+   ;; create a suspending node where the result is delivered to the partition at addr
+   (->node start params addr (stable-symbol)))
+  ([start params addr binding-symbol]
+   {:pre [(sequential? params)
+          (not (constant? start))
+          (or
+            (and (nil? addr) (nil? binding-symbol))
+            (and (a/address? addr)
+              (simple-symbol? binding-symbol)))]}
+   (let [params (vec params)]
+     (->Node `(resume-at [~addr ~params ~binding-symbol] ~start) params
+       addr (pmap/add (->pmap) addr
+              (conj params binding-symbol)
+              [binding-symbol])))))
 
 (defn partition-count
-  [node] (-> node :pmap pmap/size))
+  [node] (-> node :partition-map pmap/size))
 
-(defn node-partition-map [n] (-> n :pmap))
+(defn node-partition-map [n] (-> n :partition-map))
 
 (defn get-partition
   "Retrieves the partition at address of the node"
@@ -71,29 +78,24 @@
 (defn value-partition
   "Retrieves the partition which returns the value of the node - nil means no value partition exists (aka the node is unbound)"
   [node]
-  (some->> (:value node) (get-partition node)))
-
-(defn start-partition [node]
-  (get-partition node START))
+  (some->> (:value-address node) (get-partition node)))
 
 (defn is-bound?
-  "True if the node has a value partition"
+  "True if the node has a value, and "
   [node]
   (-> node value-partition boolean))
 
-(defn bind
-  "Binds the start partition to the parameter at the given address. This method modifies the
-  start partition and adds a value partition "
-  ([node addr] (bind node addr (stable-symbol)))
+(defn bind-param
+  "Binds the result of the suspending expression to the parameter at the given address"
+  ([node addr] (bind-param node addr (stable-symbol)))
   ([node addr param]
-   (if (nil? (start-partition node))
-     (throw-partition-error "Attempt to bind node which is missing a start partition"))
-   (if (is-bound? node)
-     (throw-partition-error "Attempt to bind node which is already bound"))
+   (if (or (-> node :value-address nil? not)
+         (-> node :start resume-at-form?))
+     (throw-partition-error "Suspending node start value already bound"))
    (-> node
-     (update-in [:pmap START] resuming-at addr param)
-     (update :value addr)
-     (update :pmap pmap/add addr (vec (conj ~(:params node) param)) param))))
+     (update :start (fn [start] `(resume-at [~addr ~(:params node) ~param] ~start)))
+     (update :value-address addr)
+     (update :partition-map pmap/add addr (conj ~(:params node) param true)))))
 
 (defn update-value-partition
   "Updates the value partition, using the current value within a new expression.
@@ -113,3 +115,8 @@
 
     ;;
     (throw-partition-error "Attempt to update value of unbound node")))
+
+(defn bind-node-value
+  ""
+  [node node2]
+  )
