@@ -61,7 +61,7 @@
 
 (declare partition-body partition-expr partition-fncall-expr
   partition-list-expr partition-flow-invokation-expr partition-flow-body
-  partition-functional-expr partition-bindings
+  partition-functional-expr partition-lexical-bindings
   partition-if-expr partition-let*-expr partition-fn*-expr
   partition-do-expr partition-loop*-expr partition-special-expr partition-recur-expr
   partition-vector-expr partition-map-expr partition-set-expr
@@ -311,7 +311,7 @@
          (partition-body body, partition-addr, body-address, (vec (concat params keys)), modifier)
 
          [bind-start, bind-pset, bind-suspend?]
-         (partition-bindings keys, args, partition-addr, binding-address, params, body-start)
+         (partition-lexical-bindings keys, args, partition-addr, binding-address, params, body-start)
 
          pset            (pset/combine body-pset bind-pset)]
      [bind-start, pset, (or bind-suspend? body-suspend?)])))
@@ -391,7 +391,7 @@
           modifier)
 
         [bind-start, bind-pset, bind-suspend?]
-        (partition-bindings keys, args, partition-addr, binding-address, params, body-start)
+        (partition-lexical-bindings keys, args, partition-addr, binding-address, params, body-start)
 
         pset            (pset/combine body-pset bind-pset)]
     [bind-start, pset, (or bind-suspend? body-suspend?)]))
@@ -501,7 +501,7 @@
 
           ;; now we can compute the initializers and give it the partitioned loop start...
           [binding-start, bindings-pset, binding-suspend?]
-          (partition-bindings loop-params, loop-initializers, binding-partition, binding-partition, params, binding-body)
+          (partition-lexical-bindings loop-params, loop-initializers, binding-partition, binding-partition, params, binding-body)
 
           any-suspend?           (or binding-suspend? body-suspend?)
 
@@ -578,7 +578,7 @@
           keys       (make-implicit-parameters args)
           pcall-body [(call-form keys)]
           [start, pset, suspend?]
-          (partition-bindings keys args partition-address address params
+          (partition-lexical-bindings keys args partition-address address params
             pcall-body)]
       (if suspend?
         [start, pset, true]   ; partition bindings has provided the correct result
@@ -596,7 +596,7 @@
       [`(let [~@let-bindings] ~@body)]
       body)))
 
-(defn partition-bindings
+(defn partition-lexical-bindings
   "Partitions the bindings, and executes `body` in that context. Note:
   this function does not partition `body` - it merely pastes the supplied
   forms into the appropriate location after the bindings.
@@ -639,7 +639,7 @@
                 pset         (pset/combine pset arg-pset)
                 next-address (a/increment arg-address)
                 key          (partition-macroexpand key) ; substitute gensyms
-                new-params   (if-not (constant? key)
+                new-params   (if-not (= key arg)
                                (conj params key)
                                params)]
             (if suspend?
