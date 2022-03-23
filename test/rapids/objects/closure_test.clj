@@ -3,7 +3,7 @@
             [rapids.objects.address :as a]
             [rapids.objects.closure :refer :all]
             [rapids.partitioner.closure :refer [closure-constructor]]
-            [rapids.partitioner.partition-set :as pset]
+            [rapids.partitioner.partition-map :as pmap]
             [rapids.objects.flow :as f]
             [rapids.runtime.calling :refer [universal-call]]
             [spy.core :as spy]
@@ -16,7 +16,7 @@
                                                  (apply closure-fn bindings args)))}))
 (deftest closure-constructor-test
   (let [fndef              '(fn [x] (* x y))
-        [closure-ctor, pset] (closure-constructor fndef, address '[y z])
+        [closure-ctor, pmap] (closure-constructor fndef, address '[y z])
         suspending-closure (->Closure address {:foo 1} true)
         fn-closure         (->Closure address {:foo 1} false)]
 
@@ -51,12 +51,12 @@
       (is (string? (name suspending-closure)))
       (is (string? (namespace suspending-closure))))
 
-    (testing "the second result is a partition-set which has a value for the address"
+    (testing "the second result is a partition-map which has a value for the address"
       ;; only y is needed, not z which isn't bound by the fn or x which is provided as an argument
-      (is (pset/partition-set? pset))
+      (is (pmap/partition-map? pmap))
 
       (testing "the partition should contain the function as a body"
-        (let [partition (get pset address)]
-          (is (pset/partition? partition))
+        (let [partition (get pmap address)]
+          (is (pmap/partition? partition))
           (is (= (:params partition) '[y]))
           (is (= (:body partition) [fndef])))))))
