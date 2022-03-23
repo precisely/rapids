@@ -61,6 +61,10 @@
     (resolve o)
     (-> o meta :dynamic)))
 
+(defn body-with-dynamic-bindings [bindings body]
+  (if (empty? bindings) body
+    `((binding ~bindings ~@body))))
+
 (defn partition-fn-def
   "Returns the code which defines the partition fn at address"
   [pset address counter]
@@ -70,8 +74,7 @@
         dynamics (filter dynamic? params)                   ; TODO: disallow binding system dynamic vars - security issue
         dynamic-bindings (vec (flatten (map #(vector % %) dynamics)))]
     `(fn ~name [{:keys ~params}]
-       (binding ~dynamic-bindings
-         ~@(:body cdef)))))
+       ~@(body-with-dynamic-bindings dynamic-bindings (:body cdef)))))
 
 (defn partition-fn-set-def
   "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"

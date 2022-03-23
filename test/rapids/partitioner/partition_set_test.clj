@@ -35,15 +35,16 @@
 
     (testing "partition-fn-def"
       (is (if-match [['clojure.core/fn _ [{:keys ['a 'b]}]
-                      ['clojure.core/binding [] ['* 'a 'b]]]
+                      ['* 'a 'b]]
 
                      (partition-fn-def {addr1 (->Partition '[a b] '[(* a b)])} addr1 (atom 0))]
             true)))
 
     (testing "partition-fn-set-def"
       (is (if-match [['clojure.core/hash-map
-                      ?a1 ['clojure.core/fn _ [{:keys ['a 'b]}] ['clojure.core/binding [] ['* 'a 'b]]]
-                      ?a2 ['clojure.core/fn _ [{:keys ['a 'c]}] ['clojure.core/binding [] ['+ 'c 'a]]]]
+                      ?a1 ['clojure.core/fn _ [{:keys ['a 'b]}] ['* 'a 'b]]
+                      ?a2 ['clojure.core/fn _ [{:keys ['a 'c]}] ['+ 'c 'a]]]
+
                      (partition-fn-set-def {addr1 (->Partition '[a b] '[(* a b)])
                                             addr2 (->Partition '[a c] '[(+ c a)])})]
             (and (= a1 `'~(:point addr1)) (= a2 `'~(:point addr2))))))
