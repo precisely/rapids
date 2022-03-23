@@ -50,12 +50,12 @@
             (and (= a1 addr1) (= a2 addr2)))))
 
 
-    (testing "forced and unforced addresses"
+    (testing "required and dispensable addresses"
       (let [full-pmap (create)
             full-pmap (add full-pmap addr1 '[keep] '[this] true)
             full-pmap (add full-pmap addr2 '[drop] '[this])
-            forced-pmap (remove-unforced full-pmap)]
+            required-pmap (remove-dispensable full-pmap)]
         (is (contains? full-pmap addr1))
         (is (contains? full-pmap addr2))
-        (is (contains? forced-pmap addr1))
-        (is (not (contains? forced-pmap addr2)))))))
+        (is (contains? required-pmap addr1))
+        (is (not (contains? required-pmap addr2)))))))

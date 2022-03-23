@@ -26,27 +26,33 @@
 (defn partition-map? [o] (map? o))
 
 (defn create []
-  {:unforced #{}})                                          ;; unforced partitions may be dropped by partitioning functions
-;; closure partitions are always FORCED
+  {:dispensable #{}})                                          ;; dispensable partitions may be dropped by partitioning functions
+;; closure partitions are always required
 
-(defn remove-unforced [pmap]
-  "Returns a partition-map contiaining only the forced partitions"
-  (apply dissoc pmap (seq (:unforced pmap))))
+(defn remove-dispensable [pmap]
+  "Returns a partition-map contiaining only the required partitions"
+  (apply dissoc pmap (seq (:dispensable pmap))))
 
 (defn size [pmap]
-  (count (dissoc pmap :unforced)))
+  (count (dissoc pmap :dispensable)))
+
+(defn require-all [pmap]
+  (assoc pmap :dispensable #{}))
+
+(defn realize [pmap required?]
+  (if required? (require-all pmap) (remove-dispensable pmap)))
 
 (defn add
   ([pmap address params body] (add pmap address params body false))
 
-  ([pmap address params body force?]
+  ([pmap address params body required?]
    {:pre [(address? address)
           (vector? params)
           (vector? body)]}
-   (let [unforced (:unforced pmap)
-         unforced (if force? unforced (conj unforced address))]
+   (let [dispensable (:dispensable pmap)
+         dispensable (if required? dispensable (conj dispensable address))]
      (assoc pmap
-       :unforced unforced
+       :dispensable dispensable
        address (->Partition (vec params) body)))))
 
 (defn delete
@@ -54,7 +60,7 @@
   (dissoc pmap address))
 
 (defn addresses [pmap]
-  (dissoc pmap :unforced))
+  (dissoc pmap :dispensable))
 
 (defn dynamic? [o]
   (and (symbol? o)
@@ -81,7 +87,7 @@
   [pmap]
   (let [counter (atom 0)
         pfdefs (map (fn [[address _]]
-                     [address (partition-fn-def pmap address counter)]) (dissoc pmap :unforced))]
+                     [address (partition-fn-def pmap address counter)]) (dissoc pmap :dispensable))]
     `(hash-map ~@(apply concat pfdefs))))
 
 (defn combine

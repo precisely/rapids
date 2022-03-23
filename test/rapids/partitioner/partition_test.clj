@@ -74,7 +74,7 @@
       (is (match [start]
             [[([`a] :seq), ([`b] :seq)]] true
             [_] false))
-      (is (= (count (dissoc pmap :unforced)) 0))            ;; only the :unforced key
+      (is (= (count (dissoc pmap :dispensable)) 0))            ;; only the :dispensable key
       (is (false? suspend?))))
 
   (testing "body with a single suspending form"

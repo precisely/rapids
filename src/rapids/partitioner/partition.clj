@@ -140,7 +140,7 @@
            (if any-suspend?
              [start-body, pmap, any-suspend?]
              [part-body,      ; we haven't run make-partition-body on this code yet
-              (pmap/remove-unforced pmap), false])))))))
+              (pmap/remove-dispensable pmap), false])))))))
 
 ;;
 ;; Expressions
