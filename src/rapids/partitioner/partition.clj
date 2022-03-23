@@ -139,10 +139,7 @@
                 pmap       (if (> (count part-body) 0)
                              (pmap/add clean-pmap partition-address params part-body)
                              clean-pmap)]
-           (if any-suspend?
-             [start-body, pmap, any-suspend?]
-             [part-body,      ; we haven't run make-partition-body on this code yet
-              (pmap/remove-dispensable pmap), false])))))))
+           [(or start-body part-body), (pmap/realize pmap any-suspend?), any-suspend?]))))))
 
 ;;
 ;; Expressions

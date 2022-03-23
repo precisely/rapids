@@ -74,7 +74,7 @@
     `(->InterruptionHandler ~i-name
        (flow [~ivar]
          (rapids/fcall ~ccvar (let [result# (do ~@body)]
-                                (rapids/fcall ~finally-flow)
+                                ~@(if finally-flow `((rapids/fcall ~finally-flow)))
                                 (update-run! :interrupt nil)
                                 result#))))))
 
