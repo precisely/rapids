@@ -10,12 +10,12 @@
             [clojure.tools.macro :refer [macrolet]]))
 
 (defn closure-fn [& args] args)
-(def main (f/->Flow `main (fn [& rest]) {[0] (fn [bindings]
+(def address (a/->address `main 0))
+(def main (f/->Flow `main (fn [& rest]) {address (fn [bindings]
                                                (fn [& args]
                                                  (apply closure-fn bindings args)))}))
 (deftest closure-constructor-test
-  (let [address            (a/->address `main 0)
-        fndef              '(fn [x] (* x y))
+  (let [fndef              '(fn [x] (* x y))
         [closure-ctor, pset] (closure-constructor fndef, address '[y z])
         suspending-closure (->Closure address {:foo 1} true)
         fn-closure         (->Closure address {:foo 1} false)]
