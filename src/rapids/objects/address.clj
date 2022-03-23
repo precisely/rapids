@@ -102,5 +102,7 @@
   [a w]
   (print-simple
     (let [length (-> a :point count inc)]
-      (apply str (:flow a) (interleave (repeat length ":") (:point a))))
+      (str "#a\""
+        (apply str (:flow a) (interleave (repeat length ":") (:point a)))
+        "\""))
     w))
