@@ -69,6 +69,8 @@
   partition-suspend-expr partition-flow-expr partition-callcc-expr
   partition-case-expr partition-case*-expr partition-binding-expr partition-set!-expr)
 
+(declare add-params)
+
 (defn default-partition-modifier [p _ _] p)
 (defn partition-body
   "Partitions a list of expressions, e.g., for do, let and deflow forms
@@ -308,7 +310,7 @@
          [keys, args] (map vec (reverse-interleave bindings 2))
 
          [body-start, body-pmap, body-suspend?]
-         (partition-body body, partition-addr, body-address, (vec (concat params keys)), modifier)
+         (partition-body body, partition-addr, body-address, (apply add-params params keys), modifier)
 
          [bind-start, bind-pmap, bind-suspend?]
          (partition-lexical-bindings keys, args, partition-addr, binding-address, params, body-start)
@@ -640,7 +642,7 @@
                 next-address (a/increment arg-address)
                 key          (partition-macroexpand key) ; substitute gensyms
                 new-params   (if-not (= key arg)
-                               (conj params key)
+                                (add-params params key)
                                params)]
             (if suspend?
               (let [resume-pexpr `(resume-at [~next-address [~@params] ~key]
@@ -805,8 +807,8 @@
   (let [arg (first args)]
     (cond
       (= arg '&) (recur (rest args) params line)
-      (map? arg) (recur (rest args) (concat params (:keys arg)) line)
-      (symbol? arg) (recur (rest args) (conj params arg) line)
+      (map? arg) (recur (rest args) (apply add-params params (:keys arg)) line)
+      (symbol? arg) (recur (rest args) (add-params params arg) line)
       (nil? arg) (vec params)
       :else (throw (ex-info (str "Unexpected argument " arg)
                      {:type :compiler-error})))))
@@ -814,3 +816,7 @@
 (defn- extract-signatures [fdecl]
   (let [[_ _ & sigs] (macroexpand `(fn random-name# ~@fdecl))]
     sigs))
+
+(defn- add-params [params & new-params]
+  {:pre [(vector? params) (every? symbol? new-params)]}
+  (vec (distinct (concat params new-params))))

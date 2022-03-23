@@ -1,7 +1,6 @@
 (ns rapids.partitioner.partition-utils
   (:require [clojure.set :refer [difference intersection]]
             [clojure.walk :refer [postwalk]]
-            [rapids.objects.address :as a]
             [rapids.support.util :refer [unqualified-symbol?]]
             [rapids.partitioner.macroexpand :refer [stable-symbol]]))
 
@@ -13,7 +12,7 @@
   or returns {:a a, :b b,..} given arg [a,b...]"
   ([params] (bindings-expr-from-params params params))
   ([key-params, arg-params]
-   `(hash-map ~@(interleave (map keyword key-params) arg-params))))
+   (apply hash-map (interleave (map keyword key-params) arg-params))))
 
 (defn constant? [o]
   (or (number? o) (boolean? o) (string? o) (keyword? o)

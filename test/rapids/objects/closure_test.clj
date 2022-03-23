@@ -21,7 +21,7 @@
         fn-closure         (->Closure address {:foo 1} false)]
 
     (testing "the first result is an expression which constructs a Closure object with the correct bindings"
-      (is (= closure-ctor `(->Closure ~address (hash-map :y ~'y) false))))
+      (is (= closure-ctor `(->Closure ~address {:y ~'y} false))))
 
     (testing "Named implementation of Closure"
       (is (= (name suspending-closure) (a/to-string address)))
