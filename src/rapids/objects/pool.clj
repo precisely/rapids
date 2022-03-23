@@ -1,5 +1,6 @@
 (ns rapids.objects.pool
-  (:require [rapids.support.util :refer [new-uuid]])
+  (:require [rapids.support.util :refer [new-uuid]]
+            [rapids.support.queue :refer [queue]])
   (:import (clojure.lang PersistentQueue)
            (java.util UUID)))
 
@@ -34,9 +35,9 @@
   "Creates a pool. Takes an optional integer representing buffer size."
   [size]
   (Pool. (new-uuid) size
-    (PersistentQueue/EMPTY)
-    (PersistentQueue/EMPTY)
-    (PersistentQueue/EMPTY)
+    (queue)
+    (queue)
+    (queue)
     0))
 
 (def ^:const is-pool-queue? #{:sources, :buffer, :sinks})

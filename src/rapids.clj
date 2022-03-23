@@ -3,7 +3,11 @@
             [rapids.implementations.in-memory-storage :refer [->in-memory-storage]]
             [rapids.language.core]
             [rapids.language.time]
+            [rapids.support.queue :refer [install-queue-printer]]
+            rapids.support.queue-reader
             [rapids.runtime.core]))
+
+(install-queue-printer)
 
 (import-vars
   [rapids.language.core
@@ -25,7 +29,8 @@
   [rapids.objects.flow flow?]
   [rapids.objects.closure closure?]
   [rapids.objects.interruptions ->interruption interruption?]
-  [rapids.storage.core set-storage! with-storage ensure-cached-connection])
+  [rapids.storage.core set-storage! with-storage ensure-cached-connection]
+  [rapids.support.queue queue])
 
 ;; the in memory storage is used by default
 (set-storage! (->in-memory-storage))

@@ -1,6 +1,5 @@
 (ns rapids.objects.address
-  (:require [clojure.string :as string]
-            [clojure.test :refer [is]])
+  (:require [clojure.string :as str])
   (:import (clojure.lang Symbol)
            (java.util Vector)))
 
@@ -52,8 +51,8 @@
 (defn point-to-string [address]
   (letfn [(two-digit-num? [elt]
             (or (and (number? elt) (> elt 9))
-                (if-let [str->num (try (Integer/parseInt (str elt)) (catch Exception e))]
-                  (> str->num 9))))
+              (if-let [str->num (try (Integer/parseInt (str elt)) (catch Exception e))]
+                (> str->num 9))))
           (stringify-point-elt [elt]
             (if (two-digit-num? elt)
               (str "_" elt "_")
@@ -79,7 +78,7 @@
    (let [point (:point address)
          last  (last point)]
      (assoc address :point (conj (pop point)
-                                 (+ step last))))))
+                             (+ step last))))))
 
 (defn resolved-flow
   [address]
@@ -93,8 +92,15 @@
     (qualified-symbol? x) (symbol (str (.getName x)))
     :otherwise x))
 
+(defn address-reader
+  "This is a data-reader see resources/data_reader.clj"
+  [s]
+  (let [components (str/split s #":")]
+    (apply ->address (map read-string components))))
+
 (defmethod print-method Address
-  [o w]
+  [a w]
   (print-simple
-    (str "(->Address '" (:flow o) " '" (:point o) ")")
+    (let [length (-> a :point count inc)]
+      (apply str (:flow a) (interleave (repeat length ":") (:point a))))
     w))
