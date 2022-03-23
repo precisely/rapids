@@ -120,16 +120,19 @@
         _            (assert (<= (count final-forms) 1) (str "Unexpected forms in attempt block" final-forms))
         finally-body (doall (rest (first final-forms)))
         attempt-cc   (gensym "attempt-cc")
-        finally-flow (gensym "finally")]
+        finally-flow (if-not (empty? finally-body) (gensym "finally"))]
     `(rapids/callcc
        (rapids/flow [~attempt-cc]
-         (let [~finally-flow (rapids/flow [] ~@finally-body)]
+         (let [~@(if finally-flow
+                   [finally-flow `(rapids/flow [] ~@finally-body)])]
            (binding [*attempts* (conj *attempts* (->Attempt
                                                    [~@(map #(expand-handler attempt-cc % finally-flow) handlers)]
                                                    {}))]
-             (let [result# (do ~@body)]
-               (rapids/fcall ~finally-flow)
-               result#)))))))
+             ~@(if finally-flow
+                `((let [result# (do ~@body)]
+                    (rapids/fcall ~finally-flow)
+                    result#))
+                 body)))))))
 
 (defmacro handle [iname ivar & body]
   (throw (ex-info "Attempt handler must appear at end of attempt body and before finally clause."
