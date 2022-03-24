@@ -3,8 +3,12 @@
             [matchure.core :refer :all]
             [rapids :refer :all]
             [test-helpers :refer :all]))
+
 (deflow interruptible-child []
   (<*))
+
+(deflow simple-interruptible-flow []
+  (attempt (<*) (handle :foo i :foo-interruption)))
 
 (deflow interruptible-flow []
   (let [attempt-val (attempt
@@ -28,14 +32,27 @@
                       (finally (>* :finally-called)))
         final-input (<*)]
     {:attempt-result attempt-val
-     :final-input   final-input}))
+     :final-input    final-input}))
 
 (deftest ^:language InterruptionsTest
-  (testing "A flow with an attempt handler calling a child flow which gets interrupted while it waits for input"
+  (testing "A simple interruptible flow"
+    (with-test-env
+     (testing "without interruptions, block returns normally"
+        (let [{initial-state :state, :as run} (start! simple-interruptible-flow)]
+          (is (= :running initial-state))
+          (continue! run :input "input")
+          (is (= :complete (:state run)))
+          (is (= "input" (:result run)))))
+      (testing "with interruption, block returns the handler result"
+        (let [run (start! simple-interruptible-flow)]
+          (interrupt! run :foo)
+          (is (= :complete (:state run)))
+          (is (= :foo-interruption (:result run)))))))
+ (testing "A flow with an attempt handler calling a child flow which gets interrupted while it waits for input"
     (with-test-env
       (testing "without interruptions, the attempt block should return normally"
         (let [run (start! interruptible-flow)
-              _ (flush-cache!)
+              _   (flush-cache!)
               run (continue! run :input :child-input)]
           (is (= :running (:state run)))
           (testing "the finally block should execute after the body"
@@ -44,12 +61,12 @@
           (flush-cache!)
           (is (= :complete (:state run)))
           (is (= {:attempt-result [:child-input :uninterrupted-result]
-                  :final-input   :final} (:result run)))))
+                  :final-input    :final} (:result run)))))
 
       (testing "interrupting a run and handling the interruption"
         (let [run (start! interruptible-flow)
-              _ (flush-cache!)
-              i (->interruption :foo)
+              _   (flush-cache!)
+              i   (->interruption :foo)
               run (interrupt! run i)]
 
           (testing "the run stays in :running mode because the handler deals with the interrupt and resumes the run"
@@ -64,7 +81,7 @@
             (flush-cache!)
             (continue! run :input :continue-value)
             (is (= {:attempt-result :foo-interruption
-                    :final-input   :continue-value}
+                    :final-input    :continue-value}
                   (:result run)))))))
 
     (with-test-env
@@ -75,8 +92,8 @@
     (with-test-env
       (testing "testing the :bar interruption handler which uses input!"
         (let [run (start! interruptible-flow)
-              _ (flush-cache!)
-              i (->interruption :bar)
+              _   (flush-cache!)
+              i   (->interruption :bar)
               run (interrupt! run i)]
 
           (testing "the run goes contains an interrupt-id when the handler waits for input"
@@ -103,20 +120,20 @@
 
             (is (= :complete (:state run)))
             (is (= [{:attempt-result [:interruption-data :bar-handled]
-                     :final-input   :final}]))))))
+                     :final-input    :final}]))))))
 
 
     (with-test-env
       (testing "Restarting an interrupted flow"
         (let [run (start! interruptible-flow)
-              _ (flush-cache!)
-              i (->interruption :baz :data :baz-data)
+              _   (flush-cache!)
+              i   (->interruption :baz :data :baz-data)
               run (interrupt! run i)]
           (is (= :running (:state run)))
           (continue! run :input :final)
           (is (= :complete (:state run)))
           (is (= {:attempt-result [{:redo-value :baz-data} :uninterrupted-result]
-                  :final-input   :final}
+                  :final-input    :final}
                 (:result run)))
           (testing "the response indicates revisiting the point where flow was interrupted"
             (is (= [:body-called :finally-called]))))))
@@ -124,7 +141,7 @@
     (with-test-env
       (testing "testing calling interrupt! with interrupt parameters instead of interrupt object"
         (let [run (start! interruptible-flow)
-              _ (flush-cache!)
+              _   (flush-cache!)
               run (interrupt! run :foo :message "hello" :data {:a 123})]
 
           (testing "the expected interruption is handled"

@@ -1,4 +1,4 @@
-(ns rapids.partitioner.partition-set
+(ns rapids.partitioner.partition-map
   (:require [rapids.objects.address :as a :refer [address?]]))
 
 ;;;; PartitionSet
@@ -23,64 +23,73 @@
       w))
 
 (defn partition? [o] (instance? Partition o))
-(defn partition-set? [o] (map? o))
+(defn partition-map? [o] (map? o))
 
 (defn create []
-  {:unforced #{}})                                          ;; unforced partitions may be dropped by partitioning functions
-;; closure partitions are always FORCED
+  {:dispensable #{}})                                          ;; dispensable partitions may be dropped by partitioning functions
+;; closure partitions are always required
 
-(defn remove-unforced [pset]
-  "Returns a partition-set contiaining only the forced partitions"
-  (apply dissoc pset (seq (:unforced pset))))
+(defn remove-dispensable [pmap]
+  "Returns a partition-map contiaining only the required partitions"
+  (apply dissoc pmap (seq (:dispensable pmap))))
 
-(defn size [pset]
-  (count (dissoc pset :unforced)))
+(defn size [pmap]
+  (count (dissoc pmap :dispensable)))
+
+(defn require-all [pmap]
+  (assoc pmap :dispensable #{}))
+
+(defn realize [pmap required?]
+  (if required? (require-all pmap) (remove-dispensable pmap)))
 
 (defn add
-  ([pset address params body] (add pset address params body false))
+  ([pmap address params body] (add pmap address params body false))
 
-  ([pset address params body force?]
+  ([pmap address params body required?]
    {:pre [(address? address)
           (vector? params)
           (vector? body)]}
-   (let [unforced (:unforced pset)
-         unforced (if force? unforced (conj unforced address))]
-     (assoc pset
-       :unforced unforced
+   (let [dispensable (:dispensable pmap)
+         dispensable (if required? dispensable (conj dispensable address))]
+     (assoc pmap
+       :dispensable dispensable
        address (->Partition (vec params) body)))))
 
 (defn delete
-  [pset address]
-  (dissoc pset address))
+  [pmap address]
+  (dissoc pmap address))
 
-(defn addresses [pset]
-  (dissoc pset :unforced))
+(defn addresses [pmap]
+  (dissoc pmap :dispensable))
 
 (defn dynamic? [o]
   (and (symbol? o)
     (resolve o)
     (-> o meta :dynamic)))
 
+(defn body-with-dynamic-bindings [bindings body]
+  (if (empty? bindings) body
+    `((binding ~bindings ~@body))))
+
 (defn partition-fn-def
   "Returns the code which defines the partition fn at address"
-  [pset address counter]
-  (let [cdef (get pset address)
+  [pmap address counter]
+  (let [cdef (get pmap address)
         name (symbol (str (name (:flow address)) (swap! counter inc)))
         params (:params cdef)
         dynamics (filter dynamic? params)                   ; TODO: disallow binding system dynamic vars - security issue
         dynamic-bindings (vec (flatten (map #(vector % %) dynamics)))]
     `(fn ~name [{:keys ~params}]
-       (binding ~dynamic-bindings
-         ~@(:body cdef)))))
+       ~@(body-with-dynamic-bindings dynamic-bindings (:body cdef)))))
 
-(defn partition-fn-set-def
+(defn partition-map-def
   "Generates expression of the form `(hash-map <address1> (fn [...]...) <address2> ...)`"
-  [pset]
+  [pmap]
   (let [counter (atom 0)
         pfdefs (map (fn [[address _]]
-                     [`(quote ~(:point address)) (partition-fn-def pset address counter)]) (dissoc pset :unforced))]
+                     [`(quote ~(:point address)) (partition-fn-def pmap address counter)]) (dissoc pmap :dispensable))]
     `(hash-map ~@(apply concat pfdefs))))
 
 (defn combine
-  [& psets]
-  (apply merge psets))
+  [& pmaps]
+  (apply merge pmaps))
