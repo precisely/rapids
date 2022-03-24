@@ -47,7 +47,7 @@
 
                      (partition-map-def {addr1 (->Partition '[a b] '[(* a b)])
                                             addr2 (->Partition '[a c] '[(+ c a)])})]
-            (and (= a1 addr1) (= a2 addr2)))))
+            (and (= a1 `'~(:point addr1)) (= a2 `'~(:point addr2))))))
 
 
     (testing "required and dispensable addresses"

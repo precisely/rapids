@@ -58,7 +58,7 @@
   {:pre [(a/address? address)
          (map? bindings)]}
   (let [flow (a/resolved-flow address)
-        pfn  (get-in flow [:partition-fns address])]
+        pfn  (get-in flow [:partition-fns (:point address)])]
     (if-not (fn? pfn)
       (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
                       {:type        :system-error

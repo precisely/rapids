@@ -87,7 +87,7 @@
   [pmap]
   (let [counter (atom 0)
         pfdefs (map (fn [[address _]]
-                     [address (partition-fn-def pmap address counter)]) (dissoc pmap :dispensable))]
+                     [`(quote ~(:point address)) (partition-fn-def pmap address counter)]) (dissoc pmap :dispensable))]
     `(hash-map ~@(apply concat pfdefs))))
 
 (defn combine
