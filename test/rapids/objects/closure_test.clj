@@ -4,6 +4,7 @@
             [rapids.objects.closure :refer :all]
             [rapids.partitioner.closure :refer [closure-constructor]]
             [rapids.partitioner.partition-map :as pmap]
+            [rapids.partitioner.partition :as p]
             [rapids.objects.flow :as f]
             [rapids.runtime.calling :refer [universal-call]]
             [spy.core :as spy]
@@ -57,6 +58,6 @@
 
       (testing "the partition should contain the function as a body"
         (let [partition (get pmap address)]
-          (is (pmap/partition? partition))
+          (is (p/partition? partition))
           (is (= (:params partition) '[y]))
           (is (= (:body partition) [fndef])))))))
