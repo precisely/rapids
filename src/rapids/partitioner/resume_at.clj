@@ -25,6 +25,7 @@
   (and (seq? o) (->> o first (contains? #{'resume-at `resume-at}))))
 
 (defn resume-at-expr-data
+  "Returns a map with the resume at data: {:address, :params, :input-key and :body}"
   ([expr field]
    {:pre [(contains? #{:address :params :input-key :body} field)]}
    (field (resume-at-expr-data expr)))

@@ -1,6 +1,8 @@
 (ns rapids.partitioner.partition-map
   (:require [rapids.objects.address :refer [address?]]
-            [rapids.partitioner.partition :refer :all]))
+            [rapids.partitioner.partition :refer :all])
+  (:import (rapids.objects.address Address)
+           (com.google.javascript.jscomp.newtypes PersistentMap)))
 
 ;;;; PartitionSet
 
@@ -10,16 +12,20 @@
 (declare add create combine)
 
 ;;;; PartitionMap
+(defrecord PartitionMap
+  [^Address start
+   ^Address value
+   ^PersistentMap partitions])
 
-(defn partition-map? [o] (map? o))
+(defn partition-map? [o] (instance? PartitionMap o))
 
-(defn create []
+(defn ->partition-map []
   ;; partition addresses which may be disposed
-  {:dispensable #{}})
+  (->PartitionMap nil nil {}))
 
 (defn size [pmap]
-  (count (dissoc pmap :dispensable)))
-
+  (count (:partitions pmap)))
+;;
 (defn dispose-partitions [pmap]
   "Returns a partition-map contiaining only the required partitions"
   (apply dissoc pmap (seq (:dispensable pmap))))

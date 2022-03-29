@@ -1,6 +1,7 @@
 (ns rapids.partitioner.methods
   (:require [rapids.objects.address :as a]
             [rapids.objects.closure :refer [->Closure]]
+            [rapids.partitioner.node :as n]
             [rapids.objects.flow :as flow]
             [rapids.objects.signals :refer [suspending-operator?]]
             [rapids.partitioner.closure :as closure]
@@ -11,7 +12,8 @@
             [rapids.support.util :refer :all]
             [rapids.partitioner.resume-at :refer :all]
             [rapids.partitioner.macroexpand
-             :refer [partition-macroexpand partition-macroexpand-1 with-gensym-excluded-symbols stable-symbol]])
+             :refer [partition-macroexpand partition-macroexpand-1 with-gensym-excluded-symbols stable-symbol]]
+            [rapids.partitioner.partition :as p])
   (:import (clojure.lang ArityException LazySeq)))
 
 ;;;; Partitioner
@@ -69,8 +71,6 @@
   partition-suspend-expr partition-flow-expr partition-callcc-expr
   partition-case-expr partition-case*-expr partition-binding-expr partition-set!-expr)
 
-(declare add-params)
-
 (defn default-partition-modifier [p _ _] p)
 (defn partition-body
   "Partitions a list of expressions, e.g., for do, let and deflow forms
@@ -112,7 +112,7 @@
     :post [(vector (first %))]}
    (let [dirty-address partition-address]
      (loop [iter-body         body
-            pmap              (pmap/create)
+            pmap              (pmap/->partition-map)
             cur-address       (a/child address 0)
             partition-address partition-address
             part-body         []
@@ -426,7 +426,7 @@
                       `(resume-at [~branch-addr, [~@params], ~test-result], ~test-start)
                       (with-meta `(if ~test ~then-start ~else-start) (meta expr)))
         branch-pmap (if test-suspend?
-                      (pmap/add (pmap/create) branch-addr `[~@params ~test-result]
+                      (pmap/add (pmap/->partition-map) branch-addr `[~@params ~test-result]
                         `[(if ~test-result ~then-start ~else-start)]))
         full-pmap   (pmap/combine test-pmap branch-pmap then-pmap else-pmap)
         suspend?    (or test-suspend? then-suspend? else-suspend?)]
@@ -490,7 +490,7 @@
           ;; recur expressions in addition to suspending recur expressions.
           loop-partition-body    [`(loop [~@(apply concat (map #(vector % %) loop-params))] ~@start-body)]
           loop-partition-params  (vec (concat loop-params params))
-          loop-pmap              (pmap/add (pmap/create) loop-partition loop-partition-params loop-partition-body)
+          loop-pmap              (pmap/add (pmap/->partition-map) loop-partition loop-partition-params loop-partition-body)
 
           flow-continue-bindings (bindings-expr-from-params loop-partition-params)
           binding-body           `[(flow/call-partition ~loop-partition ~flow-continue-bindings)]
@@ -557,28 +557,53 @@
 ;; Partitioning expressions with bindings
 ;;
 
-(defn partition-functional-expr
-  "Partitions a function-like expression - a list with an operator followed
-  by an arbitrary list of arguments.
+(defn partition-functional-expr [expr params address expr-fn pstatus]
+  {:pre [(vector? params) (a/address? address) (fn? expr-fn) (p/partition-status? pstatus)]}
+  (let [args                  (rest expr)
+        syms                  (repeat (count args) stable-symbol)
 
-  Note: op is only used to generate an address
-  make-call-form - is a function which takes a list of parameters and returns
-  a form which represents the functional call"
-  [op, expr, partition-address, address, params, make-call-form]
-  {:pre [(vector? params)]}
-  (letfn [(call-form [args]
-            (with-meta (make-call-form args) (meta expr)))]
-    (let [address    (a/child address op)
-          [_ & args] expr
-          value-expr (call-form args)
-          keys       (make-implicit-parameters args)
-          pcall-body [(call-form keys)]
-          [start, pmap, suspend?]
-          (partition-lexical-bindings keys args partition-address address params
-            pcall-body)]
-      (if suspend?
-        [start, pmap, true]   ; partition bindings has provided the correct result
-        [value-expr, nil, false]))))
+        ;; get a list of constant bindings and partitionable bindings
+        [const-bindings p-bindings] (segregate 2
+                                      (map (fn [s a] (if (constant-expr? a) [[s a] nil] [nil [s a]]))
+                                        syms args))
+        [psyms pargs] (segregate 2 p-bindings)
+
+        nodes                 (map-indexed (fn [idx arg] (partition-expr arg params (a/child address idx)))
+                                pargs)
+        const-bindings-lookup (into {} const-bindings)
+        body-fn               (fn [bound-syms bindings]
+                                (let [bound-syms (set bound-syms)
+                                      bindings   (into {} bindings)
+                                      args       (map #(or (bound-syms %)
+                                                         (get const-bindings-lookup %)
+                                                         (get bindings %)
+                                                         (assert false (str "Failed to find binding for " %)))
+                                                   syms)]
+                                  (expr-fn args)))]
+    (n/bind params false psyms nodes body-fn pstatus)))
+
+;;(defn partition-functional-expr
+;;  "Partitions a function-like expression - a list with an operator followed
+;;  by an arbitrary list of arguments.
+;;
+;;  Note: op is only used to generate an address
+;;  make-call-form - is a function which takes a list of parameters and returns
+;;  a form which represents the functional call"
+;;  [op, expr, partition-address, address, params, make-call-form]
+;;  {:pre [(vector? params)]}
+;;  (letfn [(call-form [args]
+;;            (with-meta (make-call-form args) (meta expr)))]
+;;    (let [address    (a/child address op)
+;;          [_ & args] expr
+;;          value-expr (call-form args)
+;;          keys       (make-implicit-parameters args)
+;;          pcall-body [(call-form keys)]
+;;          [start, pmap, suspend?]
+;;          (partition-lexical-bindings keys args partition-address address params
+;;            pcall-body)]
+;;      (if suspend?
+;;        [start, pmap, true]   ; partition bindings has provided the correct result
+;;        [value-expr, nil, false]))))
 
 (defn make-let-body [bindings body]
   {:pre [(vector? body)]}
@@ -625,7 +650,7 @@
          params            params ; params provided to this partition
          start             nil
          any-suspend?      false
-         pmap              (pmap/create)]
+         pmap              (pmap/->partition-map)]
         (assert (not (and (nil? key) (not (empty? rest-keys)))))
         (if key
           (let [[arg-start, arg-pmap, suspend?]
@@ -811,6 +836,3 @@
   (let [[_ _ & sigs] (macroexpand `(fn random-name# ~@fdecl))]
     sigs))
 
-(defn- add-params [params & new-params]
-  {:pre [(vector? params) (every? symbol? new-params)]}
-  (vec (distinct (concat params new-params))))

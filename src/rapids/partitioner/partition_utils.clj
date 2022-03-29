@@ -31,11 +31,16 @@
     (-> o count (= 2))
     (-> o first (= 'quote))))
 
+(def ^{:arglists '([e])} constant-expr?
+  "True if the expr e is guaranteed to produce no side-effects. Evaluation of such forms may be delayed until a later
+  stage of computation."
+  (some-fn constant? symbol? var-expr? quote-expr?))
+
 (defn make-implicit-parameters
   "Given a list of expressions representing function arguments, returns parameters, if needed or the input form."
   [args]
   (map (fn [v]
-         (if (or (constant? v) (symbol? v) (var-expr? v) (quote-expr? v))
+         (if (constant-expr? v)
            v
            (stable-symbol)))
     args))
@@ -73,3 +78,7 @@
   (and (symbol? o)
     (resolve o)
     (-> o meta :dynamic)))
+
+(defn add-params [params & new-params]
+  {:pre [(vector? params) (every? symbol? new-params)]}
+  (vec (distinct (concat params new-params))))

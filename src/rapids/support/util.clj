@@ -82,3 +82,44 @@
   Similar behavior to swap!, but for bindings instead of atoms."
   [var f & args]
   `(set! ~var (~f ~var ~@args)))
+
+(defn take-to-first
+  "Returns a lazy sequence of successive items from coll up to
+  and including the point at which it (pred item) returns true.
+  pred must be free of side-effects."
+  [pred coll]
+  (lazy-seq
+    (when-let [s (seq coll)]
+      (if-not (pred (first s))
+
+        (cons (first s) (take-to-first pred (rest s)))
+        (list (first s))))))
+
+(defn partition-when
+  "Applies f to each value in coll, splitting it each time f returns
+  true. Returns a lazy seq of lazy seqs."
+  [f coll]
+  (when-let [s (seq coll)]
+    (lazy-seq
+      (let [run (take-to-first f s)
+            res (drop (count run) s)]
+        (cons run (partition-when f res))))))
+
+(defn maprest
+  ([f coll] (maprest f coll []))
+  ([f coll result]
+   (let [rcoll (rest coll)]
+     (if (empty? rcoll) result
+       (maprest f rcoll (conj result (f rcoll)))))))
+
+(defn segregate
+  "Takes a collection of n-tuples and returns n collections, where each collection represents the ith element of the n-tuple,
+  removing items for which predicate p is true. If not provided, p is nil?
+
+  (segregate 3 '([a nil 1] [nil b 2] [c nil 3] [nil d nil]))
+  => ((a c) (b d) (1 2 3))"
+  ([n coll] (segregate n identity coll))
+  ([n p coll]
+   (let [splitter (apply juxt (map (fn [i] #(map (fn [v] (nth v i)) %)) (range n)))]
+     (map #(remove p %)
+       (splitter coll)))))

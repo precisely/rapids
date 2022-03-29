@@ -12,9 +12,9 @@
         addr1 (address/child addr 1)
         addr2 (address/child addr 2)
         addr3 (address/child addr 3)
-        pmap1 (add (create) addr1 [] '[1])
-        pmap2 (add (create) addr2 [] '[2])
-        pmap3 (add (create) addr3 [] '[3])]
+        pmap1 (add (->partition-map) addr1 [] '[1])
+        pmap2 (add (->partition-map) addr2 [] '[2])
+        pmap3 (add (->partition-map) addr3 [] '[3])]
 
     (testing "combine"
       (testing "takes nil as argument"
@@ -45,7 +45,7 @@
 
 
     (testing "required and dispensable addresses"
-      (let [full-pmap     (create)
+      (let [full-pmap     (->partition-map)
             full-pmap     (add full-pmap addr1 '[keep] '[this] true)
             full-pmap     (add full-pmap addr2 '[drop] '[this])
             required-pmap (dispose-partitions full-pmap)]

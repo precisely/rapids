@@ -82,9 +82,3 @@
                     :dynamics     dynamics
                     :cached-state :created
                     :index       index}))))
-
-;(defmethod print-method Run
-;  [o w]
-;  (print-simple
-;    (str "#<Run " (:id o) " " (:start-form o) ">")
-;    w))

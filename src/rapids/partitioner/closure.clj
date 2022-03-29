@@ -22,7 +22,7 @@
         captured-params (closure-captured-bindings params, bodies, env-params)
         closure-ctor `(->Closure ~address ~(bindings-expr-from-params captured-params) false)
 
-        pmap (pmap/add (pmap/create) address captured-params [fn-form] true)]
+        pmap (pmap/add (pmap/->partition-map) address captured-params [fn-form] true)]
     [closure-ctor, pmap]))
 
 (defn extract-fn-defs [form]

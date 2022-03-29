@@ -27,7 +27,7 @@
 ;;         (a)          ; point = [1,baz,0,map,1]
 ;;      :b              ; point = invalid
 ;;         (b)}))       ; point = [1,baz,0,map,2]
-(declare to-string simplify-if-symbol)
+(declare to-string simplify-if-symbol address-printer)
 
 ;; TODO: change Address to a custom class?
 ;;
@@ -37,7 +37,9 @@
 ;; or by providing an implementation which prevents associng.
 ;;
 (defrecord Address
-  [^Symbol flow, ^Vector point])
+  [^Symbol flow, ^Vector point]
+  Object
+  (toString [o] (address-printer o)))
 
 (defn address? [o] (instance? Address o))
 
@@ -98,11 +100,12 @@
   (let [components (str/split s #":")]
     (apply ->address (map read-string components))))
 
+(defn address-printer [a]
+  (let [length (-> a :point count inc)]
+    (str "#a\""
+      (apply str (:flow a) (interleave (repeat length ":") (:point a)))
+      "\"")))
+
 (defmethod print-method Address
   [a w]
-  (print-simple
-    (let [length (-> a :point count inc)]
-      (str "#a\""
-        (apply str (:flow a) (interleave (repeat length ":") (:point a)))
-        "\""))
-    w))
+  (print-simple (address-printer a) w))
