@@ -298,8 +298,6 @@
 
 (defn partition-let*-expr
   ([expr, partition-addr, address, params]
-   (partition-let*-expr expr, partition-addr, address, params default-partition-modifier))
-  ([expr, partition-addr, address, params, modifier]
    (let [address         (a/child address 'let)
          binding-address (a/child address 0)
          body-address    (a/child address 1)
@@ -307,7 +305,7 @@
          [keys, args] (map vec (reverse-interleave bindings 2))
 
          [body-start, body-pmap, body-suspend?]
-         (partition-body body, partition-addr, body-address, (apply add-params params keys), modifier)
+         (partition-body body, partition-addr, body-address, (apply add-params params keys))
 
          [bind-start, bind-pmap, bind-suspend?]
          (partition-lexical-bindings keys, args, partition-addr, binding-address, params, body-start)
