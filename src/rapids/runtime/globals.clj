@@ -11,3 +11,7 @@
        :doc "A list of attempts most recent first"}
   *attempts*
   ())
+
+(def ^{:dynamic true
+       :doc "The address of the currently executing partition"}
+  *current-partition-address*)

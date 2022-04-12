@@ -43,17 +43,28 @@
   (-> (update p :body (comp vec concat) exprs)
     (assoc :type type)))
 
-(defn- update-body
-  "Updates the partition body, ensuring only non-suspending partitions may be updated."
-  [p type f & args]
-  {:pre [(-> p :type (not= :resumed)) (partition-type? type)]}
-  (letfn [(safe-update-body [b]
-            (let [result (apply f b args)]
-              (assert (vector? result)
-                "update-body function must return a vector")
-              result))]
-    (-> (update p :body safe-update-body)
-      (assoc :type type))))
+(defn ^{:arglists '([p f & args] [p type f & args])
+        :doc "Updates the partition body
+
+              p - partition
+              type - (optional) the new partition type
+              f - unary function takes the existing body, returns a new body"}
+  update-body
+  [p & args]
+  {:pre [(partition? p)]}
+  (let [[type? f? & args] args
+        [type f args] (if (fn? type?)
+                        [(:type p) type? `(~f? ~@args)]
+                        [type? f? args])]
+    (assert (partition-type? type))
+    (assert (fn? f))
+    (letfn [(safe-update-body [b]
+              (let [result (apply f b args)]
+                (assert (vector? result)
+                  "update-body function must return a vector")
+                result))]
+      (-> (update p :body safe-update-body)
+        (assoc :type type)))))
 
 (defn add-resume-at
   "Resumes the partition at the given address, binding the body value to the param, if given."

@@ -82,3 +82,32 @@
 (defn add-params [params & new-params]
   {:pre [(vector? params) (every? symbol? new-params)]}
   (vec (distinct (concat params new-params))))
+
+(defn make-let-body
+  "Returns a vector. If bindings is not empty, returns a vector containing a let expression lexically binding the bindings,
+  otherwise returns the body as a vector.
+
+  bindings in the form of 2-tuples [sym expr] "
+  [bindings body]
+  {:pre [(sequential? bindings)
+         (every? (comp simple-symbol? first) bindings)
+         (every? #(-> % count (= 2)) bindings)
+         (sequential? body)]}
+  (let [filtered-bindings (filter (fn [s v] (not= s v)) bindings) ; eliminate rebinding the same symbol
+        let-bindings (vec (apply concat filtered-bindings))]
+    (if (-> let-bindings count (> 0))
+      [`(let [~@let-bindings] ~@body)]
+      (vec body))))
+
+;; method used by pre-node-based partitioner
+;;(defn make-let-body [bindings body]
+;;  {:pre [(vector? body)]}
+;;  (let [filtered-bindings (filter (fn [[k v]]
+;;                                    (if (constant? k) ; accept [asdf :foo] but not [:foo asdf]
+;;                                      (assert (= k v)) ; returns nil
+;;                                      [k v]))
+;;                            bindings)
+;;        let-bindings      (vec (apply concat filtered-bindings))]
+;;    (if (-> let-bindings count (> 0))
+;;      [`(let [~@let-bindings] ~@body)]
+;;      body)))

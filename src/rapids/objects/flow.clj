@@ -1,6 +1,7 @@
 (ns rapids.objects.flow
   (:require [rapids.objects.address :as a]
             [rapids.objects.startable :as c]
+            [rapids.runtime.globals :refer [*current-partition-address*]]
             [rapids.support.defrecordfn :refer [defrecordfn]]
             [rapids.support.util :refer [qualify-symbol refers-to?]])
   (:import (clojure.lang Named)
@@ -64,7 +65,8 @@
                       {:type        :system-error
                        :object      pfn
                        :object-type (type pfn)})))
-    (pfn bindings)))
+    (bindings [*current-partition-address* address]
+      (pfn bindings))))
 
 (defmethod print-method Flow
   [o w]
