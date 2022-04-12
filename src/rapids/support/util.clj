@@ -1,5 +1,6 @@
 (ns rapids.support.util
-  (:require [clojure.java.io :as io])
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str])
   (:import (clojure.lang Atom Cons Namespace)
            (java.util Properties UUID)))
 
@@ -114,12 +115,15 @@
 
 (defn segregate
   "Takes a collection of n-tuples and returns n collections, where each collection represents the ith element of the n-tuple,
-  removing items for which predicate p is true. If not provided, p is nil?
+  for which predicate p is truthy. If not provided, p is effectively (constantly true).
 
-  (segregate 3 '([a nil 1] [nil b 2] [c nil 3] [nil d nil]))
+  (segregate 3 '([a   nil 1]
+                 [nil b   2]
+                 [c   nil 3]
+                 [nil d   nil]))
   => ((a c) (b d) (1 2 3))"
-  ([n coll] (segregate n identity coll))
+  ([n coll] (segregate n nil coll))
   ([n p coll]
-   (let [splitter (apply juxt (map (fn [i] #(map (fn [v] (nth v i)) %)) (range n)))]
-     (map #(remove p %)
-       (splitter coll)))))
+   (let [splitter (apply juxt (map (fn [i] #(map (fn [v] (nth v i)) %)) (range n)))
+         segregated (splitter coll)]
+     (if p (map #(filter p %) segregated) segregated))))

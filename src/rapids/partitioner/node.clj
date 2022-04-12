@@ -3,9 +3,10 @@
             [rapids.partitioner.partition :as p]
             [rapids.objects.address :as a]
             [rapids.partitioner.macroexpand :as m]
-            [rapids.partitioner.partition-utils :refer [constant? add-params]]
+            [rapids.partitioner.partition-utils :refer [add-params make-let-body]]
             [rapids.support.util :as util]
-            [rapids.partitioner.resume-at :refer [resume-at]])
+            [rapids.partitioner.resume-at :as r]
+            [clojure.set :as set])
   (:import (rapids.objects.address Address)
            (com.google.javascript.jscomp.newtypes PersistentMap)))
 
@@ -13,86 +14,98 @@
 ;;;; Node
 
 ;;; Represents a partitioned expression. The node stores a table of partitions and contains
-;;; two pointers, called :start and :value. These are addresses which point to the partitions
-;;; used to start computing the value the node represents and the partition which returns
-;;; the value of the node. A node representing a regular Clojure expression (i.e., a non-suspending
-;;; expression) has the same start and value address.
+;;; two pointers, called :head and :tail. The head address references the partition
+;;; which begins the computation, and the tail address represents the partition where
+;;; the partitioner may add new code.
 ;;;
-;;; A computed pointer called :tail indicates the partition which is available
-;;; to be extended by the partitioner. It could be a :valued or :suspending and
-;;; could be the :start or :value partition, however, if a :value partition is present
-;;; :tail will always point at the :value partition.
+;;; Partitions themselves may be suspending or not. A non-suspending partition returns
+;;; a value, and new forms may be added to its body. A suspending partitions may be resumed
+;;; at a new partition.
 ;;;
+;;; A node representing a regular Clojure expression will "atomic-valued",
+;;; that is, the :head and :tail addresses will be the same, and the partition
+;;; will be non-suspending.
+;;; ;;;
 ;;; Nodes provide a higher level abstraction required for reconnecting the partitioned
 ;;; expressions. For example,
-;;; (chain n1 n2) ; is used to
+;;; (chain n1 n2) ; is used to continue the computation of n1 with n2 - in other words,
+;;; having the logical effect of concatenating the bodies of the n1 and n2.
 
-;;;; PartitionMap
 (defrecord Node
-  [^Address start
-   ^Address value
-   ^PersistentMap partitions])
+  [^Address head
+   ^Address tail
+   ^PersistentMap partitions]
+  Object
+  (toString [o] (pr-str o)))
 
 (defn node? [o] (instance? Node o))
-
-(defn ->node
-  ([]
-   (->Node nil nil {})))
+(declare valid-node?)
 
 (defn ->suspending-node [addr params body]
-  (->Node addr nil {addr (p/->partition params body :suspending)}))
+  {:post [(valid-node? %)]}
+  (->Node addr addr {addr (p/->partition params body true)}))
 
 (defn ->valued-node [addr params body]
-  (->Node addr addr {addr (p/->partition params body :valued)}))
+  {:post [(valid-node? %)]}
+  (->Node addr addr {addr (p/->partition params body false)}))
 
 (defn addresses [node]
   (-> node :partitions keys))
 
-(def symbolic-address? #{:start :value :tail})
+(def symbolic-address? #{:head :tail})
 
 (defn size [node]
   (count (:partitions node)))
 
 (defn true-address
-  "Given a symbolic address name (:start, :value or :tail), returns the true address.
+  "Given a symbolic address name (:head or :tail), returns the true address.
   If an address is provided, returns the address. :tail is equivalent to
-  `(or (true-address node :value) (true-address node :start))`"
+  `(or (true-address node :value) (true-address node :head)`"
   [node addr]
   {:pre [(node? node) (or (address? addr) (symbolic-address? addr))]}
   (case addr
-    :start (:start node)
-    :value (:value node)
-    :tail (or (:value node) (:start node))
+    :head (:head node)
+    :tail (:tail node)
     addr))
 
 (defn get-partition
   "Returns the partition at the actual or symbolic address"
-  [node addr]
-  (get-in node [:partitions (true-address node addr)]))
-
-;;(defn suspending?
-;;  "True if the node is not simple"
-;;  [node]
-;;  (-> (get-partition node :start) :type (not= :valued)))
+  ([node] (partial get-partition node))
+  ([node addr]
+   {:pre [(node? node)]}
+   (get-in node [:partitions (true-address node addr)])))
 
 (defn add-partition
-  "Adds a partition to the node, optionally setting the given address as the start or value address.
-  Note that the start address of a node may not be changed once set."
-  ([node address params body ptype]
-   (add-partition node address (p/->partition params body ptype)))
+  "Adds a partition to the node, optionally setting the given address as the head or tail address.
+  Note that the head address of a node may not be changed once set."
+  ([node address params body suspending]
+   (add-partition node address (p/->partition params body suspending)))
   ([node address p]
-   {:pre [(address? address) (p/partition? p)]}
+   {:pre  [(address? address) (p/partition? p)]
+    :post [(valid-node? %)]}
    (assoc-in node [:partitions address] p)))
 
 (defn atomic?
-  "A node with a partition which serves both as the start and value."
+  "A node with a partition which serves both as the head and tail."
   [node]
-  (when (= (:start node) (:value node))
-    (assert (-> (get-partition node :start) :type (= :valued)))
-    true))
+  (and (node? node)
+    (= (:head node) (:value node))))
 
-(defn suspends? [node]
-  (not (atomic? node)))
+(defn atomic-valued?
+  "An atomic node which may be substituted into another form (as a Clojure expression)"
+  [node]
+  (and (atomic? node)
+    (-> (get-partition node :tail)
+      :suspending
+      not)))
+
+(defn suspends?
+  "True if the given partition of the node suspends. The unary form is equivalent to
+  (suspends? node :head), which also indicates whether evaluating the node involves
+  any suspending expressions."
+  ([node] (suspends? node :head))
+  ([node addr]
+   (p/suspending? (get-partition node addr))))
 
 (defn has-tail-value?
   "Returns true if the tail partition is simple, indicating that the value of the
@@ -100,113 +113,132 @@
   [node]
   (let [tail (get-partition node :tail)]
     (assert tail "Invalid attempt to call has-tail-value? on node with no partitions")
-    (-> tail :type (= :valued))))
-
-(defn get-partition [node addr]
-  (get-in node [:partitions (true-address node addr)]))
+    (not (p/suspending? tail))))
 
 (defn update-partition
   "Updates the partition at addr. The function f is passed the partition followed by any args.
 
-  (update-partition node :start myfn 1 2 3) => node with updated partition"
+  (update-partition node :head f) => node with updated partition"
   [node addr f & args]
-  {:pre [(fn? f) (node? node)]}
+  {:pre  [(fn? f) (node? node)]
+   :post [(valid-node? %)]}
   (apply update-in node [:partitions (true-address node addr)] f args))
 
-(defn make-value-address [node] (a/child (:start node) '_value))
-(defn ensure-tail-value
-  "Ensures the node has a value partition. input-key may be a symbol, true or nil, indicating
-  the symbol the node's value should be bound to. Providing nil means that the value will not be bound.
-  By default, binds the "
-  ([node] (ensure-tail-value node true))
-  ([node input-key]
-   {:pre [((some-fn symbol? false? #{true}) input-key)]}
-   (let [tail-part (get-partition node :tail)
-         tail-type (:type tail-part)]
-     (assert (p/partition-type? tail-type))
-     (assert (not= tail-type :resumed) "Inconsistent partition - tail partition type should never be :resumed")
-     (if (= tail-type :valued) node
-       ;; tail-partition is :suspending - we need to resume it at a new value-partition:
-       (let [value-addr    (make-value-address node)
-             params        (:params tail-part)
-             param         (cond
-                             (symbol? input-key) input-key
-                             input-key (m/stable-symbol))
-             new-tail-part (if param (p/->partition (conj params param) [param] :valued)
-                             (p/->partition params [] :valued))]
-         (-> (update-partition node :tail p/add-resume-at value-addr param)
-           (add-partition value-addr new-tail-part)
-           (assoc :value value-addr)))))))
+(defn ^{:arglists '([node addr suspending f & args]
+                    [node addr f & args])
+        :doc      "Updates the body of the partition at the given address, optionally
+        setting the suspending flag."}
+  update-body [node addr & args]
+  {:pre [(some fn? ((juxt first second) args))]}
+  (apply update-partition node addr p/update-body args))
 
-(defn distinct-addresses?
-  "True when the partitions of the given nodes are all at distinct addresses, otherwise false."
-  [& nodes]
-  (or (-> nodes count (< 2))
-    (->> nodes
-      (map (comp set addresses))
-      (apply clojure.set/intersection)
-      empty?)))
+(defn remove-unreferenced-partitions [node addresses]
+  (update node :partitions
+    #(apply dissoc %1 %2) (set/difference (set addresses) (set [(:head node) (:tail node)]))))
+
+(defn make-value-address [node] (a/child (:head node) '%value))
+
+(defn resume
+  "Returns a Resumes the node `from` the :head or :tail `to` the given address"
+  [node from to & {:keys [param body]
+                   :or   {body []}}]
+  {:pre [(node? node) (symbolic-address? from) (address? to)]}
+  (let [from-partition (get-partition node from)
+        _              (assert (p/suspending? from-partition))
+        params         (vec (concat (-> from-partition :params) (if param [param])))
+        new-tail-part  (p/->partition params body false)]
+    (->
+      ;; resume the from partition at the to address:
+      (update-partition node from p/add-resume-at to param)
+      ;; make a partition at the new address
+      (add-partition to new-tail-part)
+      ;; and set it as the new tail
+      (assoc :tail to))))
 
 (defn combine-partitions
   "Combines the partition maps of two nodes, ensuring the addresses do not overlap"
   [node & nodes]
-  {:pre  [(node? node) (every? node? nodes)
-          (apply distinct-addresses? node nodes)]
-   :post [(node? %)]}
-  (apply update node :partitions merge (map :partitions nodes)))
+  {:pre  [(node? node) (every? node? nodes)]
+   :post [(valid-node? %)]}
+  (let [pmappings (dedupe (concat (map :partitions (cons node nodes))))
+        addresses (map first pmappings)]
+    (assert (distinct? addresses)
+      (str "Partition address conflict detected while attempting to combine nodes"
+        pmappings))
+    (assoc node :partitions (into {} pmappings))))
 
 (defn remove-partition
-  "Removes the partition at the given address. If the address is references by the :start or :value pointers,
+  "Removes the partition at the given address. If the address is referenced by the :head or :tail pointers,
   the pointer is cleared."
   [node addr]
-  {:pre [(node? node) (or (symbolic-address? addr) (address? addr))]}
+  {:pre  [(node? node) (or (symbolic-address? addr) (address? addr))]
+   :post [(valid-node? %)]}
   (let [addr (true-address node addr)]
     (cond-> (update node :partitions dissoc addr)
-      (= (:start node) addr) (assoc :start nil)
-      (= (:value node) addr) (assoc :value nil))))
+      (= (:head node) addr) (assoc :head nil)
+      (= (:tail node) addr) (assoc :tail nil))))
 
 (defn chain
   "Returns a new node which represents sequential execution of code in node1 followed by node2.
 
   This is the conceptual equivalent of `concat`ing two vectors of Clojure expressions."
   [n1 n2]
-  {:pre [(= (:params (get-partition n1 :tail)) (:params (get-partition n2 :start)))]}
-  (let [n2-start (get-partition n2 :start)]
-    (-> (ensure-tail-value n1)
-      (combine-partitions n2)
-      (update-partition :tail p/extend-body (:type n2-start) (:body n2-start))
-      (remove-partition (true-address n2 :start)))))
+  {:pre  [(= (:params (get-partition n1 :head)) (:params (get-partition n2 :head)))]
+   :post [(valid-node? %)]}
+  (let [n1-tail       (get-partition n1 :tail)
+        n2-head-addr  (:head n2)
+        n2-head       (get-partition n2 :head)
+        combined-node (combine-partitions n1 n2)
+        joined-node   (if (p/suspending? n1-tail)
+                        (update-partition combined-node :tail p/add-resume-at n2-head-addr (:params n1))
+                        (-> (update-partition combined-node :tail p/extend-body (p/suspending? n2-head) (:body n2-head))
+                          (remove-partition n2-head-addr)))]
+    (if (get-partition joined-node (:tail n2))
+      (assoc joined-node :tail (:tail n2))
+      joined-node)))
 
 (declare make-binding-partition node-from-binding-group
-  add-binding-group resuming-body-fn make-let-body)
-
-(defn move-partition
-  "Moves a partition from one address to another. Exercise with caution - although this function updates :start
-  and :value pointers, it does not references to the from-addr in partition code."
-  [node from-addr to-addr]
-  {:pre [(not= from-addr to-addr)]}
-  (cond-> (-> (add-partition node to-addr (get-partition node from-addr))
-            (remove-partition from-addr))
-    (= from-addr (:start node)) (assoc :start from-addr)
-    (= from-addr (:value node)) (assoc :value from-addr)))
+  add-binding-group resuming-body-fn)
 
 (defn binding-group? [o]
   (and (sequential? o)
     (every? (some-fn symbol? nil?) (map first o))
     (every? node? (map second o))))
 
-(defn extend-body
-  "Treats the node as a body (which may suspend), adding another expression to the body"
-  [node ptype body]
-  {:pre [(p/partition-type? ptype)]}
-  (-> (ensure-tail-value node)
-    (update-partition :tail p/extend-body ptype (vec body))))
+;(defn ensure-tail-extendible
+;  "Ensures the node has a non-suspending tail partition.
+;
+;  input-key may be a symbol, true or nil, indicating the symbol the node's value
+;  should be bound to. Providing nil (the default) means that the value will not be bound."
+;  [node & {:keys [new-params input-key] :or {new-params []}}]
+;  {:pre  [(node? node) (every? simple-symbol? new-params)]
+;   :post [(valid-node? %)]}
+;  (let [tail-part (get-partition node :tail)]
+;    (if (not (p/suspending? tail-part))
+;      node
+;      ;; tail-partition is suspending - we need to resume it at a new value-partition:
+;      (resume node :tail (make-value-address node)
+;        :params (apply add-params (:params tail-part) new-params)
+;        :input-key input-key))))
+
+(defn ensure-bindable
+  "Ensures a node's value can be bound. Specifically, returns a node such that the body-value-expr of the tail partition
+   can be substituted into an expression. The tail partition of the returned node is guaranteed to be non-suspending.
+   The returned node may be the given node."
+  ([node] (ensure-bindable node (m/stable-symbol)))
+  ([node suggested-symbol]
+   (if (p/suspending? (get-partition node :tail))
+     (let [param suggested-symbol
+           from  :head
+           to    (make-value-address node)]
+       (resume node from to :param param :body [param]))
+     node)))
 
 (defn body-value-expr
   "Gets an expression which represents the value returned by the node's value partition. "
   [node]
-  (let [p (get-partition node :value)]
-    (assert (:type p) :valued)
+  (let [p (get-partition node :tail)]
+    (assert (not (p/suspending? p)))
     (p/body-value-expr p)))
 
 (defn bind
@@ -222,7 +254,7 @@
      new-bindings - vector two-tuples [sym expr] representing bindings which have not yet been made
                 all of the expressions are guaranteed to be non-suspending.
      returns vector of Clojure expressions
-  ptype - the resulting partition type (:valued, :suspending, :resumed) of the body returned by body-fn
+  suspending - the resulting partition type (:valued, :suspending, :resumed) of the body returned by body-fn
 
   This method is used to generate bindings for both let expressions and function call-style
   expressions. The body-fn argument can decide whether to use binding symbols (as in the case
@@ -231,59 +263,69 @@
 
   `(f (g (<*)))` => `(f (g <<1>>))`
   instead of (let [<<2>> (g <<1>>)] (f <<2>>))"
-  [addr params syms nodes body-fn ptype]
-  {:pre [(address? addr) (vector? params) (every? simple-symbol? params)
-         (= (count syms) (count nodes))
-         (every? node? nodes) (every? simple-symbol? syms)
-         (fn? body-fn)]}
+  [addr params syms args partitioning-fn body-fn suspending]
+  {:pre  [(address? addr) (vector? params) (every? simple-symbol? params)
+          (= (count syms) (count args))
+          (every? simple-symbol? syms)
+          (fn? partitioning-fn)
+          (fn? body-fn)
+          (boolean? suspending)]
+   :post [(valid-node? %)]}
   (letfn [(add-bindings
             [[node bound-syms] [binding-group node-extender]]
             {:pre [(binding-group? binding-group)]}
-            (let [last-node                (some-> binding-group last second)
-                  last-suspends?           (and last-node (suspends? last-node))
+            (let [node                    node
+                  binding-nodes           (map second binding-group)
+                  last-node               (last binding-nodes)
+                  last-suspends?          (and last-node (suspends? last-node))
 
-                  bgroup-minus-start-parts (map #(remove-partition (second %) :start) binding-group)
-                  new-node                 (->
-                                             ;; add the internal partitions of the given nodes
-                                             (apply combine-partitions node bgroup-minus-start-parts)
-                                             ;; extend the existing
-                                             (node-extender bound-syms binding-group))
-                  _                        (assert (:value new-node))
-                  non-suspending-bindings  (if last-suspends? (butlast binding-group) binding-group)
-                  non-suspending-syms      (map first non-suspending-bindings)
-                  bound-syms               (dedupe (concat bound-syms non-suspending-syms))]
+                  new-node                (->
+                                            ;; add the internal partitions of the given nodes
+                                            (apply combine-partitions node binding-nodes)
+                                            (remove-unreferenced-partitions (map :head binding-nodes)) ;; extend the existing
+                                            (node-extender bound-syms binding-group))
+                  _                       (assert (not (p/suspending? (get-partition new-node :tail))))
+                  non-suspending-bindings (if last-suspends? (butlast binding-group) binding-group)
+                  non-suspending-syms     (map first non-suspending-bindings)
+                  bound-syms              (dedupe (concat bound-syms non-suspending-syms))]
               [new-node bound-syms]))
           (make-binding-extender [next-addr]
             {:pre [(address? next-addr)]}
             (fn [node bound-syms new-bindings]
               {:post [(node? %)]}
+
               (let [valued-bindings  (butlast new-bindings)
                     [input-key susp-node] (last new-bindings)
                     _                (assert (suspends? susp-node))
                     let-bindings     (map (fn [[s n]] [s (body-value-expr n)]) valued-bindings)
                     partition-params (distinct (concat params bound-syms))
                     new-params       (vec (distinct (concat partition-params (map first (butlast new-bindings)))))
-                    start-body       (:body (get-partition susp-node :start))
+                    head-body        (:body (get-partition susp-node :head))
                     resume-body      (make-let-body let-bindings
-                                       [`(resume-at [~next-addr ~new-params ~input-key]
-                                           ~@start-body)])
+                                       [`(r/resume-at [~next-addr ~new-params ~input-key]
+                                           ~@head-body)])
                     ;; create an empty tail partition
-                    tail-partition   (p/->partition (add-params new-params input-key) [] :valued)]
-                ;; add the resume expression, and change the value address appropriately
+                    tail-partition   (p/->partition (add-params new-params input-key) [] false)]
+                ;; add the resume expression, and change the tail address appropriately
                 (assert next-addr)
-                (-> node
-                  (extend-body :resumed resume-body)
-                  (add-partition next-addr tail-partition)
-                  (assoc :value next-addr)))))
+                (let [node (-> node
+                             (update-body :tail true (constantly resume-body))
+                             (add-partition next-addr tail-partition)
+                             (assoc :tail next-addr))]
+                  node))))
           (make-carry-over-binding [bgroup]
             (let [[sym node] (last bgroup)]
-              [sym (ensure-tail-value node sym)]))
+              [sym (ensure-bindable node sym)]))
           (final-extender [node bound-syms binding-group]
             {:pre [(every? simple-symbol? bound-syms)
                    (every? #(and (vector? %) (-> % count (= 2))) binding-group)]}
             (let [bindings (mapv (fn [[sym node]] (vector sym (body-value-expr node))) binding-group)]
-              (extend-body node ptype (body-fn bound-syms bindings))))]
-    (let [;; associate the symbols with the nodes, splitting at the suspending nodes
+              (update-body node :tail suspending (constantly (body-fn bound-syms bindings)))))]
+    (let [nodes               (map-indexed (fn [idx arg]
+                                             (partitioning-fn arg (a/child addr idx)
+                                               (apply add-params params (subvec (vec syms) 0 idx))))
+                                args)
+          ;; associate the symbols with the nodes, splitting at the suspending nodes
           ;;  syms: [_1 _2 _3 _4 _5 _6...], nodes: [a1 a2 S3 a4 S5 a6...], where S3 and S6 are suspending nodes
           ;;  binding-groups =>
           ;;    (([ _1 a1], [_2 a2], [_3 S3]), ; first partition
@@ -307,8 +349,7 @@
                                   carry-over-bindings
                                   (concat (rest binding-groups) (repeat []))))
 
-          ;; use the expr-addr for the last address
-          next-addresses      (map #(some-> % first second :start) (rest binding-groups))
+          next-addresses      (map #(some-> % first second :tail) (rest binding-groups))
           binding-extenders   (map make-binding-extender next-addresses)
 
           ;; each extender takes [node bound-syms new-bindings] and extends the node with new bindings
@@ -327,30 +368,16 @@
 (defn partition-map-def
   "Generates expression of the form `{ <address1.point> (fn [...]...) <address2.point> ...}`"
   [node]
-  (let [pfdefs (map-indexed (fn [index [address _]]
-                              [`(quote ~(:point address)) (p/partition-fn-def pmap address index)])
-                 (node :partitions))]
-    (apply hash-map (apply concat pfdefs))))
+  (debux.core/dbg
+    (let [pfdefs (map-indexed (fn [index [address partition]]
+                                [`(quote ~(:point address)) (p/partition-fn-def partition address index)])
+                   (node :partitions))]
+      (apply hash-map (apply concat pfdefs)))))
 
-
-;; HELPERS
-;;(defn- capture-input-node-binding
-;;  "Inspects the input-node and binds the input-node to the input-sym when the input-node's
-;;  value expression is not a symbol. For example, in an expression such as
-;;  `(f (g (<*)))`, the node start will be `(<*)` and the node value partition body will be
-;;  something like `[(f (g <<1>>))]`. The input node's start expression was evaluated in the previous
-;;   partition. To continue the computation. `capture-input-node-binding` detects that the value
-;;   is not a symbol and ensures that the value expression is included in the bindings."
-;;  [input-sym input-node let-bindings]
-;;  (or (if input-node
-;;        (let [body-value (p/body-value-expr input-node)]
-;;          (if-not (symbol? body-value)
-;;            (vec (concat [input-sym body-value] let-bindings)))))
-;;    let-bindings))
-;;
-;;(defn- node-with-bindings
-;;  "The binding group contains one or more nodes, where the last node is suspending"
-;;  [bound-keys input-node syms nodes next-address]
-;;  (let [binding-partition (make-binding-partition bound-keys input-node syms nodes next-address)
-;;        combined-node     (apply combine-partitions (map #(remove-partition % :start) nodes))]
-;;    (update-partition combined-node :value p/extend-body binding-partition)))
+(defn- valid-node? [n]
+  (and (node? n)
+    (-> n :head address?)
+    (let [headp (get-partition n :head)]
+      (if (atomic-valued? n)
+        (not (p/suspending? headp))
+        (boolean headp)))))

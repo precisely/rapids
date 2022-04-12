@@ -80,7 +80,7 @@
     (-> o meta :dynamic)))
 
 (defn add-params [params & new-params]
-  {:pre [(vector? params) (every? symbol? new-params)]}
+  {:pre [ (sequential? params) (every? symbol? new-params)]}
   (vec (distinct (concat params new-params))))
 
 (defn make-let-body
@@ -93,7 +93,7 @@
          (every? (comp simple-symbol? first) bindings)
          (every? #(-> % count (= 2)) bindings)
          (sequential? body)]}
-  (let [filtered-bindings (filter (fn [s v] (not= s v)) bindings) ; eliminate rebinding the same symbol
+  (let [filtered-bindings (filter (fn [[s v]] (not= s v)) bindings) ; eliminate rebinding the same symbol
         let-bindings (vec (apply concat filtered-bindings))]
     (if (-> let-bindings count (> 0))
       [`(let [~@let-bindings] ~@body)]

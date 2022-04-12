@@ -1,4 +1,4 @@
-(ns rapids.util_test
+(ns rapids.support.util_test
   (:require [clojure.test :refer :all]
             [rapids.support.util :refer :all]))
 
@@ -14,7 +14,7 @@
   (testing "Testing instance directly"
     (is (true? (refers-to? is-foo? a)))))
 
-(deftest ReverseInterleave
+(deftest reverse-interleave-test
   (testing "two lists"
     (is (= '([:a :b :c] [1 2 3 ])
            (reverse-interleave '(:a 1 :b 2 :c 3) 2))))
@@ -23,7 +23,20 @@
     (is (= '([:a :b :c] [1 2 3] ["foo" "bar" "baz"])
            (reverse-interleave '(:a 1 "foo" :b 2 "bar" :c 3 "baz") 3)))))
 
-(deftest In
+(deftest in-test
   (testing "in?"
     (is (true? (in? [:a :b :c] :b)))
     (is (nil? (in? [:a :b :c] :d)))))
+
+(deftest segregate-test
+  (testing "segregate"
+    (testing "with default predicate"
+      (is (= (segregate 3 '[[a nil nil] [nil b nil] [nil nil c]])
+            '((a nil nil) (nil b nil) (nil nil c)))))
+    (testing "with custom predicate"
+      (is (= (segregate 3 simple-symbol? '[[a "a" :a] [b "b" :b] [c "c" :c]])
+            '((a b c) () ())))
+      (is (= (segregate 3 string? '[[a "a" :a] [b "b" :b] [c "c" :c]])
+            '(() ("a" "b" "c") ())))
+      (is (= (segregate 3 keyword? '[[a "a" :a] [b "b" :b] [c "c" :c]])
+            '(() () (:a :b :c)))))))

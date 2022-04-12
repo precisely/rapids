@@ -11,9 +11,13 @@
 ;;       ClassNotFoundException where :message is rapids.runtime.runlet
 
 (declare raise-partition)
-(def raise-address (a/->address `raise 0))
+
+;; it's a bit hacky to get the entry point this way, but run-loop/interrupt! needs it
+(def raise-partition-fn-address
+  "The entry partition-fn address of the raise flow"
+  (->address `raise 0))
 (def raise (flow/->Flow `raise
-             (fn [i] (flow/call-partition raise-address {:interrupt i}))
+             (fn [i] (flow/call-partition raise-partition-fn-address {:interrupt i}))
              {[0] #'raise-partition}))
 (defn raise-partition
   "Raises an interruption."
@@ -34,7 +38,3 @@
           result)
         (recur (rest attempts))))))
 
-;; it's a bit hacky to get the entry point this way, but run-loop/interrupt! needs it
-(def raise-partition-fn-address
-  "The entry partition-fn address of the raise flow"
-  (->address `raise 0))

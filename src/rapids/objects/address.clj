@@ -1,5 +1,6 @@
 (ns rapids.objects.address
-  (:require [clojure.string :as str])
+  (:require [clojure.string :as str]
+            [clojure.pprint :refer [*print-suppress-namespaces*]])
   (:import (clojure.lang Symbol)
            (java.util Vector)))
 
@@ -103,9 +104,15 @@
 (defn address-printer [a]
   (let [length (-> a :point count inc)]
     (str "#a\""
-      (apply str (:flow a) (interleave (repeat length ":") (:point a)))
+      (apply str
+        (if *print-suppress-namespaces*
+          (-> a :flow name)
+          (:flow a))
+        (interleave (repeat length ":") (:point a)))
       "\"")))
 
 (defmethod print-method Address
   [a w]
   (print-simple (address-printer a) w))
+
+(defmethod clojure.pprint/simple-dispatch Address [o] (pr o))

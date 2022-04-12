@@ -1,10 +1,9 @@
 (ns rapids-test
   (:require [clojure.test :refer :all]
-            [expectations.clojure.test
-             :refer [expect more->]]
+            [expectations.clojure.test :refer [expect more->]]
             [rapids :refer :all]
             [rapids.implementations.in-memory-storage :refer [in-memory-storage?]]
-            [rapids.objects.address :as address]
+            [rapids.objects.address :as a]
             [rapids.partitioner.core :refer [partition-flow-body]]
             [rapids.support.debug :refer :all]
             [test-helpers :refer [flush-cache! get-run-record proxy-field run-in-state? throws-error-output with-test-env-run]]
@@ -385,7 +384,7 @@
                 Exception #"Mismatched argument count to recur"
                 (partition-flow-body
                   {}
-                  (address/->address `foo)
+                  (a/->address `foo)
                   '([]
                     (rapids/<* :permit "foo")
                     (loop [a 1]
@@ -395,7 +394,7 @@
                 Exception #"Mismatched argument count to recur"
                 (partition-flow-body
                   {}
-                  (address/->address `foo)
+                  (a/->address `foo)
                   '([]
                     (rapids/<* :permit "foo")
                     (loop [a 1 b 2]
@@ -407,7 +406,7 @@
                 Exception #"Can only recur from tail position"
                 (partition-flow-body
                   {}
-                  (address/->address `foo)
+                  (a/->address `foo)
                   '([]
                     (rapids/<* :permit "a")
                     (loop [a 1]
@@ -418,7 +417,7 @@
                 Exception #"Can only recur from tail position"
                 (partition-flow-body
                   {}
-                  (address/->address `foo)
+                  (a/->address `foo)
                   '([] (loop [a 1]
                          (rapids/<* :permit "a")
                          (recur 2)
@@ -504,7 +503,7 @@
       (is (thrown-with-msg? Exception #"Illegal attempt to suspend in function body"
             (partition-flow-body
               {}
-              (address/->address `fn-with-suspend) `([] (fn [] (input! :permit "boo")))))))
+              (a/->address `fn-with-suspend) `([] (fn [] (input! :permit "boo")))))))
 
     (testing "flow-with-closure"
       (let [run (start! flow-with-closure [2 [3 4 5]])]

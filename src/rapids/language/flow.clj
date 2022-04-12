@@ -3,7 +3,8 @@
             [rapids.objects.flow :refer [->Flow in-flow-definition-context? with-flow-definitions]]
             [rapids.partitioner.core :refer [partition-flow-body partition-map-def]]
             [rapids.support.util :refer [qualify-symbol]]
-            [rapids.partitioner.macroexpand :refer [with-gensym-context]]))
+            [rapids.partitioner.macroexpand :refer [with-gensym-context]]
+            [rapids.partitioner.node :as n]))
 
 (defmacro deflow
   "Define a flow, using the same semantics as defn.
@@ -18,8 +19,8 @@
         (with-meta `(deflow ~name "" ~docstring? ~@fdecl) (meta &form))
         (let [qualified-name (qualify-symbol name)
               address        (->address qualified-name)
-              [entry-fn-def, pmap] (partition-flow-body (meta &form) address fdecl)
-              flow-form      `(let [pfn-set# ~(partition-map-def pmap)]
+              [entry-fn-def, node] (partition-flow-body (meta &form) address fdecl)
+              flow-form      `(let [pfn-set# ~(n/partition-map-def node)]
                                 (->Flow '~qualified-name, ~entry-fn-def, pfn-set#))]
           `(def ^{:doc ~docstring?} ~name ~flow-form))))))
 

@@ -1,6 +1,39 @@
 <component name="InspectionProjectProfileManager">
   <profile version="1.0">
     <option name="myName" value="Project Default" />
+    <inspection_tool class="ClDeprecatedApiUsage" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClFullyQualifiedClass" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClIncorrectArity" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClJavaInterop" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClNamespaceDiffersFromPackage" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClNestedFunctionLiterals" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClUnresolvedSymbol" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClUnusedImport" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClUnusedLocalSymbol" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClUnusedRequire" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="ClojureUnusedDeclaration" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Scratches and Consoles" level="INFORMATION" enabled="true" />
+    </inspection_tool>
     <inspection_tool class="GrazieInspection" enabled="false" level="TYPO" enabled_by_default="false" />
     <inspection_tool class="LanguageDetectionInspection" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="SpellCheckingInspection" enabled="false" level="TYPO" enabled_by_default="false">
