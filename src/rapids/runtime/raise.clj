@@ -1,17 +1,23 @@
 (ns rapids.runtime.raise
-  (:require [rapids.language.flow :refer [deflow]]
-            [rapids.objects.address :refer [->address]]                  ; required to get deflow to compile
+  (:require [rapids.objects.address :refer [->address]] ; required to get deflow to compile
             [rapids.objects.interruptions :refer [interruption?]]
             [rapids.runtime.calling :refer [fcall]]
             [rapids.runtime.globals :refer [*attempts*]]
-            [rapids.runtime.runlet :as rl]))
+            [rapids.objects.address :as a]
+            [rapids.objects.flow :as flow]))
 
 ;; TODO: determine why rapids.runtime.runlet is required to get this to compile
 ;;       for some reason, the (fcall...) forms below cause a compiler error of
 ;;       ClassNotFoundException where :message is rapids.runtime.runlet
-(deflow raise
+
+(declare raise-partition)
+(def raise-address (a/->address `raise 0))
+(def raise (flow/->Flow `raise
+             (fn [i] (flow/call-partition raise-address {:interrupt i}))
+             {[0] #'raise-partition}))
+(defn raise-partition
   "Raises an interruption."
-  [interrupt]
+  [{:keys [interrupt]}]
   {:pre [(interruption? interrupt)]}
   ;; TODO: check that current-run exists and that cache is bound
   (loop [attempts *attempts*]
