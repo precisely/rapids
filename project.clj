@@ -5,13 +5,13 @@
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
             :url  "https://precise.ly/rapids"}
-  :dependencies [[org.clojure/clojure "1.10.3"]
+  :dependencies [[org.clojure/clojure "1.11.1"]
                  [org.clojure/core.async "1.5.648"]
                  [org.clojure/core.match "1.0.0"]
                  [clojure.java-time "0.3.3"]
                  [org.clojure/data.codec "0.1.1"]
                  [com.taoensso/nippy "3.1.1"]
-                 [com.taoensso/timbre "5.1.2"]
+                 [com.taoensso/timbre "5.2.1"]
                  [com.fzakaria/slf4j-timbre "0.3.21"] ; needed by next.jdbc
                  [potemkin "0.4.5"]
 
@@ -35,13 +35,13 @@
                                   [org.clojure/tools.namespace "1.2.0"]]
                    :plugins      [[lein-ancient "1.0.0-RC3"]
                                   [com.gearswithingears/shrubbery "0.4.1"] ; protocol spies & stubs
-                                  [migratus-lein "0.7.3"]
                                   [lein-cloverage "1.2.2"]
                                   [s3-wagon-private "1.3.4"]]
-                   :cloverage    {:ns-exclude-call ['rapids.support.defrecordfn/defrecordfn]
+                   :cloverage    {:ns-exclude-call  ['rapids.support.defrecordfn/defrecordfn]
                                   :ns-exclude-regex [#"rapids.support.debug" #"rapids.support.repl"]}}}
   :repl-options {:init-ns rapids.support.repl}
   :codox {:doc-paths []}
+  :plugins [[migratus-lein "0.7.3"]]
   :deploy-repositories [["precisely" {:url           "s3p://precisely-maven-repo/"
                                       :username      #=(env "MAVEN_REPO_AWS_ACCESS_KEY_ID")
                                       :passphrase    #=(env "MAVEN_REPO_AWS_ACCESS_KEY_SECRET")
