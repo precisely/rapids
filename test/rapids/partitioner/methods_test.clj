@@ -5,44 +5,43 @@
             [rapids.partitioner.core :refer :all]
             [rapids.partitioner.methods :refer [partition-set-expr partition-vector-expr]]
             [rapids.partitioner.partition-map :refer [addresses]]
-            [rapids.support.util :refer :all])
+            [rapids.support.util :refer :all]
+            [rapids.partioner.node :refer :all :as node])
   (:import (rapids.objects.flow Flow)))
 
-(declare PARTITION-ADDRESS MAIN)                            ; get rid of symbol resolution warnings
 
 (def fl1 (Flow. 'fl1 #() {}))
 (def fl2 (Flow. 'fl2 #() {}))
 (defn a [])
 (defn b [])
 
-(def partition-address (address/->address `PARTITION-ADDRESS))
 (def address (address/->address `MAIN))
 
 (deftest ^:unit PartitionLiterals
   (testing "literals"
     (testing "number"
-      (is (= (partition-expr 123 partition-address address [])
-            [123, nil, nil])))
+      (is (= (partition-expr 123 address [])
+            (node/->valued-node ))))
     (testing "string"
-      (is (= (partition-expr "foo" partition-address address [])
+      (is (= (partition-expr "foo" address [])
             ["foo", nil, nil])))))
 
 (deftest ^:unit PartitionNonSuspendingFunctionalExpressions
   (testing "simple expression"
-    (is (= (partition-expr '(+ 3 4) partition-address address [])
+    (is (= (partition-expr '(+ 3 4) address [])
           ['(+ 3 4), nil, false])))
   (testing "nested expression"
-    (is (= (partition-expr '(+ (* 3 4) 6) partition-address address [])
+    (is (= (partition-expr '(+ (* 3 4) 6) address [])
           ['(+ (* 3 4) 6), nil, false]))))
 
 (deftest ^:unit PartitionSuspendingFunctionalExpressions
   (testing "suspending expressions"
     (testing "flow with non-suspending args"
-      (is (= (partition-expr `(fl1 3 4) partition-address address [])
+      (is (= (partition-expr `(fl1 3 4) address [])
             [`(rapids/fcall fl1 3 4), nil, true])))
     (testing "flow with suspending args"
       (let [[start, pmap, suspend?]
-            (partition-expr `(fl1 (fl2 (a))) partition-address address '[z])
+            (partition-expr `(fl1 (fl2 (a))) address '[z])
             next-address (address/child address `fl1 1)]    ; fl1/0 is arg0, fl1/1 => "(fl1 ~arg0)"
         (is (true? suspend?))
         (testing "the start body should contain a resume-at expression pointing at the next-address, starting with the innermost term"
@@ -65,12 +64,12 @@
 
 (deftest ^:unit PartitionBody
   (testing "body without forms"
-    (is (match [(partition-body [] partition-address address [])]
+    (is (match [(partition-body [] address [])]
           [[[], {} false]] true
           [_] false)))
 
   (testing "body without suspending forms"
-    (let [[start, pmap, suspend?] (partition-body `[(a) (b)] partition-address address [])]
+    (let [[start, pmap, suspend?] (partition-body `[(a) (b)] address [])]
       (is (match [start]
             [[([`a] :seq), ([`b] :seq)]] true
             [_] false))
@@ -78,7 +77,7 @@
       (is (false? suspend?))))
 
   (testing "body with a single suspending form"
-    (let [[start, pmap, suspend?] (partition-body `[(fl1)] partition-address address [])]
+    (let [[start, pmap, suspend?] (partition-body `[(fl1)] address [])]
       (is (match [start]
             [[([`rapids/fcall `fl1] :seq)]] true
             [_] false))
@@ -86,7 +85,7 @@
       (is (true? suspend?))))
 
   (testing "body split by a suspending form"
-    (let [[start, pmap, suspend?] (partition-body `[(a) (fl1) (b)] partition-address address [])
+    (let [[start, pmap, suspend?] (partition-body `[(a) (fl1) (b)] address [])
           part2-address (address/child address 2)]
 
       (testing "initial form first two forms, resuming at the second partition address"
@@ -111,13 +110,13 @@
 
 (deftest ^:unit PartitionVectorExpression
   (testing "simple vector with scalars"
-    (let [[start, pmap, suspend?] (partition-vector-expr `["str" :key 1] partition-address address [])]
+    (let [[start, pmap, suspend?] (partition-vector-expr `["str" :key 1] address [])]
       (is (false? suspend?))
       (is (empty? pmap))
       (is (= start ["str" :key 1]))))
 
   (testing "vector with function calls"
-    (let [[start, pmap, suspend?] (partition-vector-expr `[(a) (b) 3] partition-address address [])]
+    (let [[start, pmap, suspend?] (partition-vector-expr `[(a) (b) 3] address [])]
       (is (= 0 (count pmap)))
       (is (false? suspend?))
       (is (match [start]
@@ -125,7 +124,7 @@
             [_] false))))
 
   (testing "vector with suspending expressions"
-    (let [[start, pmap, suspend?] (partition-vector-expr `[(fl1) (fl2) 3] partition-address address [])]
+    (let [[start, pmap, suspend?] (partition-vector-expr `[(fl1) (fl2) 3] address [])]
       (is (= 2 (-> pmap addresses count)))
       (is (true? suspend?))
       (is (match [start]
@@ -135,19 +134,19 @@
 
 (deftest ^:unit PartitionSetExpression
   (testing "simple set with scalars"
-    (let [[start, pmap, suspend?] (partition-set-expr `#{"str" :key 1} partition-address address [])]
+    (let [[start, pmap, suspend?] (partition-set-expr `#{"str" :key 1} address [])]
       (is (false? suspend?))
       (is (empty? pmap))
       (is (= start #{"str" :key 1}))))
 
   (testing "set with function calls"
-    (let [[start, pmap, suspend?] (partition-set-expr `#{(a) (b) 3} partition-address address [])]
+    (let [[start, pmap, suspend?] (partition-set-expr `#{(a) (b) 3} address [])]
       (is (= 0 (count pmap)))
       (is (false? suspend?))
       (is (= start `#{(a) (b) 3}))))
 
   (testing "set with suspending expressions"
-    (let [[start, pmap, suspend?] (partition-set-expr `#{(fl1) (fl2) 3} partition-address address [])]
+    (let [[start, pmap, suspend?] (partition-set-expr `#{(fl1) (fl2) 3} address [])]
       (is (= 2 (-> pmap addresses count)))
       (is (true? suspend?))
       (testing "one of the two suspending expressions is in start"

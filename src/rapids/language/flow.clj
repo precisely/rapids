@@ -34,10 +34,10 @@
 (defmacro flow
   "Special form for constructing anonymous flows. May only be invoked inside of deflow. Returns a Closure."
   [name? & fdecl]
-  (if (in-flow-definition-context?) ; let the partitioner handle it
+  (if (in-flow-definition-context?)                         ; let the partitioner handle it
     &form
     (throw (ex-info "Invalid context: anonymous flow may only be defined inside of deflow."
-             {:form &form}))))
+                    {:form &form}))))
 
 (defmacro letflow
   "Establish bindings for one or more flows, which may be mutually recursive. Similar to letfn.
@@ -49,7 +49,7 @@
   [flowspecs & body]
   (let [flow-symbols  (map first flowspecs)
         flow-bindings (vec (apply concat
-                             (map #(vector (first %) (cons 'flow %)) flowspecs)))]
+                                  (map #(vector (first %) (cons 'flow %)) flowspecs)))]
     (with-flow-definitions flow-symbols
       `(let ~flow-bindings
          ~@body))))

@@ -22,7 +22,7 @@
         entry-address (a/child address '_fn)
         closure-ctor (with-meta `(->Closure ~entry-address ~(bindings-expr-from-params captured-params) false) (meta fn-form))]
     (-> (n/->valued-node address env-params [closure-ctor])
-      (n/add-partition entry-address captured-params [fn-form] :valued))))
+      (n/add-partition entry-address captured-params [fn-form] false))))
 
 (defn extract-fn-defs [form]
   "Returns [name, sigs]"

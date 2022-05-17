@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [rapids.objects.address :as a]
             [rapids.objects.closure :refer :all]
-            [rapids.partitioner.closure :refer [closure-constructor]]
+            [rapids.partitioner.closure :refer [closure-node]]
             [rapids.partitioner.partition-map :as pmap]
             [rapids.partitioner.partition :as p]
             [rapids.objects.flow :as f]
@@ -17,7 +17,7 @@
 (deftest closure-constructor-test
   (let [address            (a/->address `main 0)
         fndef              '(fn [x] (* x y))
-        [closure-ctor, pmap] (closure-constructor fndef, address '[y z])
+        [closure-ctor, pmap] (closure-node fndef, address '[y z])
         suspending-closure (->Closure address {:foo 1} true)
         fn-closure         (->Closure address {:foo 1} false)]
 

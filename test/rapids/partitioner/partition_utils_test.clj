@@ -31,3 +31,21 @@
   (testing ""
     (is (= (closure-captured-bindings '[x] '(* x y) '[x y z])
           '[y]))))
+
+(deftest ^:unit params-from-args-test
+  (testing "simple arg list"
+    (is (= (params-from-args '[a b c]) '[a b c])))
+  (testing "empty arg list"
+    (is (= (params-from-args []) [])))
+  (testing "associative binding"
+    (is (= (params-from-args '[{a :a, b :b}]) '[a b])))
+  (testing "multiple associative bindings"
+    (is (= (params-from-args '[{a :a, b :b} {c :c}]) '[a b c])))
+  (testing "map binding with :as"
+    (is (= (params-from-args '[{a :a, b :b :as all}]) '[a b all])))
+  (testing "variadic binding"
+    (is (= (params-from-args '[& rest]) '[rest])))
+  (testing "variadic associative binding"
+    (is (= (params-from-args '[& {:keys [a b]}]) '[a b])))
+  (testing "variadic associative binding with :as"
+    (is (= (params-from-args '[& {:keys [a b] :as all}]) '[a b all]))))

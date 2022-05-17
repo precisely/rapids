@@ -6,11 +6,12 @@
             [rapids.partitioner.partition-utils :refer [add-params make-let-body]]
             [rapids.support.util :as util]
             [rapids.partitioner.resume-at :as r]
-            [clojure.set :as set])
+            [clojure.set :as set]
+            [debux.core :as debux]
+            [rapids.partitioner.recur :refer [with-tail-position]])
   (:import (rapids.objects.address Address)
            (com.google.javascript.jscomp.newtypes PersistentMap)))
 
-(use 'debux.core)
 ;;;; Node
 
 ;;; Represents a partitioned expression. The node stores a table of partitions and contains
@@ -89,15 +90,15 @@
   "A node with a partition which serves both as the head and tail."
   [node]
   (and (node? node)
-    (= (:head node) (:value node))))
+       (= (:head node) (:value node))))
 
 (defn atomic-valued?
   "An atomic node which may be substituted into another form (as a Clojure expression)"
   [node]
   (and (atomic? node)
-    (-> (get-partition node :tail)
-      :suspending
-      not)))
+       (-> (get-partition node :tail)
+           :suspending
+           not)))
 
 (defn suspends?
   "True if the given partition of the node suspends. The unary form is equivalent to
@@ -134,7 +135,7 @@
 
 (defn remove-unreferenced-partitions [node addresses]
   (update node :partitions
-    #(apply dissoc %1 %2) (set/difference (set addresses) (set [(:head node) (:tail node)]))))
+          #(apply dissoc %1 %2) (set/difference (set addresses) (set [(:head node) (:tail node)]))))
 
 (defn make-value-address [node] (a/child (:head node) '%value))
 
@@ -144,9 +145,9 @@
                    :or   {body []}}]
   {:pre [(node? node) (symbolic-address? from) (address? to)]}
   (let [from-partition (get-partition node from)
-        _              (assert (p/suspending? from-partition))
-        params         (vec (concat (-> from-partition :params) (if param [param])))
-        new-tail-part  (p/->partition params body false)]
+        _ (assert (p/suspending? from-partition))
+        params (vec (concat (-> from-partition :params) (if param [param])))
+        new-tail-part (p/->partition params body false)]
     (->
       ;; resume the from partition at the to address:
       (update-partition node from p/add-resume-at to param)
@@ -163,8 +164,8 @@
   (let [pmappings (dedupe (concat (map :partitions (cons node nodes))))
         addresses (map first pmappings)]
     (assert (distinct? addresses)
-      (str "Partition address conflict detected while attempting to combine nodes"
-        pmappings))
+            (str "Partition address conflict detected while attempting to combine nodes"
+                 pmappings))
     (assoc node :partitions (into {} pmappings))))
 
 (defn remove-partition
@@ -175,8 +176,8 @@
    :post [(valid-node? %)]}
   (let [addr (true-address node addr)]
     (cond-> (update node :partitions dissoc addr)
-      (= (:head node) addr) (assoc :head nil)
-      (= (:tail node) addr) (assoc :tail nil))))
+            (= (:head node) addr) (assoc :head nil)
+            (= (:tail node) addr) (assoc :tail nil))))
 
 (defn chain
   "Returns a new node which represents sequential execution of code in node1 followed by node2.
@@ -185,25 +186,25 @@
   [n1 n2]
   {:pre  [(= (:params (get-partition n1 :head)) (:params (get-partition n2 :head)))]
    :post [(valid-node? %)]}
-  (let [n1-tail       (get-partition n1 :tail)
-        n2-head-addr  (:head n2)
-        n2-head       (get-partition n2 :head)
+  (let [n1-tail (get-partition n1 :tail)
+        n2-head-addr (:head n2)
+        n2-head (get-partition n2 :head)
         combined-node (combine-partitions n1 n2)
-        joined-node   (if (p/suspending? n1-tail)
-                        (update-partition combined-node :tail p/add-resume-at n2-head-addr (:params n1))
-                        (-> (update-partition combined-node :tail p/extend-body (p/suspending? n2-head) (:body n2-head))
+        joined-node (if (p/suspending? n1-tail)
+                      (update-partition combined-node :tail p/add-resume-at n2-head-addr (:params n1))
+                      (-> (update-partition combined-node :tail p/extend-body (p/suspending? n2-head) (:body n2-head))
                           (remove-partition n2-head-addr)))]
     (if (get-partition joined-node (:tail n2))
       (assoc joined-node :tail (:tail n2))
       joined-node)))
 
 (declare make-binding-partition node-from-binding-group
-  add-binding-group resuming-body-fn)
+         add-binding-group resuming-body-fn)
 
 (defn binding-group? [o]
   (and (sequential? o)
-    (every? (some-fn symbol? nil?) (map first o))
-    (every? node? (map second o))))
+       (every? (some-fn symbol? nil?) (map first o))
+       (every? node? (map second o))))
 
 ;(defn ensure-tail-extendible
 ;  "Ensures the node has a non-suspending tail partition.
@@ -229,8 +230,8 @@
   ([node suggested-symbol]
    (if (p/suspending? (get-partition node :tail))
      (let [param suggested-symbol
-           from  :head
-           to    (make-value-address node)]
+           from :head
+           to (make-value-address node)]
        (resume node from to :param param :body [param]))
      node)))
 
@@ -254,7 +255,7 @@
      new-bindings - vector two-tuples [sym expr] representing bindings which have not yet been made
                 all of the expressions are guaranteed to be non-suspending.
      returns vector of Clojure expressions
-  suspending - the resulting partition type (:valued, :suspending, :resumed) of the body returned by body-fn
+  suspending - true if the partition of the body returned by body-fn is a suspending expression
 
   This method is used to generate bindings for both let expressions and function call-style
   expressions. The body-fn argument can decide whether to use binding symbols (as in the case
@@ -274,44 +275,42 @@
   (letfn [(add-bindings
             [[node bound-syms] [binding-group node-extender]]
             {:pre [(binding-group? binding-group)]}
-            (let [node                    node
-                  binding-nodes           (map second binding-group)
-                  last-node               (last binding-nodes)
-                  last-suspends?          (and last-node (suspends? last-node))
+            (let [binding-nodes (map second binding-group)
+                  last-node (last binding-nodes)
+                  last-suspends? (and last-node (suspends? last-node))
 
-                  new-node                (->
-                                            ;; add the internal partitions of the given nodes
-                                            (apply combine-partitions node binding-nodes)
-                                            (remove-unreferenced-partitions (map :head binding-nodes)) ;; extend the existing
-                                            (node-extender bound-syms binding-group))
-                  _                       (assert (not (p/suspending? (get-partition new-node :tail))))
+                  new-node (->
+                             ;; add the internal partitions of the given nodes
+                             (apply combine-partitions node binding-nodes)
+                             (remove-unreferenced-partitions (map :head binding-nodes)) ;; extend the existing
+                             (node-extender bound-syms binding-group))
                   non-suspending-bindings (if last-suspends? (butlast binding-group) binding-group)
-                  non-suspending-syms     (map first non-suspending-bindings)
-                  bound-syms              (dedupe (concat bound-syms non-suspending-syms))]
+                  non-suspending-syms (map first non-suspending-bindings)
+                  bound-syms (dedupe (concat bound-syms non-suspending-syms))]
               [new-node bound-syms]))
           (make-binding-extender [next-addr]
             {:pre [(address? next-addr)]}
             (fn [node bound-syms new-bindings]
               {:post [(node? %)]}
 
-              (let [valued-bindings  (butlast new-bindings)
+              (let [valued-bindings (butlast new-bindings)
                     [input-key susp-node] (last new-bindings)
-                    _                (assert (suspends? susp-node))
-                    let-bindings     (map (fn [[s n]] [s (body-value-expr n)]) valued-bindings)
+                    _ (assert (suspends? susp-node))
+                    let-bindings (map (fn [[s n]] [s (body-value-expr n)]) valued-bindings)
                     partition-params (distinct (concat params bound-syms))
-                    new-params       (vec (distinct (concat partition-params (map first (butlast new-bindings)))))
-                    head-body        (:body (get-partition susp-node :head))
-                    resume-body      (make-let-body let-bindings
-                                       [`(r/resume-at [~next-addr ~new-params ~input-key]
-                                           ~@head-body)])
+                    new-params (vec (distinct (concat partition-params (map first (butlast new-bindings)))))
+                    head-body (:body (get-partition susp-node :head))
+                    resume-body (make-let-body let-bindings
+                                               [`(r/resume-at [~next-addr ~new-params ~input-key]
+                                                              ~@head-body)])
                     ;; create an empty tail partition
-                    tail-partition   (p/->partition (add-params new-params input-key) [] false)]
+                    tail-partition (p/->partition (add-params new-params input-key) [] false)]
                 ;; add the resume expression, and change the tail address appropriately
                 (assert next-addr)
                 (let [node (-> node
-                             (update-body :tail true (constantly resume-body))
-                             (add-partition next-addr tail-partition)
-                             (assoc :tail next-addr))]
+                               (update-body :tail true (constantly resume-body))
+                               (add-partition next-addr tail-partition)
+                               (assoc :tail next-addr))]
                   node))))
           (make-carry-over-binding [bgroup]
             (let [[sym node] (last bgroup)]
@@ -321,10 +320,11 @@
                    (every? #(and (vector? %) (-> % count (= 2))) binding-group)]}
             (let [bindings (mapv (fn [[sym node]] (vector sym (body-value-expr node))) binding-group)]
               (update-body node :tail suspending (constantly (body-fn bound-syms bindings)))))]
-    (let [nodes               (map-indexed (fn [idx arg]
-                                             (partitioning-fn arg (a/child addr idx)
-                                               (apply add-params params (subvec (vec syms) 0 idx))))
-                                args)
+    (let [nodes (with-tail-position false
+                  (map-indexed (fn [idx arg]
+                                 (partitioning-fn arg (a/child addr idx)
+                                                  (apply add-params params (subvec (vec syms) 0 idx))))
+                               args))
           ;; associate the symbols with the nodes, splitting at the suspending nodes
           ;;  syms: [_1 _2 _3 _4 _5 _6...], nodes: [a1 a2 S3 a4 S5 a6...], where S3 and S6 are suspending nodes
           ;;  binding-groups =>
@@ -332,38 +332,38 @@
           ;;     ([_4 a4], [_5 S5]),          ; second partition
           ;;     ([_6 a6...]...))             ; etc.
           ;;
-          binding-groups      (util/partition-when (comp suspends? second) (map vector syms nodes))
+          binding-groups (util/partition-when (comp suspends? second) (map vector syms nodes))
           ;; ensure there is a final non-suspending binding group:
-          binding-groups      (if (or (empty? binding-groups)
-                                    (some-> binding-groups last last second suspends?))
-                                (concat binding-groups [()])
-                                binding-groups)
+          binding-groups (if (or (empty? binding-groups)
+                                 (some-> binding-groups last last second suspends?))
+                           (concat binding-groups [()])
+                           binding-groups)
 
           ;; duplicate the final suspending node binding of each binding group onto the beginning of the
           ;; next binding group - this is because the suspending node is started in the previous
           ;; binding group and the value of the value partition gets bound in the next partition
           carry-over-bindings (map make-carry-over-binding (butlast binding-groups))
 
-          binding-groups      (cons (first binding-groups)
-                                (map (fn [carry-over binding-group] (cons carry-over binding-group))
-                                  carry-over-bindings
-                                  (concat (rest binding-groups) (repeat []))))
+          binding-groups (cons (first binding-groups)
+                               (map (fn [carry-over binding-group] (cons carry-over binding-group))
+                                    carry-over-bindings
+                                    (concat (rest binding-groups) (repeat []))))
 
-          next-addresses      (map #(some-> % first second :tail) (rest binding-groups))
-          binding-extenders   (map make-binding-extender next-addresses)
+          next-addresses (map #(some-> % first second :tail) (rest binding-groups))
+          binding-extenders (map make-binding-extender next-addresses)
 
           ;; each extender takes [node bound-syms new-bindings] and extends the node with new bindings
           ;; (in the case of the resuming-extender
-          extenders           (concat binding-extenders [final-extender])
+          extenders (concat binding-extenders [final-extender])
 
           ;; each "binding-tail-group" = [binding-group extender]
           ;; i.e., a binding group and a function for extending the node with those bindings
-          _                   (assert (= (count binding-groups) (count extenders)))
+          _ (assert (= (count binding-groups) (count extenders)))
           binding-tail-groups (map vector binding-groups extenders)
-          initial-node        (->valued-node addr params [])
-          bound-syms          []]
+          initial-node (->valued-node addr params [])
+          bound-syms []]
       (first (reduce add-bindings [initial-node bound-syms]
-               binding-tail-groups)))))
+                     binding-tail-groups)))))
 
 (defn partition-map-def
   "Generates expression of the form `{ <address1.point> (fn [...]...) <address2.point> ...}`"
@@ -371,13 +371,13 @@
   (debux.core/dbg
     (let [pfdefs (map-indexed (fn [index [address partition]]
                                 [`(quote ~(:point address)) (p/partition-fn-def partition address index)])
-                   (node :partitions))]
+                              (:partitions node))]
       (apply hash-map (apply concat pfdefs)))))
 
 (defn- valid-node? [n]
   (and (node? n)
-    (-> n :head address?)
-    (let [headp (get-partition n :head)]
-      (if (atomic-valued? n)
-        (not (p/suspending? headp))
-        (boolean headp)))))
+       (-> n :head address?)
+       (let [headp (get-partition n :head)]
+         (if (atomic-valued? n)
+           (not (p/suspending? headp))
+           (boolean headp)))))

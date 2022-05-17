@@ -127,3 +127,8 @@
    (let [splitter (apply juxt (map (fn [i] #(map (fn [v] (nth v i)) %)) (range n)))
          segregated (splitter coll)]
      (if p (map #(filter p %) segregated) segregated))))
+
+(defn nilable
+  "Returns a nilable predicate or applies the nilable predicate to an object"
+  ([p] #(or (nil? %) (p %)))
+  ([p o] ((nilable p) o)))

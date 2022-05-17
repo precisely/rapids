@@ -43,7 +43,7 @@
           (is (= '[(* a a)] (:body start-partition)))))
       (testing "it should return truthy for has-tail-value?"
         (is (has-tail-value? sn)))
-      (testing "the head partition should be :valued"
+      (testing "the head partition should be not be suspending"
         (is (not (:suspending (get-partition sn :head))))))))
 
 (deftest ->suspending-node-test
@@ -124,9 +124,9 @@
 
     (testing "fail if the params don't match"
       (is (thrown? AssertionError (chain (->valued-node addr0 '[a] '[]) (->valued-node addr1 '[b] '[]))))
-      (is (thrown? AssertionError (chain (->Node addr0 addr1 {addr1 (p/->partition '[a] [] :valued)}) (->valued-node addr1 '[b] '[])))))
+      (is (thrown? AssertionError (chain (->Node addr0 addr1 {addr1 (p/->partition '[a] [] false)}) (->valued-node addr1 '[b] '[])))))
 
-    (testing "fail if the tail partition of the first node isn't :valued"
+    (testing "fail if the tail partition of the first node is suspending"
       (is (thrown? AssertionError (chain (->suspending-node addr0 '[a] '[]) (->valued-node addr1 '[b] '[])))))))
 
 (defn test-partitioner [exprf addr params] (exprf addr params))
@@ -234,7 +234,7 @@
                       (is (= b '[(suspending4)]))
                       (is (empty? remaining-body)))))))
             (testing "where the tail partition"
-              (testing "is :valued"
+              (testing "is not suspending"
                 (is (not (p/suspending? tailp))))
               (testing "contains the correct params"
                 (is (= '[foo s1 s2] (:params tailp))))
@@ -275,7 +275,7 @@
                       (testing "and nothing follows the resume expression"
                         (is (empty? remaining-body))))))))
             (testing "where the tail partition"
-              (testing "is :valued"
+              (testing "is not suspending"
                 (is (not (p/suspending? tailp))))
               (testing "contains the expected parameters"
                 (is (= '[foo s1 intermed-p1 intermed-p2] (:params tailp))))

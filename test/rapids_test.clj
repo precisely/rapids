@@ -626,9 +626,7 @@
   (output! :level2-after-suspend)
   (let [level3 (start! level3-suspends [suspend-blocker?])]
     (log! level3)             ;; continue level2-run ends here
-    #_(println "before level3 block")
-    (output! (block! level3))
-    #_(println "after level3 block"))
+    (output! (block! level3)))
   (output! :level2-end)
   :level2-result)
 
