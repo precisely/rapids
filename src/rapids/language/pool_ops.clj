@@ -83,8 +83,9 @@
                   (pool-pop! p :buffer))]
 
      ;; STEP 2: if there are sources suspended by put-in!, continue the oldest one
-     (if-not (pool-queue-empty? p :sources)
-       (defer #(continue! (pool-pop! p :sources) :permit (pool-id p) :preserve-output true)))
+     (when-not (pool-queue-empty? p :sources)
+       (let [id (pool-pop! p :sources)]
+         (defer #(continue! id :permit (pool-id p) :preserve-output true))))
      result)))
 
 ;;
