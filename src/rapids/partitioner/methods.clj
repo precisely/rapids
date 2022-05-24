@@ -474,7 +474,7 @@
   (let [body-startp (n/get-partition body-node :head)]
     (-> (bind address params keys args
               (fn [_ bindings]
-                (make-let-body bindings (p/body-expr body-startp)))
+                (make-let-body bindings (:body body-startp)))
               (p/suspending? body-startp))
         ;; remove body start partition since it is already included
         (n/combine-partitions body-node)

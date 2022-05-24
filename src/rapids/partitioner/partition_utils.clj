@@ -82,9 +82,9 @@
   {:pre [(sequential? bindings)
          (every? (comp simple-symbol? first) bindings)
          (every? #(-> % count (= 2)) bindings)
-         (sequential? body)]}
-  (let [filtered-bindings (filter (fn [[s v]] (not= s v)) bindings) ; eliminate rebinding the same symbol
-        let-bindings (vec (apply concat filtered-bindings))]
+         (vector? body)]}
+   (let [filtered-bindings (filter (fn [[s v]] (not= s v)) bindings) ; eliminate rebinding the same symbol
+        let-bindings      (vec (apply concat filtered-bindings))]
     (if (-> let-bindings count (> 0))
       [`(let [~@let-bindings] ~@body)]
       (vec body))))
