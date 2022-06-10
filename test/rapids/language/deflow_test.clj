@@ -46,7 +46,18 @@
               (continue! (:id run) :input 100)))))
 
     (testing "it should macroexpand to identical code each time"
-      (let [flow-code '(deflow foo [count]
-                         (doseq [iter count] (<*)))] ; doseq produces gensyms
-        (is (= (macroexpand flow-code)
-              (macroexpand flow-code)))))))
+      (testing "a simple single argument flow containing a macro known to generate gensyms"
+        (let [flow-code '(deflow foo [count]
+                           (doseq [iter count] (<*)))]
+          (is (= (macroexpand flow-code)
+                (macroexpand flow-code)))))
+      (testing "a flow containing destructuring binding arguments"
+        (let [flow-code '(deflow foo [{a :a :as val}]
+                           [(<*) a val])]
+          (is (= (macroexpand flow-code)
+                (macroexpand flow-code)))))
+      (testing "a flow containing destructuring let bindings"
+        (let [flow-code '(deflow foo [a]
+                           (let [{b :b} a] [(<*) a b]))]
+          (is (= (macroexpand flow-code)
+                (macroexpand flow-code))))))))

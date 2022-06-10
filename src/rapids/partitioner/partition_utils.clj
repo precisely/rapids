@@ -69,3 +69,7 @@
         captured-bindings (difference body-bindings (set fn-params))]
     (vec captured-bindings)))
 
+(defn dynamic? [o]
+  (and (symbol? o)
+    (resolve o)
+    (-> o meta :dynamic)))
