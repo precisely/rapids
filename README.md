@@ -8,7 +8,7 @@ Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspend
 The control API consists of two main functions, `start!` and `continue!` for starting and continuing flows. 
 
 ## Basic Usage
-Also see `tests/Rapids_test.clj`.
+Also see `tests/rapids_test.clj`.
 
 ### Define a flow
 ```clojure
