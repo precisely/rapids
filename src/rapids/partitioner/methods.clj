@@ -759,19 +759,19 @@
    (partition-flow-body m address fdecl []))
 
   ([m address fdecl params]
-   (let [sigs             (extract-signatures fdecl)
-         entry-point-name (str (a/to-string address) "__entry-point")
-         [pmaps, sig-defs] (reverse-interleave
-                             (apply concat
-                               (map-indexed
-                                 (fn [idx sig]
-                                   ()
-                                   (partition-signature m (a/child address idx) sig params))
-                                 sigs))
-                             2)
-         pmap             (apply pmap/combine pmaps)
-         entry-fn-def     `(fn ~(symbol entry-point-name) ~@sig-defs)]
-     [entry-fn-def, pmap])))
+   (with-gensym-excluded-symbols params
+     (let [sigs             (extract-signatures fdecl)
+           entry-point-name (str (a/to-string address) "__entry-point")
+           [pmaps, sig-defs] (reverse-interleave
+                               (apply concat
+                                 (map-indexed
+                                   (fn [idx sig]
+                                     (partition-signature m (a/child address idx) sig params))
+                                   sigs))
+                               2)
+           pmap             (apply pmap/combine pmaps)
+           entry-fn-def     `(fn ~(symbol entry-point-name) ~@sig-defs)]
+       [entry-fn-def, pmap]))))
 
 (defn partition-signature
   "Returns a pmap and and a partitioned sig definition.
@@ -783,8 +783,7 @@
   [m address sig params]
   (let [[args & code] sig
         params         (vec (concat (params-from-args args [] (-> m :line)) params))
-        [start-body, pmap, _] (with-gensym-excluded-symbols params
-                                (partition-body (vec code) address address params))
+        [start-body, pmap, _] (partition-body (vec code) address address params)
         pmap           (pmap/add pmap address params start-body)
         entry-bindings (bindings-expr-from-params params)]
     [pmap, `([~@args] (flow/call-partition ~address ~entry-bindings))]))
@@ -808,7 +807,7 @@
                      {:type :compiler-error})))))
 
 (defn- extract-signatures [fdecl]
-  (let [[_ _ & sigs] (macroexpand `(fn random-name# ~@fdecl))]
+  (let [[_ _ & sigs] (partition-macroexpand `(fn ~'_ ~@fdecl))]
     sigs))
 
 (defn- add-params [params & new-params]
