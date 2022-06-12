@@ -13,7 +13,7 @@
             [rapids.partitioner.macroexpand
              :refer [partition-macroexpand partition-macroexpand-1 with-gensym-excluded-symbols stable-symbol]])
   (:import (clojure.lang ArityException LazySeq)))
-
+(use 'debux.core)
 ;;;; Partitioner
 
 ;;;
@@ -636,7 +636,7 @@
                 next-address (a/increment arg-address)
                 key          (partition-macroexpand key) ; substitute gensyms
                 new-params   (if-not (= key arg)
-                                (add-params params key)
+                               (add-params params key)
                                params)]
             (if suspend?
               (let [resume-pexpr `(resume-at [~next-address [~@params] ~key]
@@ -759,56 +759,71 @@
    (partition-flow-body m address fdecl []))
 
   ([m address fdecl params]
-   (with-gensym-excluded-symbols params
-     (let [sigs             (extract-signatures fdecl)
-           entry-point-name (str (a/to-string address) "__entry-point")
-           [pmaps, sig-defs] (reverse-interleave
-                               (apply concat
-                                 (map-indexed
-                                   (fn [idx sig]
-                                     (partition-signature m (a/child address idx) sig params))
-                                   sigs))
-                               2)
-           pmap             (apply pmap/combine pmaps)
-           entry-fn-def     `(fn ~(symbol entry-point-name) ~@sig-defs)]
-       [entry-fn-def, pmap]))))
+   (let [sigs             (extract-signatures fdecl)
+         entry-point-name (str (a/to-string address) "__entry-point")
+         [pmaps, sig-defs] (reverse-interleave
+                             (apply concat
+                               (map-indexed
+                                 (fn [idx sig]
+                                   (partition-signature m (a/child address idx) sig params))
+                                 sigs))
+                             2)
+         pmap             (apply pmap/combine pmaps)
+         entry-fn-def     `(fn ~(symbol entry-point-name) ~@sig-defs)]
+     [entry-fn-def, pmap])))
 
 (defn partition-signature
-  "Returns a pmap and and a partitioned sig definition.
+  "Returns a partition map and a function signature which calls the appropriate partition in the partition map.
 
-  For example, this function definition has 2 signatures aka
-  E.g., (defn foo
+  For example, this flow has 2 signatures:
+  E.g., (deflow foo
           ([] (foo :bar))
-          ([msg] (println \"foo\" msg))"
+          ([msg] (println \"foo\" msg))
+
+  Args:
+  m - metadata of the form containing the signature
+  address - address of this signature
+  sig - two-tuple (params ..body)
+  params - parameters bound by the lexical environment in which the signature is defined (empty vector for deflow signatures)"
   [m address sig params]
   (let [[args & code] sig
-        params         (vec (concat (params-from-args args [] (-> m :line)) params))
-        [start-body, pmap, _] (partition-body (vec code) address address params)
+        [{pre :pre post :post} code] (if (-> code first map?) ((juxt first rest) code) [{:pre [] } code])
+        params         (vec (apply add-params (params-from-args args []) params))
+        [start-body, pmap, _] (with-gensym-excluded-symbols params
+                                (partition-body (vec code) address address params))
         pmap           (pmap/add pmap address params start-body)
         entry-bindings (bindings-expr-from-params params)]
-    [pmap, `([~@args] (flow/call-partition ~address ~entry-bindings))]))
-
+    [pmap, `([~@args] ~{:pre pre} (flow/call-partition ~address ~entry-bindings))]))
 ;;
 ;; HELPERS
 ;;
-
-(defn- params-from-args
-  "given an argument vector, returns a vector of symbols,
-
-  E.g., (params-from-args '[a b & {:keys [c d]}]) => (a b c d)"
-  [args params line]
-  (let [arg (first args)]
+(defn extract-signatures [fdecl]
+  {:post [(every? seq? %) (every? (comp vector? first) %)]}
+  (let [[name? & sigs] fdecl
+        sigs (if (symbol? name?) sigs (cons name? sigs))]
     (cond
-      (= arg '&) (recur (rest args) params line)
-      (map? arg) (recur (rest args) (apply add-params params (:keys arg)) line)
-      (symbol? arg) (recur (rest args) (add-params params arg) line)
-      (nil? arg) (vec params)
-      :else (throw (ex-info (str "Unexpected argument " arg)
-                     {:type :compiler-error})))))
+      (vector? (first sigs)) (list sigs)
+      (seq? sigs) sigs
+      :else (assert false (str "Invalid flow signature" fdecl)))))
 
-(defn- extract-signatures [fdecl]
-  (let [[_ _ & sigs] (partition-macroexpand `(fn ~'_ ~@fdecl))]
-    sigs))
+(defn params-from-args
+  "Reads an arglist, returning a vector of simple symbols representing the parameters."
+  ([args] (params-from-args args []))
+  ([[arg & args] params]
+   (cond
+     (= '& arg) (let [[variadic & args] args]
+                  (assert (empty? args) "Too many variadic arguments")
+                  (cond
+                    (map? variadic)
+                    (cond-> (apply add-params params (:keys variadic))
+                      (contains? variadic :as) (add-params (:as variadic)))
+                    (simple-symbol? variadic)
+                    (add-params params variadic)
+                    :else (assert false (str "Bad variadic argument" variadic))))
+     (simple-symbol? arg) (recur args (add-params params arg))
+     (map? arg) (recur args (cond-> (apply add-params params (keys (dissoc arg :as)))
+                              (contains? arg :as) (add-params (:as arg))))
+     (nil? arg) params)))
 
 (defn- add-params [params & new-params]
   {:pre [(vector? params) (every? symbol? new-params)]}
