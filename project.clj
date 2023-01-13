@@ -1,6 +1,6 @@
 (defn env [x] (eval (System/getenv x)))
 
-(defproject precisely/rapids "0.9.9"
+(defproject precisely/rapids "0.9.10"
   :description "A Clojure DSL for scripting user flows"
   :url "https://github.com/precisely/rapids"
   :license {:name "All Rights Reserved"
@@ -8,7 +8,7 @@
   :dependencies [[org.clojure/clojure "1.11.1"]
                  [org.clojure/core.async "1.5.648"]
                  [org.clojure/core.match "1.0.0"]
-                 [clojure.java-time "0.3.3"]
+                 [clojure.java-time "1.2.0"]
                  [org.clojure/data.codec "0.1.1"]
                  [com.taoensso/nippy "3.1.1"]
                  [com.taoensso/timbre "5.2.1"]
