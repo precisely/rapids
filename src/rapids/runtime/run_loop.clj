@@ -14,7 +14,7 @@
            (rapids.objects CurrentContinuationChange)
            (rapids.objects.run Run)))
 
-(declare start! continue!)
+(declare start! continue! permit-valid?)
 (declare start-runlet-loop! next-stack-fn!)
 
 (def ^:dynamic *runlet-queue*)
@@ -65,7 +65,7 @@
                     :expected (-> true-run :interrupt)
                     :received interrupt
                     :run-id   run-id})))
-        (if-not (-> true-run :suspend :permit (= permit))
+        (if-not (-> true-run :suspend :permit (permit-valid? permit))
           (throw (ex-info "Invalid permit. Unable to continue run."
                    {:type     :input-error
                     :expected (current-run :suspend :permit)
@@ -319,3 +319,5 @@
     ;; not equal, we must pop the environment
     :otherwise [:pop]))
 
+(defn- permit-valid? [test permit]
+  (if (ifn? test) (test permit) (= test permit)))
