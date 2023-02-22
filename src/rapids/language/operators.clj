@@ -13,7 +13,7 @@
                 :null nil?
                 :map (s/map-of string? ::json)
                 :array (s/and vector? (s/coll-of ::json))))
-(s/def ::permit (s/or :keyword keyword? :json ::json :uuid uuid?))
+(s/def ::permit (s/or :keyword keyword? :json ::json :uuid uuid? :callable ifn?))
 (defn ^:suspending input!
   [& {:keys [permit expires default]}]
   {:pre [(s/valid? (s/nilable ::permit) permit)

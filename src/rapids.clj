@@ -12,7 +12,7 @@
 (import-vars
   [rapids.language.core
    deflow flow letflow
-   ->pool take-out! put-in! pool?
+   ->pool take-out! put-in! pool? take-any! take-case!
    ;; operators. longform, shortform:
    input!, <*,
    output!, >*,
