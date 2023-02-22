@@ -124,3 +124,29 @@
             (is (= (pool-count p :buffer) 2))
             (is (= (pool-count p :sources) 0))
             (is (zero? (spy/call-count stub)))))))))
+
+(deftest ^:unit TakeAnyTests
+  (with-redefs [defer (fn [f] (f))]
+    (testing "take-any!"
+      (with-test-env-run [p1 (->pool)
+                          p2 (->pool)
+                          p3 (->pool)
+                          run1 (current-run)
+                          run2 (s/cache-insert! (r/make-run))
+                          run3 (s/cache-insert! (r/make-run))
+                          run4 (s/cache-insert! (r/make-run))
+                          take-out-run (s/cache-insert! (r/make-run))]
+        (testing "It should return the default with nil index when no pool has values and default is provided"
+          (with-run run1
+            (is (= [nil :default-val] (take-any! [p1 p2 p3] :default-val)))))
+        (testing "It should suspend when no pool has values"
+          (with-run run1
+            (is (suspend-signal? (take-any! [p1 p2 p3])))))
+        (testing "It should continue run1 when a default is provided"
+          (with-run run2
+            (with-continue!-stub [stub nil]
+              (put-in! p2 :foo)
+              (is (spy/called-once-with? stub (:id run1)
+                    :input [1 :foo]
+                    :permit (pool-id p2)
+                    :preserve-output true)))))))))

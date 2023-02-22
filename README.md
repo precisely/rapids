@@ -13,8 +13,8 @@ Also see `tests/rapids_test.clj`.
 ### Define a flow
 ```clojure
 (deflow multiply-by-user-input [x]
-  (output! "Hi, please enter a number!")
-  (let [user-num, (Integer/parseInt (input!))
+  (*> "Hi, please enter a number!")
+  (let [user-num, (Integer/parseInt (<*))
         result (* user-num x)]
   (*> (str "Multiplying " x " by " user-num " gives " result))  
 ```

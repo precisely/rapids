@@ -785,6 +785,42 @@
           (is (= (:output ping) [9 7 5 3 1]))
           (is (= (:output pong) [10 8 6 4 2])))))))
 
+
+(deflow take-case-flow
+  ([p1 p2 p3] (take-case-flow p1 p2 p3 nil))
+  ([p1 p2 p3 default]
+   (if default
+     (take-case! val
+       p1 [:p1 val]
+       p2 [:p2 val]
+       p3 [:p3 val]
+       default)
+     (take-case! val
+       p1 [:p1 val]
+       p2 [:p2 val]
+       p3 [:p3 val]))))
+
+(deflow use-put-in! [pool val]
+  (put-in! pool val))
+
+(deftest ^:language PoolTakeCase
+  (testing "take-case!"
+    (with-test-env-run [[p1 p2 p3] [(->pool) (->pool) (->pool)]]
+      (let [run (start! take-case-flow [p1 p2 p3])]
+        (testing "should suspend when pools are empty"
+          (is (= (:state run) :running)))
+        (testing "should invoke the case corresponding to a pool when a value is put in the pool"
+          ;; we need to wrap put-in! in a run because we need put-in! to execute within a run-loop
+          (let [pir (start! use-put-in! [p2 :foo])]
+            (is (= :complete (:state pir))) ; sanity check
+            (is (= :complete (:state run)))
+            (is (= [:p2 :foo] (:result run)))))))
+    (with-test-env-run [[p1 p2 p3] [(->pool) (->pool) (->pool)]]
+      (let [run (start! take-case-flow [p1 p2 p3 :default-value])]
+        (testing "should return the defaul when pools are empty but default is provided"
+          (is (= (:state run) :complete))
+          (is (= (:result run) :default-value)))))))
+
 (deflow call-cc-fn-test [t]
   (case t
     :short-circuit (+ 1 (callcc (flow [cc]

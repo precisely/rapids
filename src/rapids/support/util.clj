@@ -29,8 +29,11 @@
 (defn new-uuid []
   (UUID/randomUUID))
 
-(defn reverse-interleave [s n]
-  "Reverses interleave of sequence s into n lists"
+(defn reverse-interleave
+  "Reverses interleave of sequence s into n lists
+
+  (reverse-interleave '[:a 1 :b 2 :c 3] 2) => [[:a :b :c] [1 2 3]]"
+  [s n]
   (if (empty? s) [] (apply map vector (partition-all n s))))
 
 (defn in?

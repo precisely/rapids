@@ -13,7 +13,7 @@
 (potemkin/import-vars
   [rapids.runtime.cc callcc]
   [rapids.language.flow deflow flow letflow]
-  [rapids.language.pool-ops ->pool pool-id take-out! put-in! pool?]
+  [rapids.language.pool-ops ->pool pool-id take-out! put-in! pool? take-any! take-case!]
   [rapids.language.attempt attempt handle restartable restart]
   [rapids.objects.interruptions ->interruption]
   [rapids.language.operators
