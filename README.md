@@ -258,6 +258,35 @@ First build your target:
 lein build
 ``` 
 
+### Contributing
+
+1. Commit new code to a branch under your name. E.g., `aneil/my-new-feature`
+2. Issue a PR requesting a merge into `dev`
+3. Wait for automated tests to complete on Github
+4. Merge on Github (not locally) 
+
+#### Publishing 
+
+1. Merge dev into master locally  
+  ```shell
+  git co dev # alias for checkout
+  git pull 
+  lein test # make sure all tests are passing!
+  git co master
+  git merge dev
+  ```
+2. Bump version in project.clj
+3. Tag and push to master
+  ```shell
+  git tag <<VERSION-NUMBER>> # eg., git tag 1.0.1
+  git po # alias for !git push -u origin `git branch --show-current` 
+  git pt # alias for push --tags
+  ```
+4. Publish repo
+  ```shell
+  lein deploy precisely
+  ```
+
 ### Notes
 
 #### REPL vs CI Test inconsistency
