@@ -40,8 +40,10 @@
 
 (defn ^:suspending put-in!
   "Puts value v in pool p. If the pool has pending take-outs or has free buffer slots,
-  the call returns immediately. Otherwise, it suspends."
-  [p v]
+  the call returns immediately. Otherwise, it suspends.
+
+  If expires"
+  [p v & {:keys [expires]}]
   {:pre [(s/cache-exists?)
          (pool? p)]}
   (pool-push! p :buffer v)
@@ -51,7 +53,7 @@
     ;; THEN: no runs are available to receive the value
     (when (pool-buffer-full? p)
       (pool-push! p, :sources, (current-run :id))
-      (input! :permit (:id p)))
+      (let [result] (input! :permit (:id p) :expires expires :default :rapids.pool/expired)))
 
     ; ELSE: some runs are waiting for a value
     (let [sink  (pool-pop! p :sinks)
@@ -71,18 +73,24 @@
   a value is put in."
   ([p] (take-out! p :rapids.pool/no-default))
 
-  ([p default]
+  ([p default] (take-out! p default nil))
 
+  ([p default expires]
    ;; STEP 1: retrieve a value from the buffer, if one is available
    (let [result (if (pool-queue-empty? p :buffer)
                   ;; THEN: no values exist in the buffer...
-                  (if (= default :rapids.pool/no-default)
+                  (if (nil? expires)
 
-                    ;; THEN: since no default was provided, we must suspend this run
+                    ;; THEN: default immediately
+                    default
+
+                    ;; ELSE: since no default was provided, we must suspend this run
                     ;; until a value becomes available
                     (do
                       (pool-push! p :sinks (current-run :id))
-                      (input! :permit (pool-id p))) ; since take-out! is a function, it will only return a suspend
+                      (input! :permit (pool-id p)
+                        :expires expires
+                        :default default)) ; since take-out! is a function, it will only return a suspend
 
                     ;; ELSE: a default was provided... simply return it
                     default)

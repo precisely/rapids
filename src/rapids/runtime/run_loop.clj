@@ -101,9 +101,12 @@
                           :args [i :message message :data data]})))))
 
 (defn defer
-  "Defers execution of function f until after the top level eval loop has completed
+  "Defers execution of nullary function f until after the top level eval loop has completed.
 
-  Returns nil"
+  Returns nil
+
+  usage:
+  (defer (fn [] (do-things) ...))"
   [f]
   {:pre [(fn? f) (bound? #'*runlet-queue*)]}
   (set! *runlet-queue* (conj *runlet-queue* f))
