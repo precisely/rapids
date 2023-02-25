@@ -12,7 +12,6 @@
             [rapids.objects.pool]
             [rapids.objects.run]
             [rapids.storage.protocol :as p]
-            [rapids.support.util :refer [in?]]
             [taoensso.timbre :as log])
   (:import (clojure.lang IPersistentMap IPersistentVector)
            (com.zaxxer.hikari HikariDataSource)

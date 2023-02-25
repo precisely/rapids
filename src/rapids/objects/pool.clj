@@ -70,3 +70,18 @@
          (not (nil? p))]}
   (let [queue (field p)]
     (dirty (assoc p field (conj queue val)))))
+
+(defn pool-remove
+  "Removes elements matching pred from the pool's queue indicated by field.
+  p - a pool
+  field - one of :sinks, :sources, :buffer
+  pred - predicate returning true if item should be removed
+
+  Usage:
+  (pool-remove p :sinks #(= % (current-run :id)))"
+  [p field pred]
+  {:pre [(is-pool-queue? field)
+         (not (nil? p))]}
+  (let [items (seq (field p))]
+    (dirty (assoc p field (apply queue (remove pred items))))))
+
