@@ -162,9 +162,10 @@
    pools   - a sequence of pool objects
    default - optional default value to return
    expires - optional time in the future at which default is returned
-             (if not provided, and no value is avalable, default is returned immediately)
-             this may be `nil` (never expire), `:immediately` (expire immediately if no value) or a timestamp.
-
+             (Ff not provided, and no value is avalable, default is returned immediately.)
+             This may be `nil` (never expire), `:immediately` (expire immediately if no value) or a timestamp.
+             Note that if default is provided but expiry is nil, the default is ignored.
+             
    Returns:
    [index value] - indicates which pool produced the value
                    note: index is nil when the default is returned
@@ -182,14 +183,17 @@
    ;; in the original run:
    (take-any! [p1 p2 p3]) ; => [2 :bar]"
   (make-take-flow `take-any!
-    (fn entry-point ([pools] (entry-point pools nil nil))
+    (fn entry-point
+      ([pools] (entry-point pools nil nil))
       ([pools default] (entry-point pools default :immediately))
       ([pools default expires]
        (start-take `take-any! pools default expires)))))
 
-(defmacro take-case!
+(defmacro
+  ^{:arglists '([v & cases] [[v default? expires?] & cases])}
+  take-case!
   "Execute a block of code when one or more pools returns a value. This is a thin
-  convenience wrapper around take-any! Similar in spirit to a case statement
+  convenience wrapper around take-any! Similar in spirit to a case statement.
 
   v     - a symbol which will be bound to the value
   cases - p1 e1 p2 e2...
@@ -200,17 +204,28 @@
   Note: if default is provided, the form is guaranteed to return immediately, otherwise it may suspend
   (take-case! v
     p1 (print \"Pool 1 produced =>\" v)
-    p2 (print \"Pool 2 produced =>\" v))"
+    p2 (print \"Pool 2 produced =>\" v))
+
+  ;; take-case! with a default
+  (take-case! [v :foo]
+    p1 (print \"Pool 1 produced =>\" v)
+    p2 (print \"Pool 2 produced =>\" v)) ; returns :foo immediately if p1 and p2 are empty
+
+  ;; take-case! with a default and expiry
+  (take-case! [v :foo (-> 5 days from-now)]
+    p1 (print \"Pool 1 produced =>\" v)
+    p2 (print \"Pool 2 produced =>\" v)) ; returns :foo in 5 days if p1 and p2 remain empty"
   [v & cases]
-  (let [[default cases]
-        (if (odd? (count cases))
-          [(last cases) (butlast cases)]
-          [:rapids.pool/no-default cases])
+  (let [[has-default? variable default expiry]
+        (if (vector? v)
+          `[(> (count v) 1) ~@v]
+          [false v])
         [pools blocks] (reverse-interleave cases 2)]
-    `(let [[index# ~v] (take-any! ~pools ~default)]
+    `(let [[index# ~variable] (take-any! ~pools ~@(if has-default? `(~default ~(or expiry :immediately))))]
        (case index#
          ~@(interleave (range (count pools)) blocks)
-         nil ~v))))
+         ;; take-any! returns [nil default] for default
+         nil ~variable))))
 
 ;;
 ;; Private helpers
