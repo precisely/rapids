@@ -73,7 +73,9 @@ Similarly, if a sink attempts `take-out!` on a pool which contains no value, it 
 ##### Multipool coordination: take-any! and take-case!
 
 ```clojure
-(take-any! [p1 p2 p3] :default-value)
+(take-any! [p1 p2 p3]) ; suspends until one of the pools provides a value
+(take-any! [p1 p2 p3] :default-value) ; returns :default-value if pools are empty
+(take-any! [p1 p2 p3] :default-value (-> 5 days from-now)) ; waits on pools for 5 days
 ```
 
 The `take-any!` function allows waiting on many pools until the first one has a value. This function takes a sequence of pools as its first argument and an optional default value. If one of the pools contains a value, it returns a two tuple `[i v]` where `i` is the index of the pool which contains a value and `v` is the value. `take-any!` suspends the run if no default is provided and none of the pools has a value. It resumes when another run calls `put-in!` on one of the pools.
@@ -87,11 +89,16 @@ The `take-case!` macro is a wrapper around `take-any!` which provides a convenie
   p3 (print "pool p3 => " v))
 
 ;; guarantee it doesn't suspend by providing a default:
-(take-case! v
+(take-case! [v :my-default]
   p1 (print "pool p1 => " v)
   p2 (print "pool p2 => " v)
-  p3 (print "pool p3 => " v)
-  :my-default-value)
+  p3 (print "pool p3 => " v))
+  
+;; guarantee it suspends for up to 5 days, then returns a default
+(take-case! [v :my-default (-> 5 days from-now)]
+  p1 (print "pool p1 => " v)
+  p2 (print "pool p2 => " v)
+  p3 (print "pool p3 => " v))
 ```
 
 ### Defering actions for later

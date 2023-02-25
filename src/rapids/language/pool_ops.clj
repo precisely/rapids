@@ -165,7 +165,7 @@
              (Ff not provided, and no value is avalable, default is returned immediately.)
              This may be `nil` (never expire), `:immediately` (expire immediately if no value) or a timestamp.
              Note that if default is provided but expiry is nil, the default is ignored.
-             
+
    Returns:
    [index value] - indicates which pool produced the value
                    note: index is nil when the default is returned
