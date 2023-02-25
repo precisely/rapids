@@ -785,16 +785,14 @@
           (is (= (:output ping) [9 7 5 3 1]))
           (is (= (:output pong) [10 8 6 4 2])))))))
 
-
 (deflow take-case-flow
   ([p1 p2 p3] (take-case-flow p1 p2 p3 nil))
   ([p1 p2 p3 default]
    (if default
-     (take-case! val
+     (take-case! [val default]
        p1 [:p1 val]
        p2 [:p2 val]
-       p3 [:p3 val]
-       default)
+       p3 [:p3 val])
      (take-case! val
        p1 [:p1 val]
        p2 [:p2 val]
@@ -817,9 +815,9 @@
             (is (= [:p2 :foo] (:result run)))))))
     (with-test-env-run [[p1 p2 p3] [(->pool) (->pool) (->pool)]]
       (let [run (start! take-case-flow [p1 p2 p3 :default-value])]
-        (testing "should return the defaul when pools are empty but default is provided"
-          (is (= (:state run) :complete))
-          (is (= (:result run) :default-value)))))))
+        (testing "should return the default when pools are empty but default is provided"
+          (is (= :complete (:state run)))
+          (is (= :default-value (:result run))))))))
 
 (deflow call-cc-fn-test [t]
   (case t

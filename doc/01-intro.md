@@ -58,16 +58,24 @@ The `block!` operator takes a single argument, a run called the blocking run, an
 
 Rapids provides [CSP](https://en.wikipedia.org/wiki/Communicating_sequential_processes) style coordination, similar to what goroutines and channels enable in Clojure, Go and other languages. 
 
-Pools are analagous to channels in Clojure and Go. A pool may have a buffer which allows it to accept values without blocking the caller.
+Pools are analagous to channels in Clojure and Go. Each pool has a buffer which allows it to accept values without blocking the caller. By default, pools are created with a buffer of size zero. In the following discussion, "blocking" means causing a run to suspend. Runs are referred to as sources or sinks, depending on whether they are putting values into a pool or taking values out.  
 
-##### Pool basic operators: put-in! and take-out!
+##### Single pool functions: put-in! and take-out!
 
-The `put-in!` function puts a value in a pool, blocking the calling run if the buffer is full. The `take-out!` function takes a value out of a pool. If a run was blocked while putting a value into the pool, it is resumed. The earliest blocked run is always the one resumed. Similarly, if a run attempts `take-out!` on a pool which contains no value or blocked run, it will block until a value is put into the pool. If a pool has space in its buffer, a `put-in!` operation will not block. By default, the pool creation function `(->pool)` returns a pool with a buffer size of zero. Such a pool strictly synchronizes the source and destination runs. The `take-out!` function also takes an optional default value, which if provided guarantees that it never blocks. The default value is returned if the pool is empty.
+The `put-in!` function puts a value in a pool, specifically into the pool's buffer, a FILO queue. If the buffer is already at capacity, the calling run (the source) is blocked and the source is recorded in the pool's "sources" FILO queue. For example, a pool with a buffer of size 1 has a single slot, which is initially empty. A call to `put-in!` puts a value in the slot and does not block the caller. A second call to `put-in!` places a value in the buffer, but because the buffer is already at capacity, it blocks the caller. 
+
+The `take-out!` function takes a value out of a pool's buffer queue. If the buffer contains values, the oldest one is returned, otherwise the calling run (the sink) is blocked and is recorded in a different FILO queue called the "sinks". If the pool contains sources, one is removed (the oldest, since it is FILO) and resumed. 
+
+Note that a buffer with size>0 decouples sources and sinks.  For example, when a buffer has one empty slot and a source `S1` places a value `V1` in the buffer, `S1` does not block and is not placed in the sources queue. A second source `S2` putting a value `V2` in the buffer will block (and be added to the sources queue). Thus, when a sink retrieves `V1`, `take-out!` will cause `S2` to resume.
+
+Similarly, if a sink attempts `take-out!` on a pool which contains no value, it will block until a value is put into the pool, unless a default value is provided.
 
 ##### Multipool coordination: take-any! and take-case!
 
 ```clojure
-(take-any! [p1 p2 p3] :default-value)
+(take-any! [p1 p2 p3]) ; suspends until one of the pools provides a value
+(take-any! [p1 p2 p3] :default-value) ; returns :default-value if pools are empty
+(take-any! [p1 p2 p3] :default-value (-> 5 days from-now)) ; waits on pools for 5 days
 ```
 
 The `take-any!` function allows waiting on many pools until the first one has a value. This function takes a sequence of pools as its first argument and an optional default value. If one of the pools contains a value, it returns a two tuple `[i v]` where `i` is the index of the pool which contains a value and `v` is the value. `take-any!` suspends the run if no default is provided and none of the pools has a value. It resumes when another run calls `put-in!` on one of the pools.
@@ -81,14 +89,25 @@ The `take-case!` macro is a wrapper around `take-any!` which provides a convenie
   p3 (print "pool p3 => " v))
 
 ;; guarantee it doesn't suspend by providing a default:
-(take-case! v
+(take-case! [v :my-default]
   p1 (print "pool p1 => " v)
   p2 (print "pool p2 => " v)
-  p3 (print "pool p3 => " v)
-  :my-default-value)
+  p3 (print "pool p3 => " v))
+  
+;; guarantee it suspends for up to 5 days, then returns a default
+(take-case! [v :my-default (-> 5 days from-now)]
+  p1 (print "pool p1 => " v)
+  p2 (print "pool p2 => " v)
+  p3 (print "pool p3 => " v))
 ```
 
 ### Defering actions for later
+
+Certain actions need to be performed only after a runlet has completed successfully. This is done using the `defer` function. It takes a nullary function which performs actions. Any return value is ignored. It is typically performs side effects which should be performed only after a runlet has completed successfully without error. For example, sending a notification to a user:
+
+```clojure
+(defer (fn [] (notify-user user-id "This is the message"))
+```
 
 ### Interrupting runs
 
