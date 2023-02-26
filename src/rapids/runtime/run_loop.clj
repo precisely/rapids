@@ -287,11 +287,13 @@
   [result]
   {:pre [(not (suspend-signal? result))]}
   (update-run! :state :complete :result result)
-  (when-let [parent-run-id (current-run :parent-run-id)]
 
-    ;; continue processing the parent run
-    (continue! parent-run-id
-      :permit (current-run :id) :input result))
+  ;; return the value to all parent runs
+  (doseq [[waiting-run-id index] (current-run :waits)]
+    (continue! waiting-run-id
+      :permit (current-run :id) :input [index result]))
+
+  (update-run! :waits {})
 
   ;; finished - return the current value
   result)

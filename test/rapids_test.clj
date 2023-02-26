@@ -536,18 +536,18 @@
   (clear-log!)
   (log! (current-run))
   (>* :parent-before-blocking-call)
-  (let [result (<<! (! simple-child-flow [block?]))]
-    (>* :parent-after-blocking-call)
+  (let [result (wait-for! (start! simple-child-flow [block?]))]
+    (>* :parent-after-waiting-call)
     result))
 
-(deftest ^:language BlockingOperator
+(deftest ^:language WaitForOperator
   (with-test-env
     (testing "Before blocking, the parent run is returned by the start operator"
       (let [returned-run (start! parent-flow-may-block [true])
             [parent-run, child-run] @*log*]
         (is (= (:id returned-run) (:id parent-run)))
         (is (run-in-state? returned-run :running))
-        (is (-> parent-run :parent-run-id nil?))
+        (is (-> parent-run :waits empty?))
         (is (= '(:parent-before-blocking-call) (proxy-field returned-run :output)))
         (testing "The child run is created, but is not returned initially"
           (is child-run)
@@ -557,11 +557,11 @@
 
         (testing "After blocking, the parent run is returned, suspended with a child-run id as permit"
           (flush-cache!)
-          (let [parent-after-block (get-run-record (:id parent-run))]
-            (is (= (:state parent-after-block) :running))
-            (is (-> parent-after-block :suspend rapids.objects.signals/suspend-signal?))
+          (let [parent-after-wait (get-run-record (:id parent-run))]
+            (is (= :running (:state parent-after-wait)))
+            (is (-> parent-after-wait :suspend rapids.objects.signals/suspend-signal?))
 
-            (is (= (-> parent-after-block :suspend :permit) (:id child-run)))
+            (is (= #{(:id child-run)} (-> parent-after-wait :suspend :permit)))
 
             (testing "attempting to continue without a valid permit throws"
               (flush-cache!)
@@ -569,23 +569,23 @@
                         ExceptionInfo type
                         #"Invalid permit. Unable to continue run." ex-message
                         :input-error (-> ex-data :type))
-                (continue! (:id parent-after-block))))
+                (continue! (:id parent-after-wait))))
 
             (testing "but the parent run is still suspended"
-              (is (= (-> parent-after-block :id get-run-record :state) :running)))
+              (is (= (-> parent-after-wait :id get-run-record :state) :running)))
 
             (testing "the parent response includes only the response from the parent run"
-              (is (= '(:parent-before-blocking-call) (:output parent-after-block)))))
+              (is (= '(:parent-before-blocking-call) (:output parent-after-wait)))))
 
           (flush-cache!)
 
-          (let [child-run-after-block (get-run-record (:id child-run))]
+          (let [child-run-after-wait (get-run-record (:id child-run))]
 
             (testing "the child run has a record of its parent id"
-              (is (= (:parent-run-id child-run-after-block) (:id parent-run))))
+              (is (= (:waits child-run-after-wait) {(:id parent-run) 0})))
 
             (testing "the child response includes only the response from the child run"
-              (is (= '(:child-flow-response) (:output child-run-after-block)))))
+              (is (= '(:child-flow-response) (:output child-run-after-wait)))))
 
           (flush-cache!)
 
@@ -600,19 +600,19 @@
 
               (flush-cache!)
 
-              (let [parent-after-block-release (get-run-record (:id parent-run))]
+              (let [parent-after-wait-release (get-run-record (:id parent-run))]
                 (testing "parent response should contain only the parent response"
-                  (is (= '(:parent-after-blocking-call) (:output parent-after-block-release))))
+                  (is (= '(:parent-after-waiting-call) (:output parent-after-wait-release))))
 
                 (testing "parent should be in complete state"
-                  (is (run-in-state? parent-after-block-release :complete)))
+                  (is (run-in-state? parent-after-wait-release :complete)))
 
                 (testing "parent result should be set correctly, which in this case is the result of the blocking call"
-                  (is (= :child-result (:result parent-after-block-release))))))))))
-    (testing "block! should return immediately with result if child-flow doesn't suspend"
+                  (is (= :child-result (:result parent-after-wait-release))))))))))
+    (testing "wait-for! should return immediately with result if child-flow doesn't suspend"
       (let [returned-run (start! parent-flow-may-block [false])]
-        (is (= (:state returned-run) :complete))
-        (is (= (:result returned-run) :child-result))))))
+        (is (= :complete (:state returned-run)))
+        (is (= :child-result (:result returned-run)))))))
 
 (deflow level3-suspends [suspend?]
   (output! :level3-start)     ; this does not get captured by level1 or level2 because the redirect operator is not used
@@ -628,7 +628,7 @@
   (let [level3 (start! level3-suspends [suspend-blocker?])]
     (log! level3)             ;; continue level2-run ends here
     #_(println "before level3 block")
-    (output! (block! level3))
+    (output! (wait-for! level3))
     #_(println "after level3 block"))
   (output! :level2-end)
   :level2-result)
