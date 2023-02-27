@@ -659,7 +659,7 @@
           (is (= [nil :default-value] (:result waiting))))))))
 
 (deflow run-case [r1 r2 r3]
-  (wait-for-case! val
+  (wait-case!! val
     r1 [:r1 val]
     r2 [:r2 val]
     r3 [:r3 val]))

@@ -97,7 +97,7 @@
 
 (defmacro
   ^{:arglists '([v & cases] [[v default? expires?] & cases])}
-  wait-for-case!
+  wait-case!!
   "Execute a block of code when one or more runs completes. This is a thin
   convenience wrapper around wait-for-any! Similar in spirit to a case statement.
 
@@ -107,17 +107,17 @@
           and ei is an expression to be executed when the corresponding run returns
 
   Note: if default is provided, the form is guaranteed to return immediately, otherwise it may suspend
-  (wait-for-case! v
+  (wait-case!! v
     r1 (print \"Run 1 returned =>\" v)
     r2 (print \"Run 2 returned =>\" v))
 
   ;; take-case! with a default
-  (wait-for-case! [v :foo]
+  (wait-case!! [v :foo]
     r1 (print \"Run 1 returned =>\" v)
     r2 (print \"Run 2 returned =>\" v)) ; returns :foo immediately if r1 and r2 are not complete
 
   ;; take-case! with a default and expiry
-  (wait-for-case! [v :foo (-> 5 days from-now)]
+  (wait-case!! [v :foo (-> 5 days from-now)]
     r1 (print \"Run 1 returned =>\" v)
     r2 (print \"Run 2 returned =>\" v)) ; returns :foo in 5 days if r1 and r2 do not complete"
   [v & cases]

@@ -20,6 +20,6 @@
    ;; operators. longform, shortform:
    input!, <*,
    output!, >*,
-   wait-for!, wait-for-any!, wait-for-case!
+   wait-for!, wait-for-any!, wait-case!!
    ;; start operator:
    !])
