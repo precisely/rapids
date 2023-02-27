@@ -658,6 +658,25 @@
           (is (= :complete (:state waiting)))
           (is (= [nil :default-value] (:result waiting))))))))
 
+(deflow run-case [r1 r2 r3]
+  (wait-for-case! val
+    r1 [:r1 val]
+    r2 [:r2 val]
+    r3 [:r3 val]))
+
+(deftest wait-case!-test
+  (testing "wait-case!"
+    (let [[r1 r2 r3] [(start! block-and-return [true :one])
+                      (start! block-and-return [true :two])
+                      (start! block-and-return [true :three])]
+          wc-run (start! run-case [r1 r2 r3])]
+      (testing "it should suspend when all runs are still running"
+        (is (= :running (:state wc-run))))
+      (testing "it should evaluate the expression associate with a run that completes"
+        (continue! r2)
+        (is (= :complete (:state wc-run)))
+        (is (= [:r2 :two] (:result wc-run)))))))
+
 (deflow my-output [a1 a2 a3] (output! a1 a2 a3))
 
 (deflow call-flows [forms]
