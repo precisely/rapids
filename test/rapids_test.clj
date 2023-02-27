@@ -532,18 +532,20 @@
   (>* :child-flow-after-suspending)
   :child-result)
 
-(deflow parent-flow-may-block [block?]
-  (clear-log!)
-  (log! (current-run))
-  (>* :parent-before-blocking-call)
-  (let [result (wait-for! (start! simple-child-flow [block?]))]
-    (>* :parent-after-waiting-call)
-    result))
+(deflow parent-waits-for
+  ([block?] (parent-waits-for block? nil nil))
+  ([block? default expires]
+   (clear-log!)
+   (log! (current-run))
+   (>* :parent-before-blocking-call)
+   (let [result (wait-for! (start! simple-child-flow [block?]) default expires)]
+     (>* :parent-after-waiting-call)
+     result)))
 
 (deftest ^:language WaitForOperator
   (with-test-env
     (testing "Before blocking, the parent run is returned by the start operator"
-      (let [returned-run (start! parent-flow-may-block [true])
+      (let [returned-run (start! parent-waits-for [true])
             [parent-run, child-run] @*log*]
         (is (= (:id returned-run) (:id parent-run)))
         (is (run-in-state? returned-run :running))
@@ -610,28 +612,51 @@
                 (testing "parent result should be set correctly, which in this case is the result of the blocking call"
                   (is (= :child-result (:result parent-after-wait-release))))))))))
     (testing "wait-for! should return immediately with result if child-flow doesn't suspend"
-      (let [returned-run (start! parent-flow-may-block [false])]
+      (let [returned-run (start! parent-waits-for [false])]
         (is (= :complete (:state returned-run)))
-        (is (= :child-result (:result returned-run)))))))
+        (is (= :child-result (:result returned-run)))))
 
-(deflow level3-suspends [suspend?]
-  (output! :level3-start)     ; this does not get captured by level1 or level2 because the redirect operator is not used
-  (if suspend? (input!))
-  (output! :level3-end)
-  :level3-result)
+    (testing "Calling a blocking run and providing a default returns the default value"
+      (let [parent-run (start! parent-waits-for [true :default-value :immediately])]
+        (is (= :complete (:state parent-run)))
+        (is (= :default-value (:result parent-run)))))))
 
-(deflow level2-suspends-and-blocks [suspend-blocker?]
-  (output! :level2-start)
-  (input!)                    ;; up to this point is capture by level1-start
-  (clear-log!)                ;; continue level2-run should start here
-  (output! :level2-after-suspend)
-  (let [level3 (start! level3-suspends [suspend-blocker?])]
-    (log! level3)             ;; continue level2-run ends here
-    #_(println "before level3 block")
-    (output! (wait-for! level3))
-    #_(println "after level3 block"))
-  (output! :level2-end)
-  :level2-result)
+(deflow block-and-return [block? result] (if block? (<*)) result)
+
+(deftest ^:language wait-for-any!-test
+  (testing "wait-for-any!"
+    (let [[r1 r2 r3] [(start! block-and-return [true :one])
+                      (start! block-and-return [true :two])
+                      (start! block-and-return [true :three])]
+          waiting-run (start! wait-for-any! [[r1 r2 r3]])]
+      (testing "should suspend when provided suspended runs"
+        (is (= :running (:state waiting-run))))
+      (testing "should return the result from the first child run to complete"
+        (continue! r2)
+        (is (= :complete (:state waiting-run)))
+        (testing "the result should be a vector containing the index of the continued run and its result"
+          (is (= [1 :two] (:result waiting-run))))
+        (testing "when one of the runs is complete, its result is returned"
+          (assert (= :complete (:state r2)))
+          (assert (= :running (:state r1)))
+          (assert (= :running (:state r3)))
+          (let [waiting-run (start! wait-for-any! [[r1 r2 r3]])]
+            (is (= :complete (:state waiting-run)))
+            (is (= [1 :two] (:result waiting-run)))))))
+    (testing "it should return immediately when a default is provided"
+      (let [r1      (start! block-and-return [true :foo])
+            waiting (start! wait-for-any! [[r1] :bar])]
+        (is (= :complete (:state waiting)))
+        (is (= [nil :bar] (:result waiting)))))
+
+    (testing "it should not return immediately when a default AND an expiry is provided"
+      (let [r1      (start! block-and-return [true :not-returned])
+            waiting (start! wait-for-any! [[r1] :default-value (-> 5 days from-now)])]
+        (is (= :running (:state waiting)))
+        (testing "when it expires, the default value should be returned"
+          (expire-run! waiting)
+          (is (= :complete (:state waiting)))
+          (is (= [nil :default-value] (:result waiting))))))))
 
 (deflow my-output [a1 a2 a3] (output! a1 a2 a3))
 

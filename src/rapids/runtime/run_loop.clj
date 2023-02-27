@@ -322,4 +322,4 @@
     :otherwise [:pop]))
 
 (defn- permit-valid? [test permit]
-  (if (ifn? test) (test permit) (= test permit)))
+  (or (= test permit) (and (ifn? test) (test permit))))

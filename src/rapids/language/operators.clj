@@ -48,11 +48,13 @@
       (resume-at [(a/->address name 1) [runs] result]
         (if run
           [i (:result run)]
-          (do
-            (doall (map-indexed (fn [i run] (rt/attach-child-run! run i)) runs))
-            (input! :permit (set (map :id runs))
-              :expires expires
-              :default [nil default])))))))
+          (if (= expires :immediately)
+            [nil default]
+            (do
+              (doall (map-indexed (fn [i run] (rt/attach-child-run! run i)) runs))
+              (input! :permit (set (map :id runs))
+                :expires expires
+                :default [nil default]))))))))
 
 (defn- make-wait-for-any-final-partition [finalizer]
   (fn [{:keys [runs result]}]
