@@ -13,10 +13,10 @@
   [rapids.language.core
    deflow flow letflow
    ->pool take-out! put-in! pool? take-any! take-case!
+   wait-for! wait-for-any! wait-case!!
    ;; operators. longform, shortform:
    input!, <*,
-   output!, >*,
-   block!, <<!,
+   output!, >*
    ;; start operator:
    !
    callcc
@@ -24,7 +24,7 @@
    declare-suspending]
   [rapids.runtime.core current-run start! continue! interrupt! get-run find-runs run? fcall fapply raise
    get-expired-runs find-and-expire-runs! expire-run! start-expiry-monitor! stop-expiry-monitor!
-   set-index! defer]
+   set-index! defer kill!]
   [rapids.language.time years months weeks days hours minutes seconds weeks now from-now]
   [rapids.objects.flow flow?]
   [rapids.objects.closure closure?]

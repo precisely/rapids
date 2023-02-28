@@ -38,14 +38,30 @@ Here's a highly repetitive chatbot that keeps greeting people by name:
 
 Two main methods exist for coordinating runs: blocking and pools. 
 
-#### Blocking
+#### Waiting until other runs are complete
 
 ```clojure
 (start! lab-order [:blood-work])
-(block! lab-order) ; returns when lab-order state => :complete
+(wait-for! lab-order) ; returns when lab-order state => :complete
 ```
 
-The `block!` operator takes a single argument, a run called the blocking run, and suspends the calling run until the blocking run completes. It returns the `:result` of the blocking run. Blocking is easy to use and conceptually simple to understand, but has relatively limited uses.
+The `wait-for!`  takes a run called the blocking run, and suspends the calling run until the blocking run completes. It returns the `:result` of the blocking run. Blocking is easy to use and conceptually simple to understand, but is limited to cases which do not require updates while a run is in `:running` state. This operator also takes optional `default` and `expires` arguments:
+
+```clojure
+(wait-for! run :my-default) ; returns immediately with :my-default if run isn't complete
+(wait-for! run :my-default (-> 5 days from-now)) ; returns with :my-default in 5 days if run isn't yet complete
+```
+Similar to `wait-for!`, `wait-for-any!` enables waiting on multiple runs. It takes a vector of runs, and optional `default` and `expiry` arguments. This function returns a vector, `[index result]` , representing the index of the run which completed and the result it returned.
+
+The `wait-case!` is a wrapper around `wait-for-any!`, and provides a readable style for pairing expressions to be executed with a set of runs:
+
+```clojure
+(wait-case! result
+  r1 (print "run 1 returned " result)
+  r2 (print "run 2 returned " result)
+  ...)
+```
+See the function documentation for how to provide a default and expiry time.
 
 #### Communicating Sequential Processes
 

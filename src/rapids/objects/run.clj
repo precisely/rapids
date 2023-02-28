@@ -19,21 +19,19 @@
    ^UUID interruption-id
    ^PersistentHashMap index])
 
-(def ^:const RunStates #{:running :error :complete})
+(def ^:const RunStates #{:running :error :complete :killed})
 
 (defn get-dynamic-values
   "Returns a lazy sequence of bindings, innermost to outermost, for the dynamic var (or symbol representing a dynamic var,
   returning not-found or nil)."
   ([run x] (get-dynamic-values run x nil))
   ([run x not-found]
-   {:pre [(symbol? x) (var? x)]}
-   (if-let [v (case (type x)
-                Var x
-                Symbol (resolve x))]
+   {:pre [(or (symbol? x) (var? x))]}
+   (if-let [v (if (var? x) x (if (symbol? x) (resolve x)))]
      (->> (:dynamics run)
-          reverse
-          (filter #(contains? % v))
-          (map #(get % v not-found))))))
+       reverse
+       (filter #(contains? % v))
+       (map #(get % v not-found))))))
 
 (defn get-dynamic-value
   "Gets the current binding for symbol or var s"
@@ -46,20 +44,22 @@
             (let [pred ({:id            uuid?
                          :state         RunStates
                          :stack         seq?
-                         :index        map?
+                         :index         map?
                          :dynamics      vector?
                          :interrupt     (some-fn nil? uuid?)
-                         :parent-id     (some-fn nil? uuid?)
+                         :waits         #(every? (fn [[k v]] (and (uuid? k) (integer? v))) %)
                          :error-info    (some-fn nil? map?)
                          :error-message (some-fn nil? string?)
-                         :output      (constantly true)
+                         :output        (constantly true)
                          :result        (constantly true)
                          :suspend       (some-fn nil? signals/suspend-signal?)} key)
                   val  (get kvs key)]
               (if pred
-                (pred val)
+                (if (pred val)
+                  true
+                  (throw (ex-info "Invalid data for Run key" {:key key :val val})))
                 (throw (ex-info "Invalid key for Run" {:key key})))))
-          (keys kvs)))
+    (keys kvs)))
 
 (defn make-run
   ([] (make-run {}))
@@ -69,19 +69,19 @@
             stack    ()
             response []
             dynamics []
-            index   {}}
+            index    {}}
      :as   fields}]
    {:pre  [(RunStates state)]
     :post [(s/assert ::run %)]}
    (map->Run (into (or fields {})
-                   {:id           id,
-                    :state        state,
-                    :stack        stack,
-                    :output     response,
-                    :result       result
-                    :dynamics     dynamics
-                    :cached-state :created
-                    :index       index}))))
+               {:id           id,
+                :state        state,
+                :stack        stack,
+                :output       response,
+                :result       result
+                :dynamics     dynamics
+                :cached-state :created
+                :index        index}))))
 
 ;(defmethod print-method Run
 ;  [o w]
