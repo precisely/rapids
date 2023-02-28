@@ -15,6 +15,7 @@
 (def raise (flow/->Flow `raise
              (fn [i] (flow/call-partition raise-address {:interrupt i}))
              {[0] #'raise-partition}))
+
 (defn raise-partition
   "Raises an interruption."
   [{:keys [interrupt]}]

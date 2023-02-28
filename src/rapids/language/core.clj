@@ -14,7 +14,7 @@
   [rapids.runtime.cc callcc]
   [rapids.language.flow deflow flow letflow]
   [rapids.language.pool-ops ->pool pool-id take-out! put-in! pool? take-any! take-case!]
-  [rapids.language.attempt attempt handle restartable restart]
+  [rapids.language.attempt attempt handle restartable restart list-interrupt-handlers]
   [rapids.objects.interruptions ->interruption]
   [rapids.language.operators
    ;; operators. longform, shortform:
