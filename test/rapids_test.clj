@@ -36,8 +36,8 @@
   (log! :after-suspend)
   val)
 
-(deflow event-value-flow
-  "Just returns an event value"
+(deflow simple-input-flow
+  "Just returns a value provided as input"
   [permit] (<* :permit permit))
 
 (deftest ^:language BasicFlowTests
@@ -69,11 +69,31 @@
 
     (testing "<* event provides a value"
       (flush-cache!)
-      (let [run (continue! (start! event-value-flow ["foo"]), :permit "foo", :input "foo-result")]
+      (let [run (continue! (start! simple-input-flow ["foo"]), :permit "foo", :input "foo-result")]
         (is (= (proxy-field run :result) "foo-result"))))
 
     (testing "providing a mismatched context throws an exception"
-      (is (thrown? Exception (continue! (start! event-value-flow ["expecting"]), :permit "actual"))))))
+      (is (thrown? Exception (continue! (start! simple-input-flow ["expecting"]), :permit "actual"))))))
+
+(deflow kill-self []
+  (kill! (current-run))       ; should throw
+  (<*))
+
+(deftest ^:language kill-test
+  (testing "kill!"
+    (let [run (start! simple-input-flow [nil])]
+      (is (= :running (:state run)))
+      (kill! run :kill-result)
+      (testing "the state is changed to :killed"
+        (is (= :killed (:state run))))
+      (testing "the result is set correctly"
+        (is (= :kill-result (:result run)))))
+    (testing "throws an error when attempting to kill a completed run"
+      (let [run (start! simple-input-flow [nil])
+            run (continue! run)]
+        (is (throws-error-output #"Attempt to kill run which has already completed" (kill! run)))))
+    (testing "throws an error when attempting to kill the current run"
+      (is (throws-error-output #"Attempt to kill current run" (start! kill-self))))))
 
 (deflow index-flow
   "Updates the index occassionally"

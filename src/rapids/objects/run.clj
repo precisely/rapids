@@ -19,17 +19,15 @@
    ^UUID interruption-id
    ^PersistentHashMap index])
 
-(def ^:const RunStates #{:running :error :complete})
+(def ^:const RunStates #{:running :error :complete :killed})
 
 (defn get-dynamic-values
   "Returns a lazy sequence of bindings, innermost to outermost, for the dynamic var (or symbol representing a dynamic var,
   returning not-found or nil)."
   ([run x] (get-dynamic-values run x nil))
   ([run x not-found]
-   {:pre [(symbol? x) (var? x)]}
-   (if-let [v (case (type x)
-                Var x
-                Symbol (resolve x))]
+   {:pre [(or (symbol? x) (var? x))]}
+   (if-let [v (if (var? x) x (if (symbol? x) (resolve x)))]
      (->> (:dynamics run)
        reverse
        (filter #(contains? % v))

@@ -147,6 +147,19 @@
   [field-constraints & {:keys [order-by limit] :as query-constraints}]
   (ensure-cached-connection (cache-find! Run field-constraints query-constraints)))
 
+(defn kill!
+  "Ends a run, changing its state to :killed"
+  ([run] (kill! run nil))
+  ([run result]
+   {:pre [(run? run)]}
+   (if (= (current-run :id) (:id run))
+     (throw (ex-info "Attempt to kill current run"
+              {:run run})))
+   (if (= :complete (:state run))
+     (throw (ex-info "Attempt to kill run which has already completed"
+              {:run run})))
+   (ensure-cached-connection (with-run run (update-run! :state :killed, :result result)))))
+
 ;;
 ;; Helpers
 ;;
