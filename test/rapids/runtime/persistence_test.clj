@@ -2,7 +2,7 @@
   (:require [clojure.test :refer :all]
             [rapids.language.pool-ops :refer [->pool pool-id pool? put-in!]]
             [rapids.objects.address :as a]
-            [rapids.objects.pool :refer [raw-pool?]]
+            [rapids.objects.pool :refer [raw-pool? make-pool]]
             [rapids.objects.run :as r]
             [rapids.objects.stack-frame :as sf]
             [rapids.runtime.core :refer [current-run with-run]]
@@ -11,7 +11,8 @@
             [rapids.storage.core :as s]
             [rapids.storage.globals :refer [*cache*]]
             [rapids.storage.protocol :refer [freeze-record frozen? thaw-record]]
-            [test-helpers :refer :all])
+            [test-helpers :refer :all]
+            [taoensso.nippy :as nippy])
   (:import (rapids.objects.run Run)))
 
 (defn make-run-with-bindings [& {:keys [] :as keys}]
@@ -67,6 +68,14 @@
               (is (not (empty? *cache*)))
               (let [recursive-run (get-in retrieved [:stack 0 :bindings :recursive-ref])]
                 (= run-id (:id recursive-run))))))))))
+
+(deftest disallowed-objects-test
+  (testing "persisting a raw run should fail"
+    (is (throws-error-output #"Error while freezing object"
+          (nippy/freeze (r/make-run)))))
+  (testing "persisting a raw pool should fail"
+    (is (throws-error-output #"Error while freezing object"
+          (nippy/freeze (make-pool 0))))))
 
 ;(def ^:dynamic *test-var*)
 ;(deftest ^:unit VarPersistenceTest

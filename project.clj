@@ -35,10 +35,12 @@
                                   [org.clojure/tools.namespace "1.2.0"]]
                    :plugins      [[lein-ancient "1.0.0-RC3"]
                                   [com.gearswithingears/shrubbery "0.4.1"] ; protocol spies & stubs
-                                  [lein-cloverage "1.2.2"]
+                                  [lein-cloverage "1.2.4"]
                                   [s3-wagon-private "1.3.4"]]
-                   :cloverage    {:ns-exclude-call  ['rapids.support.defrecordfn/defrecordfn]
-                                  :ns-exclude-regex [#"rapids.support.debug" #"rapids.support.repl"]}}}
+                   :cloverage    {:exclude-call     [rapids.support.defrecordfn/defrecordfn]
+                                  :ns-exclude-regex [#"rapids.support.debug" #"rapids.support.repl"
+                                                     #"rapids.objects.CurrentContinuationChange"]}}}
+
   :repl-options {:init-ns rapids.support.repl}
   :codox {:doc-paths []}
   :plugins [[migratus-lein "0.7.3"]]

@@ -50,12 +50,6 @@
     :post [(qualified-symbol? %)]}
    (symbol (str (.getName ns)) (str (.getName s)))))
 
-(defn get-project-info []
-  "Gets the MAVEN groupId, artifactId, version and the version (the git hash)"
-  (with-open [pom-properties-reader (io/reader (io/resource "META-INF/maven/rapids/rapids/pom.properties"))]
-    (doto (Properties.)
-      (.load pom-properties-reader))))
-
 (defn linked-list?
   "Unlike the confusingly named `list?` this actually returns true for all lists; i.e., including things constructed with cons"
   [o]
@@ -65,7 +59,7 @@
   (and (symbol? o) (not (qualified-symbol? o))))
 
 (defn sausage-to-snake
-  "Converts a :sausage-style-keyword to a :snake_style_keyword"
+  "Converts a sausage-style-keyword to a snake_style_keyword"
   [k]
   (keyword (clojure.string/replace (name k) "-" "_")))
 

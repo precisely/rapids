@@ -60,7 +60,7 @@
   (let [flow (a/resolved-flow address)
         pfn  (get-in flow [:partition-fns (:point address)])]
     (if-not (ifn? pfn)
-      (throw (ex-info (str "Attempt to continue flow at undefined partition " address)
+      (throw (ex-info (str "Attempt to continue flow at undefined partition " (prn-str address))
                       {:type        :system-error
                        :object      pfn
                        :object-type (type pfn)})))
