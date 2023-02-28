@@ -28,11 +28,63 @@ Here's a highly repetitive chatbot that keeps greeting people by name:
 
 ### Starting and continuing a run
 
-### Anonymous flows and higher order flows
+### Killing a run
 
-### Setting time outs
+`(kill! run)`
+
+### Functional flows: closures and higher order flow programming
+
+Flows can be defined anonymously similar to functions.
+```clojure
+(flow [a] (<*)) 
+```
+Use `fcall` and `fapply` to invoke anonymous flows or named flows:
+
+```clojure
+(deflow foo []
+  (let [f (flow [a b c] (list a b c))]
+    (fcall f 1 2 3) ;=> (1 2 3)
+    (fapply f 1 2 [3]) ;=> (1 2 3)
+    (fapply f 1 [2 3]) ;=> (1 2 3)
+    (fapply f [1 2 3]) ;=> (1 2 3) 
+```
+
+Higher order flows analogous to functional counterparts like `map`, `reduce`, etc can be built   `fapply` and `fcall`, but are not available in the Rapids library.
+
+### Timeouts and delays
+
+Flows and suspending functions often take an `expires` argument. This is a timestamp that tells the system when to automatically resume the operations. If the operation returns a value, a `default` argument can be provided. 
+
+Delays can be implemented using timeouts:
+
+```clojure
+(<* :expires (-> 3 days from-now))
+```
+
+To ensure that delays are not triggered by inadvertent or intentional `continue!` calls, simply add a permit that cannot be provided or guessed.
+
+```clojure
+(<* :expires (-> 3 days from-now) :permit (uuid))
+(<* :expires (-> 3 days from-now) :permit :mypackage/secret-delay-permit) 
+```
 
 ### Indexing and finding runs
+
+Runs contain a hash table called the index which can be used to reflect state. Unlike the output, the index is not cleared at the beginning of each runlet. Rapids database adapters ensure that the index is efficiently queryable. Avoid using the index as a set of global variables.
+
+```clojure
+(set-index! :foo 1) ; set the :foo key in the index in the current run
+(set-index! run :bar 2) ; set :bar in the index of a provided run
+(-> run :index :foo) ; returns 1
+(current-run :index :foo) ; shortcut for accessing an index value within the current run
+```
+
+Runs can be retrieved from storage using `get-run` or `find-runs`. Find run enables searching for runs using the index.
+
+```clojure
+(get-run run-id) 
+(find-runs [[[:index :patient-id] :eq patient-id]] :limit 3) ; see function doc for details
+```
 
 ### Coordinating runs
 
@@ -104,13 +156,13 @@ The `take-case!` macro is a wrapper around `take-any!` which provides a convenie
   p2 (print "pool p2 => " v)
   p3 (print "pool p3 => " v))
 
-;; guarantee it doesn't suspend by providing a default:
+ guarantee it doesn't suspend by providing a default:
 (take-case! [v :my-default]
   p1 (print "pool p1 => " v)
   p2 (print "pool p2 => " v)
   p3 (print "pool p3 => " v))
   
-;; guarantee it suspends for up to 5 days, then returns a default
+ guarantee it suspends for up to 5 days, then returns a default
 (take-case! [v :my-default (-> 5 days from-now)]
   p1 (print "pool p1 => " v)
   p2 (print "pool p2 => " v)
@@ -127,3 +179,65 @@ Certain actions need to be performed only after a runlet has completed successfu
 
 ### Interrupting runs
 
+Rapids provides a means to interrupt running processes, handle those interruptions and restart execution at pre-specified code points. Interruptions are issued while a run is suspended at the application level, using the `interrupt!` top-level function. An interruption provides a name which is used to find handlers for that interruption type. When `interrupt!` is called, the run is put into a special `:interrupted` state for the duration of the handler - until it completes or invokes a restart.
+
+#### The attempt macro
+
+The `attempt` macro provides `handle` and `finally` internal forms, and a context in which restartable expressions may appear. The `restartable` form names a point in the code, wrapping a form. It allows execution to restart at that point using the `restart` method. Restarts are typically invoked within handle clauses.  
+
+```clojure
+ (attempt
+   (let [dosage (restartable (calculate-dosage)
+                  ; shorthand form:
+                  (:set-dosage "Describe it here" [] ...flow-body)
+                  ; alternative longhand form:
+                  {:name :set-dosage
+                   :do (flow [..] ...), ; if not provided, defaults to (flow [] (the-expression))
+                   :describe #(... return a string)
+                   :data {}
+                   :expose true})] ; if true, this codepoint will be appended to
+                                  ; the interruption's restarts and thus will be available
+                                  ; outside this attempt block
+      (advise-patient-on-dosage dosage)
+      (do-other-stuff)
+
+      ; define multiple restarts within an attempt body
+      (restartable (measure-inr-level..)
+         (:retry [] (measure-inr-level))  equivalent to {:name :retry :do (flow [] get-cholesterol-level)})
+         {:name :recompute
+          :do (flow [v] ...)
+          :describe #(...)
+          :data {}})
+
+    handlers - can run some code, and can either invoke a retrace or a recovery
+                 note that during an interruption, the caller with the interruption ID
+                 has control; the run is outputing to that caller.
+
+   (handle :abort i   e.g., returning a different value
+      (>* "Hello, doctor, I am aborting this dosing procedure")
+      nil) ; return nil from this attempt block
+
+   (handle :warfarin-sensitivity-change i   e.g., retracing to an earlier step
+      (>* (str "Hello, doctor, I will reset the dose to " (:new-dosage i) " as you requested")
+      (restart :set-dosage (:new-dosage i)) ; retraces are defined in the attempt
+
+   (handle :retry-dosing i   recovers from the interrupted step
+      (restart i :retry)) ; recoveries are defined in the interrupt
+
+   (handle true i  catch any Interruption - demonstrates handling an arbitrary process
+      (>* "I'm unable to determine what to do next. Please select one of the choices.")
+      (>* (generate-choices-from-restarts (concat )))
+   (finally ...))
+```
+
+#### List available interruption handlers
+
+```clojure
+(list-interruption-handlers) ; => sequence representing innermost to outermost interruption handlers
+```
+
+#### List available restarts
+
+```clojure
+(list-restarts)
+```
