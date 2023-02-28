@@ -10,10 +10,13 @@
 (deflow simple-interruptible-flow []
   (attempt (<*) (handle :foo i :foo-interruption)))
 
+(def attempt-holder (atom nil))
+
 (deflow interruptible-flow []
   (let [attempt-val (attempt
                       (let [result (restartable (interruptible-child)
                                      (:redo [o] {:redo-value o}))]
+                        (reset! attempt-holder rapids.runtime.globals/*attempts*)
                         (>* :body-called)
                         [result :uninterrupted-result])
 
@@ -37,7 +40,7 @@
 (deftest ^:language InterruptionsTest
   (testing "A simple interruptible flow"
     (with-test-env
-     (testing "without interruptions, block returns normally"
+      (testing "without interruptions, block returns normally"
         (let [{initial-state :state, :as run} (start! simple-interruptible-flow)]
           (is (= :running initial-state))
           (continue! run :input "input")
@@ -48,7 +51,7 @@
           (interrupt! run :foo)
           (is (= :complete (:state run)))
           (is (= :foo-interruption (:result run)))))))
- (testing "A flow with an attempt handler calling a child flow which gets interrupted while it waits for input"
+  (testing "A flow with an attempt handler calling a child flow which gets interrupted while it waits for input"
     (with-test-env
       (testing "without interruptions, the attempt block should return normally"
         (let [run (start! interruptible-flow)
@@ -147,3 +150,10 @@
           (testing "the expected interruption is handled"
             (is (= [[:foo-handled (->interruption :foo :message "hello" :data {:a 123})] :finally-called]
                   (:output run)))))))))
+
+(deftest ^:language list-interrupt-handlers-test
+  (testing "list-interrupt-handlers"
+    (let [run1 (start! simple-interruptible-flow)
+          run2 (start! interruptible-flow)]
+      (is (= '(:foo) (list-interrupt-handlers run1)))
+      (is (= '(:baz :bar :foo) (list-interrupt-handlers run2))))))

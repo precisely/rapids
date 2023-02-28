@@ -57,7 +57,8 @@
             [rapids.runtime.calling :refer [universal-call]]
             [rapids.runtime.globals :refer :all]
             [rapids.runtime.runlet :refer [update-run!]]
-            [rapids.support.util :refer :all]))
+            [rapids.support.util :refer :all]
+            [rapids.objects.run :as r]))
 
 (defn handler-form? [o] (and (seq? o) (= 'handle (first o))))
 (defn finally-form [o] (and (seq? o) (= 'finally (first o))))
@@ -81,12 +82,12 @@
 (defn normalize-restart-def [r]
   (let [restart (cond
                   (seq? r) (let [[name & body] r
-                                  [description & sigs] (if (-> body first string?)
-                                                         body `(nil ~@body))]
-                              {:name        name
-                               :description description
-                               :data        nil
-                               :do          `(~'flow ~@sigs)})
+                                 [description & sigs] (if (-> body first string?)
+                                                        body `(nil ~@body))]
+                             {:name        name
+                              :description description
+                              :data        nil
+                              :do          `(~'flow ~@sigs)})
                   (map? r) r)
         {name        :name,
          description :description,
@@ -129,9 +130,9 @@
                                                    [~@(map #(expand-handler attempt-cc % finally-flow) handlers)]
                                                    {}))]
              ~@(if finally-flow
-                `((let [result# (do ~@body)]
-                    (rapids/fcall ~finally-flow)
-                    result#))
+                 `((let [result# (do ~@body)]
+                     (rapids/fcall ~finally-flow)
+                     result#))
                  body)))))))
 
 (defmacro handle [iname ivar & body]
@@ -158,6 +159,14 @@
                       ~restart-map
                       ~expr))))
 
+(defn- handlers-from-attempts
+  "Returns a list of interruption handler names in order of precedence. I.e., innermost interruption handlers are first."
+  [attempts]
+  (distinct (reverse (apply concat (map (fn [a] (map :name (:handlers a))) attempts)))))
+
+(defn list-interrupt-handlers
+  ([] (handlers-from-attempts rapids.runtime.globals/*attempts*))
+  ([run] (handlers-from-attempts (r/get-dynamic-value run 'rapids.runtime.globals/*attempts*))))
 
 (defn attempt-bound? [] (not (empty? *attempts*)))
 
