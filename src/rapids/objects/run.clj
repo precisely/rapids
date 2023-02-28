@@ -31,9 +31,9 @@
                 Var x
                 Symbol (resolve x))]
      (->> (:dynamics run)
-          reverse
-          (filter #(contains? % v))
-          (map #(get % v not-found))))))
+       reverse
+       (filter #(contains? % v))
+       (map #(get % v not-found))))))
 
 (defn get-dynamic-value
   "Gets the current binding for symbol or var s"
@@ -46,20 +46,22 @@
             (let [pred ({:id            uuid?
                          :state         RunStates
                          :stack         seq?
-                         :index        map?
+                         :index         map?
                          :dynamics      vector?
                          :interrupt     (some-fn nil? uuid?)
-                         :parent-id     (some-fn nil? uuid?)
+                         :waits         #(every? (fn [[k v]] (and (uuid? k) (integer? v))) %)
                          :error-info    (some-fn nil? map?)
                          :error-message (some-fn nil? string?)
-                         :output      (constantly true)
+                         :output        (constantly true)
                          :result        (constantly true)
                          :suspend       (some-fn nil? signals/suspend-signal?)} key)
                   val  (get kvs key)]
               (if pred
-                (pred val)
+                (if (pred val)
+                  true
+                  (throw (ex-info "Invalid data for Run key" {:key key :val val})))
                 (throw (ex-info "Invalid key for Run" {:key key})))))
-          (keys kvs)))
+    (keys kvs)))
 
 (defn make-run
   ([] (make-run {}))
@@ -69,19 +71,19 @@
             stack    ()
             response []
             dynamics []
-            index   {}}
+            index    {}}
      :as   fields}]
    {:pre  [(RunStates state)]
     :post [(s/assert ::run %)]}
    (map->Run (into (or fields {})
-                   {:id           id,
-                    :state        state,
-                    :stack        stack,
-                    :output     response,
-                    :result       result
-                    :dynamics     dynamics
-                    :cached-state :created
-                    :index       index}))))
+               {:id           id,
+                :state        state,
+                :stack        stack,
+                :output       response,
+                :result       result
+                :dynamics     dynamics
+                :cached-state :created
+                :index        index}))))
 
 ;(defmethod print-method Run
 ;  [o w]

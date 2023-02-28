@@ -13,10 +13,10 @@
   [rapids.language.core
    deflow flow letflow
    ->pool take-out! put-in! pool? take-any! take-case!
+   wait-for! wait-for-any! wait-case!!
    ;; operators. longform, shortform:
    input!, <*,
-   output!, >*,
-   block!, <<!,
+   output!, >*
    ;; start operator:
    !
    callcc

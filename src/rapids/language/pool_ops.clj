@@ -195,9 +195,9 @@
   "Execute a block of code when one or more pools returns a value. This is a thin
   convenience wrapper around take-any! Similar in spirit to a case statement.
 
-  v     - a symbol which will be bound to the value
+  v     - a symbol which will be bound to the value or a vector [sym default? expires?]
   cases - p1 e1 p2 e2...
-          p1 e1 p2 e2 ... default
+          p1 e1 p2 e2 ...
           Where pi is a symbol bound to a pool
           and ei is an expression to be executed when the corresponding pool contains a value
 
