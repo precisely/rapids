@@ -22,12 +22,7 @@
   [& {:keys [permit expires default]}]
   {:pre [(s/valid? (s/nilable ::permit) permit)
          (s/valid? (s/nilable #(instance? LocalDateTime %)) expires)]}
-  (let [normalized-permit (if (keyword? permit)
-                            (name permit) permit)]
-    (if (not= normalized-permit permit)
-      (log/warn (str "Keyword permit" permit " normalized to string. Please change this in your code.")))
-
-    (signals/make-suspend-signal permit expires default)))
+  (signals/make-suspend-signal permit expires default))
 
 (defn output!
   "Adds an element to the current run response: returns nil"

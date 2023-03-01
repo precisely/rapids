@@ -1,24 +1,13 @@
 (ns rapids.objects.interruptions)
 
-(definterface IInterruption
-  (^clojure.lang.Keyword name [])
-  (^String message [])
-  (^Object data [])
-  (^clojure.lang.ISeq restarts []))
-
-(defrecord Interruption [name message data restarts]
-  IInterruption
-  (name [this] (:name this))
-  (message [this] (:message this))
-  (data [this] (:data this))
-  (restarts [this] (:restarts this)))
+(defrecord Interruption [name message data restarts])
 
 (defn ->interruption
   ([name & {:keys [message data]}]
    {:pre [(keyword? name) ((some-fn nil? string?) message)]}
    (->Interruption name message data {})))
 
-(defn interruption? [o] (instance? IInterruption o))
+(defn interruption? [o] (instance? Interruption o))
 
 (def StopInterruption (->interruption :stop :message "The run was stopped"))
 

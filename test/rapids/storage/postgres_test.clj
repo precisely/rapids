@@ -115,7 +115,7 @@
                     c-ab20  (r/make-run {:state :complete :index {:a {:b 20} :c "foe"}})
                     r-ab100 (r/make-run {:state :running :index {:a {:b 100} :c "foe"}})]
                 (create-records! [r-ab20 r-ab3 c-ab20 r-ab100])
-                (println "RAW=>" (exec! (:connection (current-connection)) ["SELECT index->>'c' as c FROM runs ;"]))
+                (exec! (:connection (current-connection)) ["SELECT index->>'c' as c FROM runs ;"])
                 (testing "find-records! should find records using JSON query"
                   (is (= (id-set (find-records! Run [[[:index :a :b] :eq 20]]))
                          (id-set [r-ab20 c-ab20]))))
