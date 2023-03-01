@@ -8,6 +8,14 @@
             [taoensso.timbre :as log])
   (:import (rapids.objects.run Run)))
 
+;; This module finds runs which have expired Suspends and continues them with the default value.
+
+;;
+;; TODO: More efficient implementation
+;;       This is a naive implementation that simply polls the backend for expired runs.
+;;       A better implementation would tell the expiry monitor when the next expected expiry
+;;       is. The monitor would set its internal timer to expire at that time.
+;;
 (defn get-expired-runs
   ([] (get-expired-runs nil))
   ([limit]
@@ -37,10 +45,11 @@
                (swap! counter inc)
                (catch Exception e
                  (log/error "Expiry monitor: run " run-id ": " e)
-                 (stacktrace/print-stack-trace e)))))
+                 (if (log/may-log? :error)
+                   (stacktrace/print-stack-trace e))))))
          (catch Exception e
            (log/error "Expiry monitor: failed while retrieving expired runs:" e)
-           (stacktrace/print-stack-trace e)))
+           (if (log/may-log? :error) (stacktrace/print-stack-trace e))))
        @counter))))
 
 (defn start-expiry-monitor!
