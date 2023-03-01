@@ -49,4 +49,3 @@
 (deftest test-interruption-preconditions
   (is (thrown? AssertionError (->interruption nil)))
   (is (thrown? AssertionError (->interruption :foo :message 123))))
-

@@ -15,27 +15,32 @@
 (deflow interruptible-flow []
   (let [attempt-val (attempt
                       (let [result (restartable (interruptible-child)
-                                     (:redo [o] {:redo-value o}))]
-                        (reset! attempt-holder rapids.runtime.globals/*attempts*)
-                        (>* :body-called)
-                        [result :uninterrupted-result])
+                                     (:redo [o] {:redo-value o})
 
-                      (handle :foo i
-                        (>* [:foo-handled i])
-                        :foo-interruption)
+                                     {:name     :recompute
+                                      :do       (flow [v] (print v))
+                                      :describe #()
+                                      :data     {}})]
+    (reset! attempt-holder rapids.runtime.globals/*attempts*)
+    (>* :body-called)
+    [result :uninterrupted-result])
 
-                      (handle :bar i
-                        (>* [:bar-handled i])
-                        (let [interrupter-input (<*)]
-                          [interrupter-input :bar-interruption]))
+  (handle :foo i
+    (>* [:foo-handled i])
+    :foo-interruption)
 
-                      (handle :baz i
-                        (restart :redo (:data i)))
+  (handle :bar i
+    (>* [:bar-handled i])
+    (let [interrupter-input (<*)]
+      [interrupter-input :bar-interruption]))
 
-                      (finally (>* :finally-called)))
-        final-input (<*)]
-    {:attempt-result attempt-val
-     :final-input    final-input}))
+  (handle :baz i
+    (restart :redo (:data i)))
+
+  (finally (>* :finally-called)))
+final-input (<*) ]
+{:attempt-result attempt-val
+ :final-input    final-input} ) )
 
 (deftest ^:language InterruptionsTest
   (testing "A simple interruptible flow"
