@@ -64,15 +64,23 @@
 (defn finally-form [o] (and (seq? o) (= 'finally (first o))))
 (defn attempt-subclause? [o] (or (handler-form? o) (finally-form o)))
 
+
 (defn expand-handler [ccvar h-form finally-flow]
-  (let [[_ i-name ivar & body] h-form
-        m    (meta h-form)
-        line (if-let [lnum (:line m)] (str " at line " lnum) "")]
-    (assert (keyword? i-name)
-      (str "First argument to attempt handler should be a keyword" line))
-    (assert (simple-symbol? ivar)
-      (str "Second argument to attempt handler should be an unqualified symbol" line))
-    `(->InterruptionHandler ~i-name
+  {:pre [(seq? h-form)]}
+  (let [[_ iname ivar] h-form
+        m (meta h-form)
+        _ (if-not (keyword? iname)
+            (throw (ex-info "First argument to attempt handle clause should be a keyword"
+                     (assoc m :iname iname))))
+        _ (if-not (and (simple-symbol? ivar) (not (keyword? ivar)))
+            (throw (ex-info "Second argument to attempt handle should be an unqualified symbol"
+                     (assoc m :ivar ivar))))
+        [_ i-name ivar & body] h-form
+
+        #_#_line (if-let [lnum (:line m)] (str " at line " lnum) "")]
+
+
+    `(->InterruptionHandler ~iname
        (flow [~ivar]
          (rapids/fcall ~ccvar (let [result# (do ~@body)]
                                 ~@(if finally-flow `((rapids/fcall ~finally-flow)))
@@ -92,9 +100,14 @@
         {name        :name,
          description :description,
          doflow      :do} restart]
-    (assert (keyword? name) (str "Restart name must be a keyword: " name))
-    (assert ((some-fn string? fn? nil?) description) (str "If provided, restart escription must be string or function" description))
-    (assert (and (seq? doflow) (= 'flow (first doflow))) (str "Invalid do clause in restart: " doflow))
+    (if-not (keyword? name)
+      (throw (ex-info "Restart name must be a keyword" {:restart r})))
+    (if-not ((some-fn string? fn? nil?) description)
+      (throw (ex-info "If provided, restart description must be string or function"
+               {:restart r})))
+    (if-not  (and (seq? doflow) (= 'flow (first doflow)))
+      (throw (ex-info "Invalid do clause in restart"
+               {:restart r})))
     restart))
 
 (defn generate-restart-map [restartdefs restart-cc]
@@ -115,19 +128,20 @@
 ;; attempt unrolls to a callcc form which establishes interruption handlers
 ;;
 (defmacro attempt [& forms]
-  (let [body         (doall (take-while #(not (attempt-subclause? %)) forms))
-        handlers     (doall (take-while handler-form? (nthrest forms (count body))))
-        final-forms  (doall (nthrest forms (+ (count body) (count handlers))))
-        _            (assert (<= (count final-forms) 1) (str "Unexpected forms in attempt block" final-forms))
-        finally-body (doall (rest (first final-forms)))
-        attempt-cc   (gensym "attempt-cc")
-        finally-flow (if-not (empty? finally-body) (gensym "finally"))]
+  (let [body              (doall (take-while #(not (attempt-subclause? %)) forms))
+        handlers          (doall (take-while handler-form? (nthrest forms (count body))))
+        final-forms       (doall (nthrest forms (+ (count body) (count handlers))))
+        _                 (assert (<= (count final-forms) 1) (str "Unexpected forms in attempt block" final-forms))
+        finally-body      (doall (rest (first final-forms)))
+        attempt-cc        (gensym "attempt-cc")
+        finally-flow      (if-not (empty? finally-body) (gensym "finally"))
+        expanded-handlers (mapv #(expand-handler attempt-cc % finally-flow) handlers)]
     `(rapids/callcc
        (rapids/flow [~attempt-cc]
          (let [~@(if finally-flow
                    [finally-flow `(rapids/flow [] ~@finally-body)])]
            (binding [*attempts* (conj *attempts* (->Attempt
-                                                   [~@(map #(expand-handler attempt-cc % finally-flow) handlers)]
+                                                   ~expanded-handlers
                                                    {}))]
              ~@(if finally-flow
                  `((let [result# (do ~@body)]
@@ -145,7 +159,7 @@
   a value and returns a value which will be provided at the location of the recoverable.
 
   E.g.,
-  (let [val (recoverable (calculate-dosage p)
+  (let [val (restartable (calculate-dosage p)
               (set-dosage [d] d)
               (recalculate-dosage-with-params [p] (calculate-dosage p)))
      ...)"

@@ -32,13 +32,16 @@
                                   [philoskim/debux "0.8.2"]
                                   [tortue/spy "2.9.0"]
                                   [org.clojars.justiniac/matchure "0.13.1"]
-                                  [org.clojure/tools.namespace "1.2.0"]]
+                                  [org.clojure/tools.namespace "1.2.0"]
+                                  [net.r4s6/test-async "0.2.0"]]
                    :plugins      [[lein-ancient "1.0.0-RC3"]
                                   [com.gearswithingears/shrubbery "0.4.1"] ; protocol spies & stubs
-                                  [lein-cloverage "1.2.2"]
+                                  [lein-cloverage "1.2.4"]
                                   [s3-wagon-private "1.3.4"]]
-                   :cloverage    {:ns-exclude-call  ['rapids.support.defrecordfn/defrecordfn]
-                                  :ns-exclude-regex [#"rapids.support.debug" #"rapids.support.repl"]}}}
+                   :cloverage    {:exclude-call     [rapids.support.defrecordfn/defrecordfn taoensso.timbre/log!]
+                                  :ns-exclude-regex [#"rapids.support.debug" #"rapids.support.repl"
+                                                     #"rapids.objects.CurrentContinuationChange"]}}}
+
   :repl-options {:init-ns rapids.support.repl}
   :codox {:doc-paths []}
   :plugins [[migratus-lein "0.7.3"]]

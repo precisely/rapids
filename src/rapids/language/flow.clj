@@ -23,13 +23,6 @@
                                 (->Flow '~qualified-name, ~entry-fn-def, ~'pfn-set))]
           `(def ^{:doc ~docstring?} ~name ~flow-form))))))
 
-(defmacro deflow-
-  "Same as deflow, defining a non-public flow"
-  {:arglists '([name doc-string? attr-map? [params*] prepost-map? body]
-               [name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?])}
-  [name & decls]
-  (list* `deflow (with-meta name (assoc (meta name) :private true)) decls))
-
 (defmacro flow
   "Special form for constructing anonymous flows. May only be invoked inside of deflow. Returns a Closure."
   [name? & fdecl]

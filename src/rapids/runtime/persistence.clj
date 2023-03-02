@@ -16,11 +16,6 @@
            (rapids.objects.run Run)
            (rapids.storage CacheProxy)))
 
-(defn debug-result [msg & args]
-  (let [result (last args)]
-    (apply println msg args)
-    result))
-
 (defn persistence-error
   ([obj op] (persistence-error obj op nil))
   ([obj op msg & args]
