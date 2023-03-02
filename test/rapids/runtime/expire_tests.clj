@@ -72,9 +72,19 @@
           (is (contains? *expiry-monitors* storage))
           (testing "and the delay should be recorded appropriately"
             (is (= 100 (get *expiry-monitors* storage))))
+          (testing "calling start-expiry-monitor! again changes the delay"
+            (start-expiry-monitor! :storage storage :delay 9999)
+            (is (= 9999 (get *expiry-monitors* storage))))
           (testing "stop-expiry-monitor! should set the table entry delay to nil"
             (stop-expiry-monitor! storage)
-            (is (= nil (get *expiry-monitors* storage)))))))
+            (is (= nil (get *expiry-monitors* storage))))
+          (testing "start-expiry-monitor! and stop-expiry-monitor! default to using the current storage"
+            (let [storage (->in-memory-storage)]
+              (rapids.storage.core/with-storage storage
+                (start-expiry-monitor! :delay 100)
+                (is (= 100 (get *expiry-monitors* storage)))
+                (stop-expiry-monitor!)
+                (is (nil? (get *expiry-monitors* storage)))))))))
     (testing "start-expiry-monitor! should call find-and-expire-runs!"
       (ta/async
         done

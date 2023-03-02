@@ -38,7 +38,7 @@
                                   [com.gearswithingears/shrubbery "0.4.1"] ; protocol spies & stubs
                                   [lein-cloverage "1.2.4"]
                                   [s3-wagon-private "1.3.4"]]
-                   :cloverage    {:exclude-call     [rapids.support.defrecordfn/defrecordfn]
+                   :cloverage    {:exclude-call     [rapids.support.defrecordfn/defrecordfn taoensso.timbre/log!]
                                   :ns-exclude-regex [#"rapids.support.debug" #"rapids.support.repl"
                                                      #"rapids.objects.CurrentContinuationChange"]}}}
 
