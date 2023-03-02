@@ -88,13 +88,13 @@ Runs can be retrieved from storage using `get-run` or `find-runs`. Find run enab
 
 ### Coordinating runs
 
-Two main methods exist for coordinating runs: blocking and pools. 
+Two main methods exist for coordinating runs: waiting for runs to complete and by data exchange, using pools. 
 
-#### Waiting until other runs are complete
+#### Waiting for runs to complete
 
 ```clojure
 (start! lab-order [:blood-work])
-(wait-for! lab-order) ; returns when lab-order state => :complete
+(wait-for! lab-order) ; returns when lab-order state => :complete, returns lab-order result
 ```
 
 The `wait-for!`  takes a run called the blocking run, and suspends the calling run until the blocking run completes. It returns the `:result` of the blocking run. Blocking is easy to use and conceptually simple to understand, but is limited to cases which do not require updates while a run is in `:running` state. This operator also takes optional `default` and `expires` arguments:
@@ -105,13 +105,17 @@ The `wait-for!`  takes a run called the blocking run, and suspends the calling r
 ```
 Similar to `wait-for!`, `wait-for-any!` enables waiting on multiple runs. It takes a vector of runs, and optional `default` and `expiry` arguments. This function returns a vector, `[index result]` , representing the index of the run which completed and the result it returned.
 
-The `wait-case!` is a wrapper around `wait-for-any!`, and provides a readable style for pairing expressions to be executed with a set of runs:
+The `wait-cases!` is a wrapper around `wait-for-any!`, and provides a readable style for pairing expressions to be executed with a set of runs:
 
 ```clojure
-(wait-case! result
-  r1 (print "run 1 returned " result)
-  r2 (print "run 2 returned " result)
-  ...)
+(wait-cases! [result 
+              :default :foo                     ; optional
+              :expires (-> 3 days from-now)     ; optional
+              :break #(= (count %) 3))]         ; optional
+  r1 (list :run1 result)           ; result = value returned by r1
+  r2 (print :run2 result)          ; result = value returned by r2
+  ...
+  :default (list :default result)) ; result will be :foo
 ```
 See the function documentation for how to provide a default and expiry time.
 
