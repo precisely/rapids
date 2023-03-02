@@ -667,7 +667,7 @@
       (let [r1      (start! block-and-return [true :foo])
             waiting (start! wait-for-any! [[r1] :bar])]
         (is (= :complete (:state waiting)))
-        (is (= [nil :bar] (:result waiting)))))
+        (is (= [:default :bar] (:result waiting)))))
 
     (testing "it should not return immediately when a default AND an expiry is provided"
       (let [r1      (start! block-and-return [true :not-returned])
@@ -676,26 +676,107 @@
         (testing "when it expires, the default value should be returned"
           (expire-run! waiting)
           (is (= :complete (:state waiting)))
-          (is (= [nil :default-value] (:result waiting))))))))
+          (is (= [:default :default-value] (:result waiting))))))))
 
-(deflow run-case [r1 r2 r3]
-  (wait-case!! val
-    r1 [:r1 val]
-    r2 [:r2 val]
-    r3 [:r3 val]))
+(deflow wait-case-flow [[r1 r2 r3] & {:keys [default expires break]}]
+  (if default
+    (wait-cases! [val :expires expires :break break]
+      r1 [:r1 val]
+      r2 [:r2 val]
+      r3 [:r3 val]
+      :default default)
+    (wait-cases! [val :expires expires :break break]
+      r1 [:r1 val]
+      r2 [:r2 val]
+      r3 [:r3 val])))
 
-(deftest wait-case!-test
-  (testing "wait-case!"
-    (let [[r1 r2 r3] [(start! block-and-return [true :one])
-                      (start! block-and-return [true :two])
-                      (start! block-and-return [true :three])]
-          wc-run (start! run-case [r1 r2 r3])]
-      (testing "it should suspend when all runs are still running"
-        (is (= :running (:state wc-run))))
-      (testing "it should evaluate the expression associate with a run that completes"
-        (continue! r2)
-        (is (= :complete (:state wc-run)))
-        (is (= [:r2 :two] (:result wc-run)))))))
+(deftest wait-cases!-test
+  (testing "wait-cases!"
+    (testing "default operation - all runs must complete"
+      (with-test-env
+        (let [[r1 r2 r3] [(start! block-and-return [true :one])
+                          (start! block-and-return [true :two])
+                          (start! block-and-return [true :three])]
+              wc-run (start! wait-case-flow [[r1 r2 r3]])]
+          (testing "it should suspend when all runs are still running"
+            (is (= :running (:state wc-run))))
+          (testing "it should continue running until all runs have complete"
+            (continue! r2)
+            (is (= :running (:state wc-run)))
+            (continue! r1)
+            (is (= :running (:state wc-run)))
+            (continue! r3)
+            (is (= :complete (:state wc-run)))
+            (testing "when complete, it should return a map of completed runs to values produced by the cases"
+              (is (= {r1 [:r1 :one]
+                      r2 [:r2 :two]
+                      r3 [:r3 :three]}
+                    (:result wc-run))))))))
+    (testing "when a default is given, but no runs are complete, it should return immediately"
+      (with-test-env
+        (let [[r1 r2 r3] [(start! block-and-return [true :one])
+                          (start! block-and-return [true :two])
+                          (start! block-and-return [true :three])]
+
+              wc-run (start! wait-case-flow [[r1 r2 r3] :default :foo-default])]
+          (testing "it should complete when all runs are still running"
+            (is (= :complete (:state wc-run))))
+
+          (testing "it should return the default value"
+            (is (= {:default :foo-default}
+                  (:result wc-run)))))))
+
+    (testing "with a given expiry time"
+      (with-test-env
+        (let [[r1 r2 r3] [(start! block-and-return [true :one])
+                          (start! block-and-return [true :two])
+                          (start! block-and-return [true :three])]
+              expiry-time (-> 1 days from-now)
+              wc-run      (start! wait-case-flow [[r1 r2 r3] :expires expiry-time])]
+          (testing "it should suspend when all runs are still running"
+            (is (= :running (:state wc-run))))
+          (testing "it should contain an expiry time"
+            (is (= expiry-time (-> wc-run :suspend :expires))))
+          (testing "it should allow runs to complete"
+            (continue! r2))
+          (testing "when it expires, it should return"
+            (expire-run! wc-run)
+            (is (= :complete (:state wc-run)))
+            (let [result (:result wc-run)]
+              (testing "should return a map which"
+                (is (map? result)))
+              (testing "should contain the result of the completed run(s)"
+                (is (= [:r2 :two] (get result r2))))
+              (testing "should contain a :default key with value nil (since no default was provided"
+                (is (contains? result :default))
+                (is (nil? (:default result)))))
+
+            (testing "other runs can continue after the waiting run has expired"
+              (is (= :running (:state r1)))
+              (is (= :running (:state r3)))
+              (continue! r1)
+              (is (= :complete (:state r1)))
+              (continue! r3)
+              (is (= :complete (:state r3))))))))
+
+    (testing "a break function which returns true when 2 results are provided terminates the loop"
+      (with-test-env
+        (let [[r1 r2 r3] [(start! block-and-return [true :one])
+                          (start! block-and-return [true :two])
+                          (start! block-and-return [true :three])]
+              wc-run (start! wait-case-flow [[r1 r2 r3] :break #(>= (count %) 2)])]
+          (testing "it should suspend when all runs are still running"
+            (is (= :running (:state wc-run))))
+          (testing "it is still suspended after continuing a single run "
+            (continue! r1)
+            (is (= :running (:state wc-run))))
+          (testing "when it expires, it should return"
+            (continue! r3)
+            (is (= :complete (:state wc-run)))
+            (testing "should contain the result of the completed run(s)"
+              (is (= {r1 [:r1 :one]
+                      r3 [:r3 :three]}
+                    (:result wc-run))))))))))
 
 (deflow my-output [a1 a2 a3] (output! a1 a2 a3))
 

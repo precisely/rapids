@@ -13,7 +13,7 @@
   [rapids.language.core
    deflow flow letflow
    ->pool take-out! put-in! pool? take-any! take-case!
-   wait-for! wait-for-any! wait-case!!
+   wait-for! wait-for-any! wait-cases!
    ;; operators. longform, shortform:
    input!, <*,
    output!, >*
