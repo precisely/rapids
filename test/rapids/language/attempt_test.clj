@@ -5,14 +5,15 @@
 
 (deftest attempt-macro-tests
   (testing "attempt handlers"
-    (is (throws-error-output #"(?m)First argument to attempt handle clause should be a keyword"
-          (macroexpand '(attempt (print "no op")
-                          (handle "foo"
-                            (print "this should cause an exception"))))))
-    (is (throws-error-output #"(?m)Second argument to attempt handle should be an unqualified symbol"
-          (macroexpand '(attempt (print "no op")
-                          (handle :foo :boo
-                            (print "this should cause an exception"))))))))
+    (rapids.objects.flow/with-flow-definitions 'foo
+      (is (throws-error-output #"(?m)First argument to attempt handle clause should be a keyword"
+            (eval '(rapids.language.attempt/attempt (print "no op")
+                    (handle "foo"
+                      (print "this should cause an exception"))))))
+      (is (throws-error-output #"(?m)Second argument to attempt handle should be an unqualified symbol"
+            (eval '(rapids.language.attempt/attempt (print "no op")
+                    (handle :foo :boo
+                      (print "this should cause an exception")))))))))
 
 (deftest normalize-restart-test
   (testing "s-expr style restart"
@@ -57,4 +58,4 @@
 (deftest handle-clause-test
   (testing "Should error when invoked outside of attempt clause"
     (is (throws-error-output #"Attempt handler must appear at end of attempt body"
-          (macroexpand '(handle :foo i (do-something)))))))
+          (eval '(rapids.language.attempt/handle :foo i (do-something)))))))
