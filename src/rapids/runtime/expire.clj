@@ -37,16 +37,20 @@
      (let [counter (atom 0)]
        (try
          (ensure-cached-connection
-           (doseq [run (get-expired-runs n)
-                   :let [run-id (:id run)]]
-             (try
-               (log/debug "Expiry monitor: expiring run" run-id)
-               (expire-run! run)
-               (swap! counter inc)
-               (catch Exception e
-                 (log/error "Expiry monitor: run " run-id ": " e)
-                 (if (log/may-log? :error)
-                   (stacktrace/print-stack-trace e))))))
+           ;; avoiding doseq because it causes issues with coverage
+           ;; https://github.com/cloverage/cloverage/issues/23
+           (let [runs (get-expired-runs n)]
+             (loop [[run & runs] runs]
+               (when run
+                 (try
+                   (log/debug "Expiry monitor: expiring run" (:id run))
+                   (expire-run! run)
+                   (swap! counter inc)
+                   (catch Exception e
+                     (log/error "Expiry monitor: run " (:id run) ": " e)
+                     (if (log/may-log? :error)
+                       (stacktrace/print-stack-trace e))))
+                 (recur runs)))))
          (catch Exception e
            (log/error "Expiry monitor: failed while retrieving expired runs:" e)
            (if (log/may-log? :error) (stacktrace/print-stack-trace e))))
