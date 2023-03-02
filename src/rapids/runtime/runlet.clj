@@ -121,11 +121,6 @@
   (let [waits (:waits child-run)]
     (.setKey child-run :waits (dissoc waits *current-run-id*))))
 
-(defn complete-run! [result]
-  {:pre [(= (current-run :state) :running)
-         (not (suspend-signal? result))]}
-  (update-run! :state :complete, :result result))
-
 (defn suspend-run! [suspend]
   {:pre [(= (current-run :state) :running)
          (suspend-signal? suspend)]}
