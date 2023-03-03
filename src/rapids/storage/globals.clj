@@ -8,7 +8,18 @@
 
 (def ^:dynamic *storage* nil)
 (def ^:dynamic *connection* nil)
-(def ^:dynamic *cache* nil)
+(def ^:dynamic *cache*
+  "Cache is organized as a map from fully qualified class names (strings) to a map from
+  ids (uuids) to object operation maps, containing :object and :op keys
+  E.g.,
+  { \"rapids.objects.Run\" {#uuid\"123...\" {:object #Run{:id #uudi\"123...\", :state...}
+                                             :op :create},
+                            #uuid\"a3f...\" ...
+                            ...}
+    \"rapids.objects.Pool\" ...}
+  Note: the :op key indicates what should be done with the object at the end of a runlet.
+  It is either: :create or :update. If an object is retrieved but not changed, its :op will be nil."
+  nil)
 (def ^:dynamic *strict-proxy*
   "Determines whether the CacheProxy object functions in strict mode (useful for production) or a more developer friendly mode.
   In non-strict mode the "

@@ -5,6 +5,9 @@
 (defn queue [& coll]
   (reduce conj PersistentQueue/EMPTY coll))
 
+(defn queue? [o]
+  (and o (instance? PersistentQueue o)))
+
 (defn install-queue-printer []
   (defmethod print-method PersistentQueue
     [q ^Writer w]

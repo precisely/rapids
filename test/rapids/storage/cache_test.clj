@@ -1,7 +1,9 @@
 (ns rapids.storage.cache-test
   (:require [clojure.test :refer :all]
             [test-helpers :refer :all]
-            [rapids.storage.cache :refer :all]))
+            [rapids.storage.cache :refer :all]
+            [rapids.support.util :as util])
+  (:import (rapids.objects.run Run)))
 
 (deftest test-matches?
   (testing "matches? function"
@@ -37,3 +39,4 @@
   (is (= true (cache-proxy? (->CacheProxy Object {}))))
   (is (= false (cache-proxy? nil)))
   (is (= false (cache-proxy? {:foo :bar}))))
+

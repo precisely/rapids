@@ -8,9 +8,11 @@
             [rapids.objects.stack-frame :as sf]
             [rapids.objects.startable :as startable]
             [rapids.runtime.runlet :refer :all]
-            [rapids.storage.core :as s :refer [cache-get! cache-insert! ensure-cached-connection
+            [rapids.storage.core :as s :refer [cache-insert! ensure-cached-connection
                                                ensure-connection with-storage]]
-            [test-helpers :refer :all])
+            [test-helpers :refer :all]
+            [spy.core :as spy]
+            [rapids.support.util :as util])
   (:import (rapids.objects.run Run)))
 
 (deftest ^:unit RunSerialization
@@ -71,3 +73,67 @@
       (testing "should throw an exception if the run doesn't exist"
         (is (throws-error-output #"Object not found"
               (with-run r2 (:id r2))))))))
+
+(deftest attach-child-run!-test
+  (testing "it should check that child-run is a run"
+    (is (throws-error-output #"Expecting a run for waiting-run"
+          (attach-waiting-run! {} 0))))
+  (testing "it should check that the run is running"
+    (with-test-env
+      (let [completed-run (cache-insert! (r/make-run {:state :complete}))]
+        (is (throws-error-output #"run which is not in running state"
+              (attach-waiting-run! completed-run 0))))))
+  (testing "it should not allow attaching itself as a child-run"
+    (with-test-env
+      (let [run (cache-insert! (r/make-run {}))]
+        (with-run run
+          (is (throws-error-output #"current run to itself as a waiting run"
+                (attach-waiting-run! run 0)))))))
+  (testing "it disallows duplicates"
+    (with-test-env
+      (let [run1 (cache-insert! (r/make-run {}))
+            run2 (cache-insert! (r/make-run {}))]
+        (with-run run1
+          ;; first time
+          (attach-waiting-run! run2 0)
+          (is (throws-error-output #"Duplicate attempt to wait"
+                ;; second time
+                (attach-waiting-run! run2 0))))))))
+
+(deftest set-run-dynamics-test
+  (testing "it should not allow setting a dynamic var which has not been bound in the run"
+    (with-test-env
+      (let [run (cache-insert! (r/make-run {}))]
+        (with-run run
+          (is (throws-error-output #"Attempt to set! run dynamic"
+                ;; second time
+                (set-run-dynamic-var #'*print-length* 3))))))))
+
+(deftest enter-binding-body-test
+  (testing "it should not pop run bindings if there's an error"
+    (with-test-env
+      (with-run (cache-insert! (r/make-run {:dynamics [{}]}))
+        (with-redefs [pop-run-bindings! (spy/spy)]
+          (enter-binding-body #() {} false)
+          (is (spy/not-called? pop-run-bindings!))))))
+  (testing "it should pop run bindings if there's an error"
+    (with-test-env
+      (with-run (cache-insert! (r/make-run {:dynamics [{}]}))
+        (with-redefs [pop-run-bindings! (spy/spy)]
+          (try
+            (enter-binding-body #(throw (ex-info "foo" {})) {} false)
+            (catch Exception e))
+          (is (spy/called-once? pop-run-bindings!)))))))
+
+(deftest interrupt-run!-test
+  (testing "Should fail if run is not suspended (state = :running)"
+    (with-test-env
+      (with-run (cache-insert! (r/make-run {:state :complete}))
+        (is (throws-error-output #"not in :running state"
+              (interrupt-run!))))))
+
+  (testing "Should fail if run is already interrupted"
+    (with-test-env
+      (with-run (cache-insert! (r/make-run {:interrupt (util/new-uuid)}))
+        (is (throws-error-output #"already interrupted"
+              (interrupt-run!)))))))

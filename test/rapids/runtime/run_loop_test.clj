@@ -3,7 +3,8 @@
             [rapids :refer :all]
             [rapids.objects.run :as r]
             [rapids.storage.connection-wrapper :refer [create-records!]]
-            [test-helpers :refer :all]))
+            [test-helpers :refer :all]
+            [rapids.support.util :as util]))
 
 (defn id-set [c] (set (map :id c)))
 
@@ -25,3 +26,19 @@
           (is (= (map #(get-in % [:index :c]) (find-runs [] :order-by [[:index :c] :asc]))
                  '("fee" "fie" "foe" "foe"))))))))
 
+
+(deftest ^:unit find-runs-test
+  (testing "get-run should return a run given an id"
+    (with-test-env
+      (let [run (r/make-run {:state :running})]
+        (create-records! [run])
+        (is (run? (get-run (:id run))))))))
+
+
+(deftest interrupt!-test
+  (testing "it should not accept keywords when an interrupt is given as a first arg"
+    (is (throws-error-output #"Unexpected arguments"
+          (interrupt! (util/new-uuid) (->interruption :foo) :message "hello"))))
+  (testing "it invalid value for interrupt should throw an error"
+    (is (throws-error-output #"Unexpected argument type"
+          (interrupt! (util/new-uuid) "bad input")))))
