@@ -145,6 +145,8 @@ Similarly, if a sink attempts `take-out!` on a pool which contains no value, it 
 ##### Multipool coordination: take-any! and take-case!
 
 ```clojure
+(take-any! pools default? expiry?) => [index value]
+
 (take-any! [p1 p2 p3]) ; suspends until one of the pools provides a value
 (take-any! [p1 p2 p3] :default-value) ; returns :default-value if pools are empty
 (take-any! [p1 p2 p3] :default-value (-> 5 days from-now)) ; waits on pools for 5 days
