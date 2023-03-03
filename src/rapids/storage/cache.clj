@@ -22,18 +22,22 @@
 
 (defn cache-exists? [] (boolean *cache*))
 
-(defn save-cache! []
-  (doseq [[cls entries] *cache*]
-    (let [synced-entries (reduce-kv #(assoc %1 %2 (dissoc %3 :op)) {} entries)
-          cache-entries  (vals entries)
-          filter-on      (fn [op] (map :object (filter #(-> % :op (= op)) cache-entries)))
-          creates        (filter-on :create)
-          updates        (filter-on :update)]
-      (if (-> creates count (> 0))
-        (c/create-records! creates))
-      (if (-> updates count (> 0))
-        (c/update-records! updates))
-      (setf! *cache* assoc cls synced-entries))))
+(defn save-cache!
+  "Saves dirty objects to backend storage, clearing the in-memory cache and returning nil."
+  []
+  (loop [[[cls entries] & remaining-cache] *cache*]
+    (if cls
+      (let [synced-entries (reduce-kv #(assoc %1 %2 (dissoc %3 :op)) {} entries)
+            cache-entries  (vals entries)
+            filter-on      (fn [op] (map :object (filter #(-> % :op (= op)) cache-entries)))
+            creates        (filter-on :create)
+            updates        (filter-on :update)]
+        (if (-> creates count (> 0))
+          (c/create-records! creates))
+        (if (-> updates count (> 0))
+          (c/update-records! updates))
+        (setf! *cache* assoc cls synced-entries)
+        (recur remaining-cache)))))
 
 (declare get-cache-entry set-cache-entry find-in-cache ensure-raw-object)
 
@@ -103,10 +107,7 @@
         result)
       (catch Exception e
         (c/transaction-rollback!)
-        (throw e))
-      (catch Throwable t
-        (println "caught throwable" t)
-        (throw t)))))
+        (throw e)))))
 
 (defmacro ensure-cached-connection
   "Ensures a transactional cache and connection exists then executes body in the context
@@ -122,9 +123,12 @@
 ;;
 ;; Private Helpers
 ;;
-(defn- matches? [val {:keys [eq not-eq lt gt lte gte in not-in contains] :as tests}]
+(defn matches? [val {:keys [eq not-eq lt gt lte gte in not-in contains] :as tests}]
   (let [ops {:eq =, :not-eq not=, :lt <, :gt >, :lte <=, :gte >=, :in #(in? %2 %1) :contains #(in? %1 %2) :not-in #(not (in? %2 %1))}]
     (loop [[[key constraint] & remaining-tests] (select-keys tests [:eq :not-eq :lt :gt :lte :gte :in :not-in :contains])]
+      (if (nil? key)
+        (throw (ex-info "Invalid cache matching criterion"
+                 {:type :input-error :val val, :tests tests})))
       (let [test (key ops)]
         (if (test val constraint)
           (if remaining-tests
@@ -170,4 +174,4 @@
    (CacheProxy. cls id obj)))
 
 (defn cache-proxy? [o]
-  (and o (instance? CacheProxy o)))
+  (boolean (and o (instance? CacheProxy o))))
