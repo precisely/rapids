@@ -25,9 +25,9 @@
   (signals/make-suspend-signal permit expires default))
 
 (defn output!
-  "Adds an element to the current run response: returns nil"
-  [& responses]
-  (apply rt/add-responses! responses))
+  "Adds an element to the current run output: returns nil"
+  [& outputs]
+  (apply rt/add-outputs! outputs))
 
 ;;
 ;; wait-for
@@ -46,7 +46,7 @@
           (if (= expires :immediately)
             [:default default]
             (do
-              (doall (map (fn [[i run]] (rt/attach-child-run! run i)) runs))
+              (doall (map (fn [[i run]] (rt/attach-waiting-run! run i)) runs))
               (input! :permit (set (map :id (vals runs)))
                 :expires expires
                 :default [:default default]))))))))
@@ -54,7 +54,7 @@
 (defn- make-wait-for-any-final-partition [finalizer]
   (fn [{:keys [runs result]}]
     ;; remove the current run as a parent from all child runs
-    (doall (map rt/detach-child-run! (vals runs)))
+    (doall (map rt/detach-waiting-run! (vals runs)))
     (finalizer result)))
 
 (defn- make-wait-for-flow [name entry-point finalizer]

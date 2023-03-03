@@ -480,15 +480,15 @@
 
 (deftest ^:language output
   (storage/ensure-cached-connection
-    (testing ">* adds to an element to the current run's response"
+    (testing ">* adds to an element to the current run's output"
       (let [run (start! outputing-flow)]
         (testing "outputs during start flow"
           (is (= (proxy-field run :output) [:r1])))
         (continue! run, :permit "s1")
-        (testing "Each run starts a new response, and responses accumulate during a runlet"
+        (testing "Each run starts a new output, and outputs accumulate during a runlet"
           (is (= (proxy-field run :output) [:r2 :r3])))
         (continue! run, :permit "s2")
-        (testing ">* treats multiple arguments as separate responses")
+        (testing ">* treats multiple arguments as separate outputs")
         (is (= (proxy-field run :output) [:r4 :r5]))))))
 
 (deflow datastructures []
@@ -547,7 +547,7 @@
 
 (deflow simple-child-flow [block?]
   (log! (current-run))
-  (>* :child-flow-response)
+  (>* :child-flow-output)
   (if block? (<*))
   (>* :child-flow-after-suspending)
   :child-result)
@@ -596,7 +596,7 @@
             (testing "but the parent run is still suspended"
               (is (= (-> parent-after-wait :id get-run-record :state) :running)))
 
-            (testing "the parent response includes only the response from the parent run"
+            (testing "the parent output includes only the output from the parent run"
               (is (= '(:parent-before-blocking-call) (:output parent-after-wait)))))
 
           (flush-cache!)
@@ -606,8 +606,8 @@
             (testing "the child run has a record of its parent id"
               (is (= (:waits child-run-after-wait) {(:id parent-run) 0})))
 
-            (testing "the child response includes only the response from the child run"
-              (is (= '(:child-flow-response) (:output child-run-after-wait)))))
+            (testing "the child output includes only the output from the child run"
+              (is (= '(:child-flow-output) (:output child-run-after-wait)))))
 
           (flush-cache!)
 
@@ -617,13 +617,13 @@
               (testing "returns a completed child run"
                 (is (run-in-state? completed-child :complete))
                 (is (= (:id child-run) (:id completed-child))))
-              (testing "child response should contain only the child response"
+              (testing "child output should contain only the child output"
                 (is (= '(:child-flow-after-suspending) (:output completed-child))))
 
               (flush-cache!)
 
               (let [parent-after-wait-release (get-run-record (:id parent-run))]
-                (testing "parent response should contain only the parent response"
+                (testing "parent output should contain only the parent output"
                   (is (= '(:parent-after-waiting-call) (:output parent-after-wait-release))))
 
                 (testing "parent should be in complete state"
@@ -1126,7 +1126,7 @@
 (def ^:dynamic *cc*)
 (deflow callcc-with-dynamics-child []
   (binding [*cc-dynamic* :inner]
-    ;; second response after continue!
+    ;; second output after continue!
     (>* {:child {:*cc-dynamic* *cc-dynamic*}})
 
     (fcall *cc* :interruption)
@@ -1143,7 +1143,7 @@
     (<*)                      ; force a partition
     ;; AFTER continue!
     (if (closure? *cc*)
-      ;; first response:
+      ;; first output:
       (do (>* {:then-branch {:*cc* :closure, :*cc-dynamic* *cc-dynamic*}})
         (callcc-with-dynamics-child))
 
@@ -1161,21 +1161,21 @@
         ;;
         (flush-cache!)
         (continue! run)
-        (let [response (:output run)]
+        (let [output (:output run)]
           (testing "The current continuation can be captured in a trans-partition dynamic"
-            (is (= (first response) {:then-branch {:*cc* :closure, :*cc-dynamic* :outer}})))
+            (is (= (first output) {:then-branch {:*cc* :closure, :*cc-dynamic* :outer}})))
 
           (testing "Sanity checking that an inner dynamic binding is applied before calling the current continuation"
-            (is (= (second response) {:child {:*cc-dynamic* :inner}})))
+            (is (= (second output) {:child {:*cc-dynamic* :inner}})))
 
           (testing "The current continuation does indeed interrupt the child flow"
-            (is (not-any? #(= :this-does-not-execute %) response)))
+            (is (not-any? #(= :this-does-not-execute %) output)))
 
           (testing "The current continuation restores state at the parent flow WITH the original dynamic binding"
-            (is (= (nth response 2) {:first-partition {:*cc-dynamic* :outer}})))
+            (is (= (nth output 2) {:first-partition {:*cc-dynamic* :outer}})))
 
           (testing "Execution halts as expected at the end of the first parent partition"
-            (is (= (count response) 3))
+            (is (= (count output) 3))
             (is (= (:state run) :running)))
 
           ;;
@@ -1205,18 +1205,4 @@
       (with-test-env
         (let [run (start! exception-flow [nil :input-error])]
           (is (thrown-with-msg? ExceptionInfo #"message about :input-error"
-                (continue! run)))))))
-  #_(testing ":fatal-error should be returned in the :error-info :type key"
-      (testing "by start!"
-        (with-test-env
-          (let [run (start! exception-flow [:fatal-error nil])]
-            (is (= :error (:state run)))
-            (is (= (-> run :error-info :type) :fatal-error))
-            (is (= (-> run :error-info :message) "message about :fatal-error")))))
-      (testing "by continue!"
-        (with-test-env
-          (let [run (start! exception-flow [nil :fatal-error])
-                run (continue! run)]
-            (is (= :error (:state run)))
-            (is (= (-> run :error-info :type) :fatal-error))
-            (is (= (-> run :error-info :message) "message about :fatal-error")))))))
+                (continue! run))))))))

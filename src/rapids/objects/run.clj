@@ -14,7 +14,7 @@
    ^Keyword state
    ^Cons stack
    ^Object result
-   ^Object response
+   ^Object output
    ^Vector dynamics
    ^UUID interruption-id
    ^PersistentHashMap index])
@@ -23,36 +23,49 @@
 
 (defn get-dynamic-values
   "Returns a lazy sequence of bindings, innermost to outermost, for the dynamic var (or symbol representing a dynamic var,
-  returning not-found or nil)."
-  ([run x] (get-dynamic-values run x nil))
-  ([run x not-found]
+  returning vector if ).
+
+  Usage:
+  (get-dynamic-values '*my-dynamic*) ; => returns bindings to *my-dynamic*, innermost first
+  (get-dynamic-values #'*my-dynamic*)
+  (get-dynamic-values run '*my-dynamic*)
+  (get-dynamic-values run #'*my-dynamic*)"
+  ([run x]
    {:pre [(or (symbol? x) (var? x))]}
    (if-let [v (if (var? x) x (if (symbol? x) (resolve x)))]
      (->> (:dynamics run)
        reverse
        (filter #(contains? % v))
-       (map #(get % v not-found))))))
+       (map #(get % v))))))
 
 (defn get-dynamic-value
-  "Gets the current binding for symbol or var s"
+  "Gets the current binding for symbol or var s
+
+  Usage:
+  (get-dynamic-value '*my-dynamic*) ; => returns value of *my-dynamic*
+  (get-dynamic-value #'*my-dynamic*)
+  (get-dynamic-value run '*my-dynamic*)
+  (get-dynamic-value run #'*my-dynamic*)"
   ([run x] (get-dynamic-value run x nil))
   ([run x not-found]
-   (first (get-dynamic-values run x not-found))))
+   (let [result (get-dynamic-values run x)]
+     (if (empty? result) not-found (first result)))))
 
 (defn valid-run-data? [kvs]
   (every? (fn [key]
-            (let [pred ({:id            uuid?
-                         :state         RunStates
-                         :stack         seq?
-                         :index         map?
-                         :dynamics      vector?
-                         :interrupt     (some-fn nil? uuid?)
-                         :waits         #(every? (fn [[k v]] (and (uuid? k) (integer? v))) %)
-                         :error-info    (some-fn nil? map?)
-                         :error-message (some-fn nil? string?)
-                         :output        (constantly true)
-                         :result        (constantly true)
-                         :suspend       (some-fn nil? signals/suspend-signal?)} key)
+            (let [pred ({:id              uuid?
+                         :state           RunStates
+                         :stack           seq?
+                         :index           map?
+                         :dynamics        vector?
+                         :interrupt       (some-fn nil? uuid?)
+                         :waits           (every-pred map? #(every? (fn [[k _]] (uuid? k)) %))
+                         :error-info      (some-fn nil? map?)
+                         :error-message   (some-fn nil? string?)
+                         :output          (constantly true)
+                         :result          (constantly true)
+                         :interruption-id (some-fn nil? uuid?)
+                         :suspend         (some-fn nil? signals/suspend-signal?)} key)
                   val  (get kvs key)]
               (if pred
                 (if (pred val)
@@ -63,11 +76,11 @@
 
 (defn make-run
   ([] (make-run {}))
-  ([{:keys [id, stack, state, response, result, dynamics index]
+  ([{:keys [id, stack, state, output, result, dynamics index]
      :or   {id       (new-uuid)
             state    :running
             stack    ()
-            response []
+            output   []
             dynamics []
             index    {}}
      :as   fields}]
@@ -77,7 +90,7 @@
                {:id           id,
                 :state        state,
                 :stack        stack,
-                :output       response,
+                :output       output,
                 :result       result
                 :dynamics     dynamics
                 :cached-state :created

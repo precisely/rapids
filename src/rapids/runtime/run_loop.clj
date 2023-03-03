@@ -43,7 +43,7 @@
   Args:
     run-id - id the run to continue
     permit - if a Suspend :permit value was provided, it must match
-    responses - initial responses (used when resuming the run after redirection)
+    preserve-output - boolean, set to true to prevent the current run's output from being cleared
     interrupt - uuid which
 
   Returns:
@@ -71,7 +71,7 @@
                     :expected (current-run :suspend :permit)
                     :received permit
                     :run-id   run-id})))
-        (initialize-run-for-runlet preserve-output) ;; ensure response and suspend are empty
+        (initialize-run-for-runlet preserve-output) ;; ensure output and suspend are empty
         (start-runlet-loop! (next-stack-fn!) input)
         (current-run)))))
 
@@ -290,6 +290,13 @@
                 #(eval-with-ccc-catch (next-stack-fn!) (.input ccc)))))]
     (trampoline eval-with-ccc-catch stack-fn input)))
 
+(defn- send-result-to-waiting-runs [result]
+  (loop [[[waiting-run-id index] & rest-waits] (current-run :waits)]
+    (when waiting-run-id
+      (continue! waiting-run-id
+        :permit (current-run :id) :input [index result])
+      (recur rest-waits))))
+
 (defn- complete-run!
   "Sets the run in completed state and stores the result,
   passing control to parent run if necessary.
@@ -301,10 +308,8 @@
   {:pre [(not (suspend-signal? result))]}
   (update-run! :state :complete :result result)
 
-  ;; return the value to all parent runs
-  (doseq [[waiting-run-id index] (current-run :waits)]
-    (continue! waiting-run-id
-      :permit (current-run :id) :input [index result]))
+  ;; return the value to all waiting runs
+  (send-result-to-waiting-runs result)
 
   (update-run! :waits {})
 
