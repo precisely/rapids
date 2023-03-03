@@ -31,17 +31,3 @@
     (throw (ex-info "Invalid context: anonymous flow may only be defined inside of deflow."
              {:form &form}))))
 
-(defmacro letflow
-  "Establish bindings for one or more flows, which may be mutually recursive. Similar to letfn.
-
-  Usage:
-  (letflow [(myflow1 [] ...)
-            (myflow2 [] ...)]
-    ...)"
-  [flowspecs & body]
-  (let [flow-symbols  (map first flowspecs)
-        flow-bindings (vec (apply concat
-                             (map #(vector (first %) (cons 'flow %)) flowspecs)))]
-    (with-flow-definitions flow-symbols
-      `(let ~flow-bindings
-         ~@body))))

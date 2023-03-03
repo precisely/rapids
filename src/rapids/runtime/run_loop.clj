@@ -43,7 +43,7 @@
   Args:
     run-id - id the run to continue
     permit - if a Suspend :permit value was provided, it must match
-    responses - initial responses (used when resuming the run after redirection)
+    preserve-output - boolean, set to true to prevent the current run's output from being cleared
     interrupt - uuid which
 
   Returns:
@@ -71,7 +71,7 @@
                     :expected (current-run :suspend :permit)
                     :received permit
                     :run-id   run-id})))
-        (initialize-run-for-runlet preserve-output) ;; ensure response and suspend are empty
+        (initialize-run-for-runlet preserve-output) ;; ensure output and suspend are empty
         (start-runlet-loop! (next-stack-fn!) input)
         (current-run)))))
 

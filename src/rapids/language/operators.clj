@@ -25,9 +25,9 @@
   (signals/make-suspend-signal permit expires default))
 
 (defn output!
-  "Adds an element to the current run response: returns nil"
-  [& responses]
-  (apply rt/add-responses! responses))
+  "Adds an element to the current run output: returns nil"
+  [& outputs]
+  (apply rt/add-outputs! outputs))
 
 ;;
 ;; wait-for

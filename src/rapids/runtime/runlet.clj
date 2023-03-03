@@ -91,11 +91,11 @@
                             (current-run :index)
                             (partition 2 kvs))))))
 
-(defn add-responses! [& responses]
-  (let [current-response (current-run :output)]
-    (assert (vector? current-response))
-    (update-run! :output (vec (concat current-response responses)))
-    responses))
+(defn add-outputs! [& outputs]
+  (let [current-output (current-run :output)]
+    (assert (vector? current-output))
+    (update-run! :output (vec (concat current-output outputs)))
+    outputs))
 
 (defn interrupt-run!
   "Low level function which sets the run in interrupted state and returns the interruption id"

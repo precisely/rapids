@@ -81,7 +81,7 @@ final-input (<*) ]
             (is (= :running (:state run)))
             (is (nil? (:interrupt run))))
 
-          (testing "however, we see that the handler was triggered and the finally clause was executed by observing the response"
+          (testing "however, we see that the handler was triggered and the finally clause was executed by observing the output"
             (is (= [[:foo-handled i] :finally-called]
                   (:output run))))
 
@@ -143,7 +143,7 @@ final-input (<*) ]
           (is (= {:attempt-result [{:redo-value :baz-data} :uninterrupted-result]
                   :final-input    :final}
                 (:result run)))
-          (testing "the response indicates revisiting the point where flow was interrupted"
+          (testing "the output indicates revisiting the point where flow was interrupted"
             (is (= [:body-called :finally-called]))))))
 
     (with-test-env
