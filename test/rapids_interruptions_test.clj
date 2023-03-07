@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [matchure.core :refer :all]
             [rapids :refer :all]
+            [rapids.runtime.globals :as globals]
             [test-helpers :refer :all]))
 
 (deflow interruptible-child []
@@ -21,7 +22,7 @@
                                       :do       (flow [v] (print v))
                                       :describe #()
                                       :data     {}})]
-    (reset! attempt-holder rapids.runtime.globals/*attempts*)
+    (reset! attempt-holder globals/*attempts*)
     (>* :body-called)
     [result :uninterrupted-result])
 

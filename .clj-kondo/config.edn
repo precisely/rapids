@@ -1,0 +1,2 @@
+{:lint-as {taoensso.nippy/extend-thaw clojure.core/let}
+ :hooks   [rapids/attempt hooks.rapids/with-bound]} 

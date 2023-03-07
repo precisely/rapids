@@ -21,11 +21,12 @@
                  [com.github.seancorfield/honeysql "2.2.868"]
                  [migratus "1.3.6"]
                  [hikari-cp "2.13.0"]
-                 [metosin/jsonista "0.3.5"]]
+                 [metosin/jsonista "0.3.5"]
+                 [io.github.clj-kondo/config-com.taoensso-nippy "1.0.0"]
+                 [io.github.clj-kondo/config-com.taoensso-nippy "1.0.0"]]
   :aot [rapids.storage.CacheProxy rapids.objects.CurrentContinuationChange]
   :clean-targets ^{:protect false} ["target"]
-  :profiles {:dev {
-                   :source-paths ["src"]
+  :profiles {:dev {:source-paths ["src"]
                    :dependencies [[expectations/clojure-test "1.2.1"]
                                   [org.clojure/tools.macro "0.1.5"]
                                   [org.clojure/core.match "1.0.0"]
@@ -37,7 +38,8 @@
                    :plugins      [[lein-ancient "1.0.0-RC3"]
                                   [com.gearswithingears/shrubbery "0.4.1"] ; protocol spies & stubs
                                   [lein-cloverage "1.2.4"]
-                                  [s3-wagon-private "1.3.4"]]
+                                  [s3-wagon-private "1.3.4"]
+                                  [com.github.clj-kondo/lein-clj-kondo "0.2.4"]]
                    :cloverage    {:exclude-call     [rapids.support.defrecordfn/defrecordfn taoensso.timbre/log!]
                                   :ns-exclude-regex [#"rapids.support.debug" #"rapids.support.repl"
                                                      #"rapids.objects.CurrentContinuationChange"]}}}
