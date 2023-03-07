@@ -3,13 +3,16 @@
 ;;
 (ns rapids.storage.globals
   (:require [rapids.storage.protocol :as p]
-            [rapids.support.debug])
-  (:import (rapids.storage.protocol Storage)))
+            [rapids.support.debug]))
 
-(def ^:dynamic *storage* nil)
-(def ^:dynamic *connection* nil)
+(def ^:dynamic *storage*
+  "An instance of type Storage, which is a factory for StorageConnections."
+  nil)
+(def ^:dynamic *connection*
+  "An instance of type StorageConnection, which wraps transactions."
+  nil)
 (def ^:dynamic *cache*
-  "Cache is organized as a map from fully qualified class names (strings) to a map from
+  "Cache is a map from fully qualified class names (strings) to maps from
   ids (uuids) to object operation maps, containing :object and :op keys
   E.g.,
   { \"rapids.objects.Run\" {#uuid\"123...\" {:object #Run{:id #uudi\"123...\", :state...}
