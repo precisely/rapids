@@ -40,7 +40,16 @@
   "Just returns a value provided as input"
   [permit] (<* :permit permit))
 
-(deftest ^:language BasicFlowTests
+(deflow ^{:symbol-meta true} metadata-flow {:attr-map-meta true} [] (<*))
+
+(deflow docstring-flow "this is the docstring" [] (<*))
+
+(deflow multiarity-flow
+  ([] (multiarity-flow :default :default))
+  ([x] (multiarity-flow x :default))
+  ([x y] [x y]))
+
+(deftest ^:language deflow-tests
   (with-test-env
     (testing "Start and suspend"
       (clear-log!)
@@ -73,7 +82,21 @@
         (is (= (proxy-field run :result) "foo-result"))))
 
     (testing "providing a mismatched context throws an exception"
-      (is (thrown? Exception (continue! (start! simple-input-flow ["expecting"]), :permit "actual"))))))
+      (is (thrown? Exception (continue! (start! simple-input-flow ["expecting"]), :permit "actual"))))
+
+    (testing "symbol metadata is applied to the flow var"
+      (is (:symbol-meta (meta #'metadata-flow))))
+
+    (testing "attr-map metadata is applied to the flow var"
+      (is (:attr-map-meta (meta #'metadata-flow))))
+
+    (testing "docstring is applied to the flow var"
+      (is (= "this is the docstring" (:doc (meta #'docstring-flow)))))
+
+    (testing "multiarity flows"
+      (is (= [:default :default] (:result (start! multiarity-flow []))))
+      (is (= [1 :default] (:result (start! multiarity-flow [1]))))
+      (is (= [1 2] (:result (start! multiarity-flow [1 2])))))))
 
 (deflow kill-self []
   (kill! (current-run))       ; should throw
@@ -801,7 +824,7 @@
         (is (= (proxy-field run :state) :complete))
         (is (= (:output run) [1 2 3 4 5 6]))))))
 
-(deftest ^:language ApplyFlow
+(deftest ^:language apply-flow-test
   (storage/ensure-cached-connection
     (testing "fapply applies a flow object to the remaining args"
       (let [run (start! apply-flows [[[my-output 1 2 3] [my-output 4 5 6]]])]
@@ -814,7 +837,7 @@
         (is (= (proxy-field run :state) :complete))
         (is (= (:output run) [1 2 3 4 5 6]))))))
 
-(deftest ^:language Destructuring
+(deftest ^:language destructuring-test
   (testing "quick and dirty tests that destructuring expressions compile without error"
     (is (flow? (var-get (eval `(deflow ~'foo [~'s] (let [[~'head & ~'rest] ~'s, ~'val (<*)] (* ~'head ~'val)))))))
     (is (flow? (var-get (eval `(deflow ~'foo [~'s] (loop [[~'head & ~'rest] ~'s] (<*) (if ~'rest (recur ~'rest))))))))))
@@ -824,7 +847,15 @@
                     :captured v})]
     (fcall f)))
 
-(deftest ^:language AnonymousFlowTest
+;; TODO: this should work, but it doesn't. The issue is that the foo symbol is unbound at runtime
+;;(deflow multiarity-anonymous-flow [& args]
+;;  (let [f (flow foo
+;;            ([] (foo :default :default))
+;;            ([a] (foo a :default))
+;;            ([a b] [a b]))]
+;;    (fapply f args)))
+
+(deftest ^:language anonymous-flow-test
   (storage/ensure-cached-connection
     (testing "Defining a flow outside of deflow should raise an error"
       (is (throws-error-output #"(?m)Invalid context: anonymous flow may only be defined inside of deflow"
@@ -842,7 +873,12 @@
             (testing "the anonymous flow can receive continue values"
               (is (= (:received result) :foo)))
             (testing "the anonymous flow represents is a closure which captures lexical bindings"
-              (is (= (:captured result) :bar)))))))))
+              (is (= (:captured result) :bar)))))))
+    ;; TODO: this should work, but it doesn't
+    #_(testing "it should be possible to define a flow with multiple arities"
+        (is (= :default (:result (start! multiarity-anonymous-flow))))
+        (is (= [:a :default] (:result (start! multiarity-anonymous-flow [:a]))
+              (is (= [:a :b] (:result (start! multiarity-anonymous-flow [:a :b])))))))))
 
 (def pool-test-atom
   (atom {:user-run nil :take-out-values []}))

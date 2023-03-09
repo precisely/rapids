@@ -270,7 +270,10 @@
   The partitioner partitions the flow body and returns a closure which invokes an
   entry point function for the flow."
   [expr, _, address params]
-  (let [[entry-fn-def, pmap] (partition-flow-body (meta expr) address (rest expr) params)
+  (let [[flow-name flow-body] (if (-> expr second symbol?)
+                                [(second expr) (nthrest expr 2)]
+                                [nil (rest expr)])
+        [entry-fn-def, pmap] (partition-flow-body (meta expr) address flow-body params flow-name)
         m             (meta expr)
         entry-address (a/child address 'entry-point)
         pmap          (pmap/add pmap entry-address params [entry-fn-def])
@@ -745,6 +748,7 @@
   "Arguments:
   m - meta data, containing the :line of the flow definition
   address - starting address of the flow
+  name    - symbol, the name of the flow (used mutually defined multi-arity flows)
   fdecl - the flow declaration, of the form:
            (([arglist1...] body1...) ([arglist2...] body2...)...)
            or
@@ -756,12 +760,15 @@
 
   entry-fn-def - a list of the form (fn ([...] ...) ([...] ..) ...)"
   ([m address fdecl]
-   (partition-flow-body m address fdecl []))
+   (partition-flow-body m address fdecl [] nil))
 
   ([m address fdecl params]
+   (partition-flow-body m address fdecl params nil))
+
+  ([m address fdecl params name]
    (with-gensym-excluded-symbols params
      (let [sigs             (extract-signatures fdecl)
-           entry-point-name (str (a/to-string address) "__entry-point")
+           entry-point-name (or name (symbol (str (a/to-string address) "__entry-point")))
            [pmaps, sig-defs] (reverse-interleave
                                (apply concat
                                  (map-indexed
@@ -770,7 +777,7 @@
                                    sigs))
                                2)
            pmap             (apply pmap/combine pmaps)
-           entry-fn-def     `(fn ~(symbol entry-point-name) ~@sig-defs)]
+           entry-fn-def     `(fn ~entry-point-name ~@sig-defs)]
        [entry-fn-def, pmap]))))
 
 (defn partition-signature
