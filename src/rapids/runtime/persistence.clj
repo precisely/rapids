@@ -20,7 +20,7 @@
   ([obj op] (persistence-error obj op nil))
   ([obj op msg & args]
    {:pre [(#{:freeze :thaw} op)]}
-   (let [title (format "Error while %s object %s: " (if (= op :freeze) "freezing" "thawing") obj)
+   (let [title    (format "Error while %s object %s: " (if (= op :freeze) "freezing" "thawing") obj)
          subtitle (if msg (apply format msg args) "")]
      (throw (ex-info (str title subtitle)
               {:type   :runtime-error
@@ -31,11 +31,11 @@
 ;;        so they won't freeze without special handling
 ;;
 
-(s/extend-freeze Flow ::flow                                ; A unique (namespaced) type identifier
+(s/extend-freeze Flow ::flow  ; A unique (namespaced) type identifier
   [x data-output]
   (.writeUTF data-output (prn-str (:name x))))
 
-(s/extend-thaw ::flow                                       ; Same type id
+(s/extend-thaw ::flow         ; Same type id
   [data-input]
   (let [flow-name (.readUTF data-input)]
     (var-get (resolve (read-string flow-name)))))
@@ -58,9 +58,9 @@
 ;;   see https://github.com/ptaoussanis/nippy/issues/143
 ;;
 (extend-protocol taoensso.nippy/IFreezable2
-    Var
-    (taoensso.nippy/-freeze-with-meta! [x data-output]
-      (taoensso.nippy/-freeze-without-meta! x data-output)))
+  Var
+  (taoensso.nippy/-freeze-with-meta! [x data-output]
+    (taoensso.nippy/-freeze-without-meta! x data-output)))
 
 (s/extend-freeze Var ::var
   [x data-output]
@@ -80,13 +80,18 @@
         pretty (second (re-find #"(.*?\/.*?)[\-\-|@].*" dem-fn))]
     (if pretty pretty dem-fn)))
 
+
 (s/extend-freeze AFunction ::a-function
   [x data-output]
-  (.writeUTF data-output (pretty-demunge x)))
+  (throw (ex-info (format "Raw function object cannot be frozen. Use (var f) instead: %s" x)
+           {:type   :runtime-error
+            :object x
+            :op     :freeze})))
 
 (s/extend-thaw ::a-function
   [data-input]
-  (-> data-input .readUTF symbol resolve var-get))
+  (let [fn-name (-> data-input .readUTF symbol)]
+    (-> fn-name resolve var-get)))
 
 (s/extend-freeze CacheProxy ::cache-proxy
   [x data-output]

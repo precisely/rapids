@@ -64,15 +64,18 @@
 
 (defn- start-wait
   "Calls the first partition of a take flow"
-  [name runs default expires]
+  [fname runs default expires]
+  {:pre [(qualified-symbol? fname)]}
   (let [runs (cond
                (map? runs) runs
                (sequential? runs) (into {} (map-indexed (fn [i r] [i r]) runs))
                :default (throw (ex-info "runs argument must be a sequence of Run objects or a map with values being Run objects"
-                                 {:operation name :runs runs})))
+                                 {:operation fname :runs runs})))
         _    (if-not (every? rt/run? (vals runs)) (throw (ex-info "Invalid input to wait operation. Expecting Run."
-                                                           {:operation name, :runs runs})))]
-    (flow/call-partition (a/->address name 0)
+                                                           {:operation fname, :runs runs})))]
+    (assert (every? rt/run? (vals runs))
+      (str "Invalid input to wait operation. Expecting Run. But received " runs))
+    (flow/call-partition (a/->address fname 0)
       {:runs runs :default default :expires expires})))
 
 (def wait-for-any!
@@ -121,6 +124,12 @@
        (start-wait `wait-for! [run] default expires)))
     second))
 
+(defn constantly-false
+  "Always returns false. We need a top-level function that can be used inside deflow.
+  Deflow does not yet allow dynamically generated functions to be bound to variables."
+  [& _]
+  false)
+
 (defmacro ^{:arglists '([[resultvar & {:keys [default expires break]}] & cases])}
   wait-cases!
   "Waits for runs to complete, executing an expression associated with each run.
@@ -165,7 +174,7 @@
                          (or expires# :immediately))
            case-map#   ~case-map ; {0 (fn [v] user-code), 1 (fn [v] user-code)...}
            run-map#    (dissoc ~run-map :default)
-           break-test# (or ~break (constantly false))] ; returns true when we should terminate
+           break-test# (or ~break #'constantly-false)] ; returns true when we should terminate
        (assert (ifn? break-test#))
        (loop [results# {}
               runs#    run-map#] ; {'run1 run1, 'run2 run2...}
