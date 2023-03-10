@@ -23,7 +23,7 @@
            (rapids.objects.run Run)))
 
 (declare from-db-record to-db-record exec-one! exec! class->table table->name check-class
-         field-caster keys-to-db-field json-field is-json-field? run-to-record pool-to-record)
+  field-caster keys-to-db-field json-field is-json-field? run-to-record pool-to-record)
 (declare ->pgobject <-pgobject)
 (declare ->PostgresStorageConnection)
 
@@ -34,9 +34,9 @@
   (require-index! [_ type field]
     (if-not (get-in {Run  #{[:suspend :expires] :id}
                      Pool #{:id}}
-                    [type field])
+              [type field])
       (throw (ex-info "Implementation of PostgresStorage is out of date. Index not supported."
-                      {:type type :field field})))))
+               {:type type :field field})))))
 
 (defn disable-hikari-logging []
   (-> (LoggerFactory/getLogger "com.zaxxer.hikari.pool.PoolBase") (.setLevel Level/ERROR))
@@ -86,10 +86,10 @@
     (PostgresStorage. db)))
 
 (sql/register-fn! :?
-                  (fn [fn args]
-                    (let [field (-> args first second)
-                          val   (-> args second)]
-                      [(str field " ?? ?") val])))
+  (fn [fn args]
+    (let [field (-> args first second)
+          val   (-> args second)]
+      [(str field " ?? ?") val])))
 
 (defrecord PostgresStorageConnection [connection]
   p/StorageConnection
@@ -115,11 +115,11 @@
           table-name (:name table)]
       (log/debug "Getting type:" type " table-name:" table-name " ids:" ids)
       (map (from-db-record table-name)
-           (exec! this
-                  (-> (h/select :*)
-                      (h/from table-name)
-                      (h/where [:in :id ids])
-                      (h/for :update))))))
+        (exec! this
+          (-> (h/select :*)
+            (h/from table-name)
+            (h/where [:in :id ids])
+            (h/for :update))))))
 
   (create-records! [this records]
     (let [cls          (-> records first class)
@@ -129,8 +129,8 @@
       (check-class cls records)
       (log/debug "Creating" table-name records)
       (let [stmt (-> (h/insert-into table-name)
-                     (h/values (mapv to-db-record records))
-                     (h/returning :*))]
+                   (h/values (mapv to-db-record records))
+                   (h/returning :*))]
         (map (from-db-record table-name) (exec! this stmt)))))
 
   (update-records! [this records]
@@ -144,11 +144,11 @@
       (check-class cls records)
       (log/debug "Updating " table-name (map :id records))
       (map (from-db-record table-name)
-           (exec! this
-                  (-> (h/insert-into table-name)
-                      (h/values db-records)
-                      (h/upsert (apply h/do-update-set (h/on-conflict :id) set-keys))
-                      (h/returning :*))))))
+        (exec! this
+          (-> (h/insert-into table-name)
+            (h/values db-records)
+            (h/upsert (apply h/do-update-set (h/on-conflict :id) set-keys))
+            (h/returning :*))))))
 
   (find-records! [this type field-constraints {:keys [limit skip-locked? order-by]}]
     (let [table                (class->table type)
@@ -171,14 +171,14 @@
           order-by             (if order-by [(keys-to-db-field table (first order-by)) (second order-by)])]
       (log/debug "Finding " table-name " where " where-clause)
       (map (from-db-record table-name)
-           (exec! this
-                  (cond-> (-> (h/select :*)
-                              (h/from table-name))
-                    (not= where-clause [:and]) (h/where where-clause)
-                    skip-locked? (h/for :update :skip-locked)
-                    (not skip-locked?) (h/for :update)
-                    order-by (h/order-by order-by)
-                    limit (h/limit limit)))))))
+        (exec! this
+          (cond-> (-> (h/select :*)
+                    (h/from table-name))
+            (not= where-clause [:and]) (h/where where-clause)
+            skip-locked? (h/for :update :skip-locked)
+            (not skip-locked?) (h/for :update)
+            order-by (h/order-by order-by)
+            limit (h/limit limit)))))))
 
 (defn keys-to-db-field
   "Converts a vector of keywords to a snake-case keyword
@@ -241,7 +241,7 @@
      :suspend_expires (-> run :suspend :expires)
      :result          (str (:result run))
      :id              (:id run)
-     :index          (-> run :index ->pgobject)
+     :index           (-> run :index ->pgobject)
      :state           (-> run :state safename as-other)}))
 
 (defn- pool-to-record [pool]
@@ -272,8 +272,8 @@
 ;; HELPERS for debugging
 (defmacro log-errors [& body]
   `(try ~@body
-        (catch Exception e#
-          (log/error "While " '~body ":" e#))))
+     (catch Exception e#
+       (log/error "While " '~body ":" e#))))
 
 ;; JSON Wrangling
 ;; See https://cljdoc.org/d/seancorfield/next.jdbc/1.2.659/doc/getting-started/tips-tricks

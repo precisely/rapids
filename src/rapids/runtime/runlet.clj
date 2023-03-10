@@ -39,6 +39,7 @@
   ([& fields]
    (get-in (current-run) fields))
   ([]
+   {:post [(or (nil? %) (run? %))]}
    (if (bound? #'*current-run-id*)
      (s/cache-get! Run *current-run-id*))))
 

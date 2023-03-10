@@ -9,12 +9,11 @@
             [rapids.objects.address :refer [->address]]
             [rapids.objects.flow :refer [->Flow]]
             [rapids.objects.flow :as flow])
-  (:import (rapids.objects.pool Pool)
-           (rapids.storage CacheProxy)))
+  (:import (rapids.objects.pool Pool)))
 
 (defn pool? [o]
   (and o
-    (instance? CacheProxy o)
+    (s/cache-proxy? o)
     (= (.getName Pool) (-> o (.theClass) (.getName)))))
 
 (declare pool-pop! pool-push! pool-remove! sink-is-run?)
