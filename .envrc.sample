@@ -1,3 +1,4 @@
+# get direnv to load this file
 export MAVEN_REPO_AWS_ACCESS_KEY_ID={get this value from Aneil}
 export MAVEN_REPO_AWS_ACCESS_KEY_SECRET={get this value from Aneil}
 export TEST_POSTGRES_JDBC_URL=jdbc:postgresql://localhost:5432/rapids-test

@@ -26,6 +26,13 @@
            (alter-meta! (var ~name) merge ~meta-map)
            (var ~name))))))
 
+(defmacro deflow- "Creates a private flow. Equivalent to (deflow ^{:private true} ...)"
+  [name & args]
+  `(do
+     (deflow ~name ~@args)
+     (alter-meta! (var ~name) assoc :private true)
+     (var ~name)))
+
 (defmacro flow
   "Special form for constructing anonymous flows. May only be invoked inside of deflow. Returns a Closure."
   [name? & fdecl]
@@ -44,9 +51,9 @@
          [[string? (constantly nil)]
           [map? (constantly {})]
           [(constantly false) (fn [arg rest-args]
-                               (cond
-                                 (vector? arg) (list (list* arg rest-args))
-                                 (list? arg) (list* arg rest-args)))]]
+                                (cond
+                                  (vector? arg) (list (list* arg rest-args))
+                                  (list? arg) (list* arg rest-args)))]]
          args    args
          results []]
     (let [[arg & rest-args] args]

@@ -54,13 +54,13 @@ A call to `input!` causes the run to be persisted to storage. Execution is resum
 
 When the expiry time is passed, execution resumes, with the `input!` operator evaluates to the value of the `default` argument, which is nil if not provided.
 
-#### block! (shorthand: <<!)
+#### wait-for!
 
 Suspends execution of the current run until the given run completes. Returns the value returned by the given run. 
 
 ```
-(block! run) ; or (<<! run)
-(block! run :expires expiry-time, :default value) 
+(wait-for! run) 
+(wait-for! run :expires expiry-time, :default value) 
 ```
 
 #### set-index! 
@@ -121,7 +121,7 @@ brew services restart postgresql
 #### Create databases
 ```shell
 createdb rapids-test 
-createdb rapids_storage # or any name you prefer
+createdb rapids_storage 
 ```
 
 #### Add code to your application 
@@ -132,6 +132,15 @@ createdb rapids_storage # or any name you prefer
 (set-storage! (->postgres-storage {:jdbcUrl "jdbc:postgresql://localhost:5432/rapids_storage`}))
 (postgres-storage-migrate!) ; uses the top-level storage by default          
 ```
+## Environment variables
+
+1. Install [direnv](https://direnv.net/)
+2. Copy `.envrc.example` to `.envrc`
+3. Edit `.envrc` to set the environment variables 
+4. Run `direnv allow` to allow the environment variables to be set
+
+If you're using IntelliJ, the EnvFile plugin can be helpful for getting variables into your REPL:
+https://plugins.jetbrains.com/plugin/7861-envfile
 
 ## Testing
 
@@ -238,11 +247,16 @@ To push a release:
    
 4. Ensure AWS access is configured
 
-   You need to provide access key id & secret to push to the S3 bucket. You will need write access, obviously. These are stored in .env. The .env.sample file contains the key names: 
+   You need to provide access key id & secret to push to the S3 bucket. You will need write access, obviously. Set environment variables. Recommended approach is to use direnv. Leiningen needs these variables to access resources (e.g., AWS credentials), but there is not a clean way of loading them using lein plugins. 
    
-   ```cp .env.sample .env```
+   ```shell
+   brew install direnv
+   cp .envrc.sample .envrc
+   # edit .envrc to set the variables
+   direnv allow
+   ```
    
-5. Deploy the library to S3
+8. Deploy the library to S3
 
   ```shell script
 lein deploy precisely

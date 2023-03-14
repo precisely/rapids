@@ -1,4 +1,15 @@
-doc/*.pdf
+# Ignore OS and editor litter.
+*~
+.DS_Store
+
+# Ignore Direnv configuration, it should be user-specific.
+.envrc
+
+# environment handling: ignore all .env files except .env.sample
+.env*
+!.envrc.sample
+
+# Java and Clojure things
 /target
 /classes
 /checkouts
@@ -14,9 +25,7 @@ pom.xml.asc
 figwheel_server.log
 .rebel_readline_history
 .calva/
-.env
-.envrc
-*.iml
+db/sqlite.db
 
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio, WebStorm and Rider
 # Reference: https://intellij-support.jetbrains.com/hc/en-us/articles/206544839
@@ -27,9 +36,10 @@ figwheel_server.log
 .idea/**/usage.statistics.xml
 .idea/**/dictionaries
 .idea/**/shelf
-projectFilesBackup
+.idea/misc.xml
 
 # Generated files
+pia-server.iml
 .idea/**/contentModel.xml
 
 # Sensitive or high-churn files
@@ -87,6 +97,20 @@ fabric.properties
 
 # Android studio 3.1+ serialized cache file
 .idea/caches/build_file_checksums.ser
+*.iml
 
-# clj-kondo
-.clj-kondo/.cache
+# Jetbrains gitignore
+
+# AWS User-specific
+.idea/**/aws.xml
+
+# IntelliJ
+out/
+
+# SonarLint plugin
+.idea/sonarlint/
+
+# Calva configuration
+.calva/
+.clj-kondo/
+.lsp/

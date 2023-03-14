@@ -49,6 +49,9 @@
   ([x] (multiarity-flow x :default))
   ([x y] [x y]))
 
+(deflow- private-flow []
+  (<*))
+
 (deftest ^:language deflow-tests
   (with-test-env
     (testing "Start and suspend"
@@ -96,7 +99,10 @@
     (testing "multiarity flows"
       (is (= [:default :default] (:result (start! multiarity-flow []))))
       (is (= [1 :default] (:result (start! multiarity-flow [1]))))
-      (is (= [1 2] (:result (start! multiarity-flow [1 2])))))))
+      (is (= [1 2] (:result (start! multiarity-flow [1 2])))))
+
+    (testing "deflow- creates a private flow"
+      (is (:private (meta #'private-flow))))))
 
 (deflow kill-self []
   (kill! (current-run))       ; should throw
