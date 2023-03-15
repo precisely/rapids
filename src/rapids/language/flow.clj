@@ -61,4 +61,9 @@
         (if (test arg)
           (recur rest-tests rest-args (conj results arg))
           (recur rest-tests args (conj results (default arg rest-args))))
-        results))))
+        (let [[_ _ sigs] results]
+          (if-not (every? #(-> % first vector?) sigs)
+            (throw (ex-info "Missing arglist vector in flow body"
+                     {:type :syntax-error
+                      :form args})))
+          results)))))

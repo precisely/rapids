@@ -22,10 +22,12 @@
 
 ;; Testing InterruptionHandler record
 (deftest test-interruption-handler
-  (let [handler (->InterruptionHandler :foo :bar)]
+  (let [handler (->InterruptionHandler :foo :bar "documentation" {:foo true})]
     (is (instance? InterruptionHandler handler))
-    (is (= (:name handler) :foo))
-    (is (= (:flow handler) :bar))))
+    (is (= :foo (:name handler)))
+    (is (= :bar (:flow handler)))
+    (is (= "documentation" (:doc handler)))
+    (is (= {:foo true} (:data handler)))))
 
 ;; Testing Restart record
 (deftest test-restart
@@ -33,12 +35,12 @@
     (is (instance? Restart restart))
     (is (= (:name restart) :foo))
     (is (= (:continuation restart) :bar))
-    (is (= (:description restart) "baz"))
+    (is (= (:doc restart) "baz"))
     (is (= (:data restart) {}))))
 
 ;; Testing Attempt record
 (deftest test-attempt
-  (let [handler (->InterruptionHandler :foo :bar)
+  (let [handler (->InterruptionHandler :foo :bar "doc" {})
         restart (->Restart :baz :qux "quux" {})
         attempt (->Attempt [handler] {:baz restart})]
     (is (instance? Attempt attempt))

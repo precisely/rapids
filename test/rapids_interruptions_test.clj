@@ -8,46 +8,50 @@
   (<*))
 
 (deflow simple-interruptible-flow []
-  (attempt (<*) (handle :foo i :foo-interruption)))
+  (attempt (<*) (handle :foo [i] :foo-interruption)))
 
 (def attempt-holder (atom nil))
 
 (deflow interruptible-flow []
   (let [attempt-val (attempt
+                      (>* (list-interrupt-handlers))
                       (let [result (restartable (interruptible-child)
+                                     ;; list definition style
                                      (:redo [o] {:redo-value o})
 
-                                     {:name     :recompute
-                                      :do       (flow [v] (print v))
-                                      :describe #()
-                                      :data     {}})]
-    (reset! attempt-holder rapids.runtime.globals/*attempts*)
-    (>* :body-called)
-    [result :uninterrupted-result])
+                                     ;; map definition style
+                                     {:name :recompute
+                                      :do   (flow [v] (print v))
+                                      :doc  "documentation"
+                                      :data {}})]
+                        (reset! attempt-holder rapids.runtime.globals/*attempts*)
+                        (>* :body-called)
+                        [result :uninterrupted-result])
 
-  (handle :foo i
-    (>* [:foo-handled i])
-    :foo-interruption)
+                      (handle :foo [i]
+                        (>* [:foo-handled i])
+                        :foo-interruption)
 
-  (handle :bar i
-    (>* [:bar-handled i])
-    (let [interrupter-input (<*)]
-      [interrupter-input :bar-interruption]))
+                      (handle :bar [i]
+                        (>* [:bar-handled i])
+                        (let [interrupter-input (<*)]
+                          [interrupter-input :bar-interruption]))
 
-  (handle :baz i
-    (restart :redo (:data i)))
+                      (handle :baz [i]
+                        (restart :redo (:data i)))
 
-  (finally (>* :finally-called)))
-final-input (<*) ]
-{:attempt-result attempt-val
- :final-input    final-input} ) )
+                      (finally (>* :finally-called)))
+        final-input (<*)]
+    {:attempt-result attempt-val
+     :final-input    final-input}))
 
 (deftest ^:language InterruptionsTest
   (testing "A simple interruptible flow"
     (with-test-env
-      (testing "without interruptions, block returns normally"
+      (testing "without interruptions, start! returns normally"
         (let [{initial-state :state, :as run} (start! simple-interruptible-flow)]
           (is (= :running initial-state))
+
           (continue! run :input "input")
           (is (= :complete (:state run)))
           (is (= "input" (:result run)))))
@@ -160,5 +164,13 @@ final-input (<*) ]
   (testing "list-interrupt-handlers"
     (let [run1 (start! simple-interruptible-flow)
           run2 (start! interruptible-flow)]
-      (is (= '(:foo) (list-interrupt-handlers run1)))
-      (is (= '(:baz :bar :foo) (list-interrupt-handlers run2))))))
+      (is (= '(:foo) (map :name (list-interrupt-handlers run1))))
+      (is (= '(:baz :bar :foo) (map :name (list-interrupt-handlers run2))))
+
+      (testing "the interrupt handlers available within the run are the same as those accessible outside the run"
+        (is (= (list-interrupt-handlers run2) (first (:output run2))))))))
+
+(deftest ^:language list-restarts-test
+  (testing "list-restarts"
+    (let [run (start! interruptible-flow)]
+      (is (= #{:redo :recompute} (set (map :name (list-restarts run))))))))
