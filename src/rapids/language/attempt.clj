@@ -155,14 +155,16 @@
             :line (:line (meta &form))})))
 
 (defmacro restartable
-  "Executes expr and provides one or more restarts. Each recoverable is a flow which takes
-  a value and returns a value which will be provided at the location of the recoverable.
+  "Executes expr and provides one or more restarts. Each restart is a flow which takes
+  a value and returns a value which will be provided at the location of the restartable expression.
+  Restarts within any deflow body, though typically they are used within interrupt handlers.
 
-  E.g.,
+  Usage:
   (let [val (restartable (calculate-dosage p)
-              (set-dosage [d] d)
-              (recalculate-dosage-with-params [p] (calculate-dosage p)))
-     ...)"
+              (:set-dosage [d] d)
+              (:recalculate-dosage-with-params [p] (calculate-dosage p)))
+     (if (some-condition)
+       (restart :set-dosage 10)))"
   [expr & restarts]
   ;(if (not (bound? *attempts*))
   ;  (throw (ex-info (str "Defining a restart is only allowed in an attempt body:" &form)
