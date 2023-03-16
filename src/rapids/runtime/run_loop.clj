@@ -238,7 +238,6 @@
   ;; The run-bindings are not unwound, since the binding spans partitions 1-3.
   ;;
   ;; When they are the same, the stack-fn is called with the given data.
-  ([stack-fn] (eval-stack-with-bindings! stack-fn nil))
   ([stack-fn data] (eval-stack-with-bindings! stack-fn data [] (current-run :dynamics)))
   ([stack-fn data thread-dynamics run-dynamics]
    {:pre [(vector? thread-dynamics) (vector? run-dynamics)]}

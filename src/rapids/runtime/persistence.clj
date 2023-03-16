@@ -3,9 +3,7 @@
 ;; But some objects require special handling.
 ;;
 (ns rapids.runtime.persistence
-  (:require [clojure.main :as main]
-            [clojure.string :as str]
-            [rapids.objects.flow]
+  (:require [rapids.objects.flow]
             [rapids.objects.pool]
             [rapids.objects.run]
             [rapids.storage.core :as s]
@@ -74,24 +72,12 @@
 ;;
 ;; AFunction
 ;;
-(defn- pretty-demunge
-  [fn-object]
-  (let [dem-fn (main/demunge (str fn-object))
-        pretty (second (re-find #"(.*?\/.*?)[\-\-|@].*" dem-fn))]
-    (if pretty pretty dem-fn)))
-
-
 (s/extend-freeze AFunction ::a-function
   [x data-output]
   (throw (ex-info (format "Raw function object cannot be frozen. Use (var f) instead: %s" x)
            {:type   :runtime-error
             :object x
             :op     :freeze})))
-
-(s/extend-thaw ::a-function
-  [data-input]
-  (let [fn-name (-> data-input .readUTF symbol)]
-    (-> fn-name resolve var-get)))
 
 (s/extend-freeze CacheProxy ::cache-proxy
   [x data-output]

@@ -4,11 +4,12 @@
             [rapids.objects.run :as r]
             [rapids.storage.connection-wrapper :refer [create-records!]]
             [test-helpers :refer :all]
-            [rapids.support.util :as util]))
+            [rapids.support.util :as util]
+            [rapids.storage.core :as s]))
 
 (defn id-set [c] (set (map :id c)))
 
-(deftest ^:unit FindRunsTest
+(deftest ^:unit find-runs-test
   (with-test-env
     (let [r-ab20  (r/make-run {:state :running :index {:a {:b 20} :c "fee"}})
           r-ab3   (r/make-run {:state :running :index {:a {:b 3} :c "fie"}})
@@ -26,7 +27,6 @@
           (is (= (map #(get-in % [:index :c]) (find-runs [] :order-by [[:index :c] :asc]))
                  '("fee" "fie" "foe" "foe"))))))))
 
-
 (deftest ^:unit find-runs-test
   (testing "get-run should return a run given an id"
     (with-test-env
@@ -34,8 +34,18 @@
         (create-records! [run])
         (is (run? (get-run (:id run))))))))
 
-
 (deftest interrupt!-test
-  (testing "invalid value for interrupt should throw an error"
-    (is (throws-error-output #"Unexpected argument type"
+  (testing "invalid value for interrupt name should throw an error"
+    (is (throws-error-output #"Unexpected argument type: expecting run or run-id"
+          (interrupt! "not a run or run-id" :bar))))
+  (testing "invalid value for interrupt name should throw an error"
+    (is (throws-error-output #"Unexpected argument type: expecting keyword"
           (interrupt! (util/new-uuid) "bad input")))))
+
+(deftest ^:unit reentrance-test
+  (testing "start-run-loop fails when an attempt is made to reenter the loop for the same run"
+    (with-test-env
+      (let [run (s/cache-insert! (r/make-run))]
+        (binding [rapids.runtime.run-loop/*executing* #{(:id run)}]
+          (is (throws-error-output #"Eval loop re-entered for run."
+                (continue! (:id run)))))))))
