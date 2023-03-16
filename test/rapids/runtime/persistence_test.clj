@@ -18,7 +18,7 @@
 (defn make-run-with-bindings [& {:keys [] :as keys}]
   (r/make-run {:stack (list (sf/make-stack-frame (a/->address `foo 1 2) (or keys {}) nil))}))
 
-(deftest ^:unit PoolPersistenceTest
+(deftest ^:unit pool-persistence-test
   (testing "A pool when created is added to the storage"
     (with-test-env-run [pid (atom nil)
                         p (->pool)]                         ; this adds the pool to the cache
@@ -38,7 +38,7 @@
           (with-run (s/cache-get! Run @rid)
             (is (pool? (-> (current-run :stack) first :bindings :mypool)))))))))
 
-(deftest ^:unit CircularReferenceTest
+(deftest ^:unit circular-reference-test
   (s/with-storage (rapids.implementations.in-memory-storage/->in-memory-storage)
     (ensure-cached-connection
       (testing "A run can reference itself and be saved to storage"
@@ -77,9 +77,25 @@
     (is (throws-error-output #"Error while freezing object"
           (nippy/freeze (make-pool 0))))))
 
-;(def ^:dynamic *test-var*)
-;(deftest ^:unit VarPersistenceTest
-;  (testing "can freeze Var"
-;    (is (frozen? (s/freeze #'*test-var*))))
-;  (testing "can thaw frozen Var"
-;    (is (var? (s/thaw (s/freeze #'*test-var*))))))
+(def ^:dynamic *test-var*)
+(deftest ^:unit var-persistence-test
+  (testing "can freeze Var"
+    (is (frozen? (s/freeze #'*test-var*))))
+  (testing "can thaw frozen Var"
+    (is (var? (s/thaw (s/freeze #'*test-var*))))))
+
+(deftest ^:unit afunction-persistence-test
+  (testing "fails when attempting to freeze a function"
+    (is (throws-error-output #"function object cannot be frozen"
+          (s/freeze identity)))))
+
+(deftest ^:unit persistence-error-test
+  (testing "persistence-error throws an exception for :freeze"
+    (is (throws-error-output #"Error while freezing object :foo:"
+          (persistence-error :foo :freeze))))
+  (testing "persistence-error throws an exception for :thaw"
+    (is (throws-error-output #"Error while thawing object :foo:"
+          (persistence-error :foo :thaw))))
+  (testing "persistence-error allows an extra message"
+    (is (throws-error-output #"Error while thawing object :foo: extra info :bar"
+          (persistence-error :foo :thaw "extra info %s" :bar)))))

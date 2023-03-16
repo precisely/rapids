@@ -24,10 +24,10 @@
           '#{a b c d e f g})))
 
   (testing "complex test"
-  (is (= (unqualified-symbols-in '(a rapids.partition-utils/foo (b {:a :a :b c :d [d e]} 1 "hello")))
-        '#{a b c d e}))))
+    (is (= (unqualified-symbols-in '(a rapids.partition-utils/foo (b {:a :a :b c :d [d e]} 1 "hello")))
+          '#{a b c d e}))))
 
 (deftest ^:unit closure-captured-bindings-test
-  (testing ""
-    (is (= (closure-captured-bindings '[x] '(* x y) '[x y z])
-          '[y]))))
+  (testing "closure-captured-bindings should correctly determine which parameters are captured by a closure"
+    (is (= '[y]
+          (closure-captured-bindings '[x] '(* x y) '[x y z])))))

@@ -77,7 +77,11 @@
             (is-log [:before-suspend :after-suspend])
 
             (testing "it returns the correct value"
-              (is (= (proxy-field ev-result :result) :foo)))))))
+              (is (= (proxy-field ev-result :result) :foo))))
+
+          (testing "attempting to continue a run in :complete state should fail"
+            (is (throws-error-output #"Attempt to continue run in invalid state"
+                  (continue! run)))))))
 
     (testing "<* event provides a value"
       (flush-cache!)
