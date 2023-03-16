@@ -1,24 +1,27 @@
-(ns rapids.objects.interruptions)
+(ns rapids.objects.interruptions
+  (:import (clojure.lang Keyword)
+           (rapids.objects.closure Closure)))
 
-(defrecord Interruption [name message data restarts])
+(defrecord Interruption [name data])
 
 (defn ->interruption
-  ([name & {:keys [message data]}]
-   {:pre [(keyword? name) ((some-fn nil? string?) message)]}
-   (->Interruption name message data {})))
+  ([name] (->interruption name nil))
+  ([name data]
+   {:pre [(keyword? name)]}
+   (->Interruption name data)))
 
 (defn interruption? [o] (instance? Interruption o))
 
-(def StopInterruption (->interruption :stop :message "The run was stopped"))
-
-(defrecord InterruptionHandler [name flow])
+(defrecord InterruptionHandler
+  [^Keyword name
+   ^Closure closure
+   ^Object metadata])         ; optional user-defined info describing the interruption handler
 
 (defrecord Attempt
-  [handlers                                                 ; a vector of InterruptionHandlers
-   restarts])                                               ; a map of keywords to Restarts
+  [handlers                   ; a vector of InterruptionHandlers
+   restarts])                 ; a map of keywords to Restarts
 
 (defrecord Restart
-  [name
-   continuation                                             ; a flow accepting a current-continuation
-   description                                              ; string
-   data])                                                   ; arbitrary data describing the restart
+  [^Keyword name
+   ^Closure closure           ; a flow closure accepting a current-continuation
+   ^Object metadata])         ; arbitrary data describing the restart

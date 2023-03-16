@@ -5,47 +5,41 @@
 
 ;; Testing Interruption record and ->interruption function
 (deftest test-interruption
-  (let [interruption (->interruption :foo :message "bar" :data {})]
+  (let [interruption (->interruption :foo {:bar 1})]
     (is (instance? Interruption interruption))
     (is (= (:name interruption) :foo))
-    (is (= (:message interruption) "bar"))
-    (is (= (:data interruption) {}))
-    (is (= (:restarts interruption) {}))))
-
-;; Testing StopInterruption and interruption? function
-(deftest test-stop-interruption
-  (is (interruption? StopInterruption))
-  (is (= (:name StopInterruption) :stop))
-  (is (= (:message StopInterruption) "The run was stopped"))
-  (is (= (:data StopInterruption) nil))
-  (is (= (:restarts StopInterruption) {})))
+    (is (= (:data interruption) {:bar 1}))))
 
 ;; Testing InterruptionHandler record
 (deftest test-interruption-handler
-  (let [handler (->InterruptionHandler :foo :bar)]
+  (let [handler (->InterruptionHandler :foo :bar {:foo true})]
     (is (instance? InterruptionHandler handler))
-    (is (= (:name handler) :foo))
-    (is (= (:flow handler) :bar))))
+    (is (= :foo (:name handler)))
+    (is (= :bar (:closure handler)))
+    (is (= {:foo true} (:metadata handler)))))
 
 ;; Testing Restart record
 (deftest test-restart
-  (let [restart (->Restart :foo :bar "baz" {})]
+  (let [restart (->Restart :foo :bar {})]
     (is (instance? Restart restart))
     (is (= (:name restart) :foo))
-    (is (= (:continuation restart) :bar))
-    (is (= (:description restart) "baz"))
-    (is (= (:data restart) {}))))
+    (is (= (:closure restart) :bar))
+    (is (= (:metadata restart) {}))))
 
 ;; Testing Attempt record
 (deftest test-attempt
-  (let [handler (->InterruptionHandler :foo :bar)
-        restart (->Restart :baz :qux "quux" {})
-        attempt (->Attempt [handler] {:baz restart})]
+  (let [handler (->InterruptionHandler :foo :closure-object {:i-metadata :bar})
+        restart (->Restart :rname :closure-object {:r-metadata :foo})
+        attempt (->Attempt [handler] {:rname restart})]
     (is (instance? Attempt attempt))
     (is (= (:handlers attempt) [handler]))
-    (is (= (:restarts attempt) {:baz restart}))))
+    (is (= (:restarts attempt) {:rname restart}))))
 
 ;; Testing ->interruption function preconditions
 (deftest test-interruption-preconditions
-  (is (thrown? AssertionError (->interruption nil)))
-  (is (thrown? AssertionError (->interruption :foo :message 123))))
+  (testing "interruption name field must be a keyword "
+    (is (thrown? AssertionError (->interruption nil)))
+    (is (thrown? AssertionError (->interruption 'foo)))
+    (is (thrown? AssertionError (->interruption 'foo nil)))
+    (is (thrown? AssertionError (->interruption 123)))
+    (is (interruption? (->interruption :foo)))))

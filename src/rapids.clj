@@ -20,7 +20,7 @@
    ;; start operator:
    !
    callcc
-   attempt restartable restart handle list-interrupt-handlers
+   attempt restartable restart handle list-interrupt-handlers list-restarts
    declare-suspending]
   [rapids.runtime.core current-run start! continue! interrupt! get-run find-runs run? fcall fapply raise
    get-expired-runs find-and-expire-runs! expire-run! start-expiry-monitor! stop-expiry-monitor!

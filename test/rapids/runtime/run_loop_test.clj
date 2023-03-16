@@ -36,9 +36,6 @@
 
 
 (deftest interrupt!-test
-  (testing "it should not accept keywords when an interrupt is given as a first arg"
-    (is (throws-error-output #"Unexpected arguments"
-          (interrupt! (util/new-uuid) (->interruption :foo) :message "hello"))))
-  (testing "it invalid value for interrupt should throw an error"
+  (testing "invalid value for interrupt should throw an error"
     (is (throws-error-output #"Unexpected argument type"
           (interrupt! (util/new-uuid) "bad input")))))

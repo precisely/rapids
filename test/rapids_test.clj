@@ -865,7 +865,7 @@
   (storage/ensure-cached-connection
     (testing "Defining a flow outside of deflow should raise an error"
       (is (throws-error-output #"(?m)Invalid context: anonymous flow may only be defined inside of deflow"
-            (macroexpand `(flow [] ())))))
+            (macroexpand `(rapids.language.flow/flow [] ())))))
 
     (testing "In a flow which defines an anonymous flow,"
       (let [r (start! anonymous-flow-creator [:bar])]

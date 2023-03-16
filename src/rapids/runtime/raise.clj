@@ -30,7 +30,7 @@
           handler (first (filter #(= (:name %) (:name interrupt)) (:handlers attempt)))]
       (if handler
         (let [finally (:finally attempt)
-              result (fcall (:flow handler) interrupt)]
+              result (fcall (:closure handler) (:data interrupt))]
           (if finally (fcall finally))
           result)
         (recur (rest attempts))))))

@@ -8,46 +8,50 @@
   (<*))
 
 (deflow simple-interruptible-flow []
-  (attempt (<*) (handle :foo i :foo-interruption)))
+  (attempt (<*) (handle :foo [i] :foo-interruption)))
 
 (def attempt-holder (atom nil))
 
 (deflow interruptible-flow []
   (let [attempt-val (attempt
+                      (>* (list-interrupt-handlers))
                       (let [result (restartable (interruptible-child)
+                                     ;; list definition style
                                      (:redo [o] {:redo-value o})
 
-                                     {:name     :recompute
-                                      :do       (flow [v] (print v))
-                                      :describe #()
-                                      :data     {}})]
-    (reset! attempt-holder rapids.runtime.globals/*attempts*)
-    (>* :body-called)
-    [result :uninterrupted-result])
+                                     ;; map definition style
+                                     {:name :recompute
+                                      :do   (flow [v] (print v))
+                                      :doc  "documentation"
+                                      :data {}})]
+                        (reset! attempt-holder rapids.runtime.globals/*attempts*)
+                        (>* :body-called)
+                        [result :uninterrupted-result])
 
-  (handle :foo i
-    (>* [:foo-handled i])
-    :foo-interruption)
+                      (handle :foo [i]
+                        (>* [:foo-handled i])
+                        :foo-interruption)
 
-  (handle :bar i
-    (>* [:bar-handled i])
-    (let [interrupter-input (<*)]
-      [interrupter-input :bar-interruption]))
+                      (handle :bar [i]
+                        (>* [:bar-handled i])
+                        (let [interrupter-input (<*)]
+                          [interrupter-input :bar-interruption]))
 
-  (handle :baz i
-    (restart :redo (:data i)))
+                      (handle :baz [i]
+                        (restart :redo i))
 
-  (finally (>* :finally-called)))
-final-input (<*) ]
-{:attempt-result attempt-val
- :final-input    final-input} ) )
+                      (finally (>* :finally-called)))
+        final-input (<*)]
+    {:attempt-result attempt-val
+     :final-input    final-input}))
 
 (deftest ^:language InterruptionsTest
   (testing "A simple interruptible flow"
     (with-test-env
-      (testing "without interruptions, block returns normally"
+      (testing "without interruptions, start! returns normally"
         (let [{initial-state :state, :as run} (start! simple-interruptible-flow)]
           (is (= :running initial-state))
+
           (continue! run :input "input")
           (is (= :complete (:state run)))
           (is (= "input" (:result run)))))
@@ -74,15 +78,14 @@ final-input (<*) ]
       (testing "interrupting a run and handling the interruption"
         (let [run (start! interruptible-flow)
               _   (flush-cache!)
-              i   (->interruption :foo)
-              run (interrupt! run i)]
+              run (interrupt! run :foo {:foo-data 123})]
 
           (testing "the run stays in :running mode because the handler deals with the interrupt and resumes the run"
             (is (= :running (:state run)))
             (is (nil? (:interrupt run))))
 
           (testing "however, we see that the handler was triggered and the finally clause was executed by observing the output"
-            (is (= [[:foo-handled i] :finally-called]
+            (is (= [[:foo-handled {:foo-data 123}] :finally-called]
                   (:output run))))
 
           (testing "the handler return value is returned by the attempt form"
@@ -95,14 +98,14 @@ final-input (<*) ]
     (with-test-env
       (testing "interrupting a run which doesn't handle the provided interruptions throws an error"
         (let [run (start! interruptible-flow)]
-          (is (throws-error-output #"Unhandled interruption" (interrupt! run (->interruption :no-handler-for-this)))))))
+          (is (throws-error-output #"Unhandled interruption" (interrupt! run :no-handler-for-this))))))
 
     (with-test-env
       (testing "testing the :bar interruption handler which uses input!"
         (let [run (start! interruptible-flow)
               _   (flush-cache!)
-              i   (->interruption :bar)
-              run (interrupt! run i)]
+
+              run (interrupt! run :bar)]
 
           (testing "the run goes contains an interrupt-id when the handler waits for input"
             (is (uuid? (:interrupt run))))
@@ -135,8 +138,7 @@ final-input (<*) ]
       (testing "Restarting an interrupted flow"
         (let [run (start! interruptible-flow)
               _   (flush-cache!)
-              i   (->interruption :baz :data :baz-data)
-              run (interrupt! run i)]
+              run (interrupt! run :baz :baz-data)]
           (is (= :running (:state run)))
           (continue! run :input :final)
           (is (= :complete (:state run)))
@@ -150,15 +152,23 @@ final-input (<*) ]
       (testing "testing calling interrupt! with interrupt parameters instead of interrupt object"
         (let [run (start! interruptible-flow)
               _   (flush-cache!)
-              run (interrupt! run :foo :message "hello" :data {:a 123})]
+              run (interrupt! run :foo {:a 123})]
 
           (testing "the expected interruption is handled"
-            (is (= [[:foo-handled (->interruption :foo :message "hello" :data {:a 123})] :finally-called]
+            (is (= [[:foo-handled {:a 123}] :finally-called]
                   (:output run)))))))))
 
 (deftest ^:language list-interrupt-handlers-test
   (testing "list-interrupt-handlers"
     (let [run1 (start! simple-interruptible-flow)
           run2 (start! interruptible-flow)]
-      (is (= '(:foo) (list-interrupt-handlers run1)))
-      (is (= '(:baz :bar :foo) (list-interrupt-handlers run2))))))
+      (is (= '(:foo) (map :name (list-interrupt-handlers run1))))
+      (is (= '(:baz :bar :foo) (map :name (list-interrupt-handlers run2))))
+
+      (testing "the interrupt handlers available within the run are the same as those accessible outside the run"
+        (is (= (list-interrupt-handlers run2) (first (:output run2))))))))
+
+(deftest ^:language list-restarts-test
+  (testing "list-restarts"
+    (let [run (start! interruptible-flow)]
+      (is (= #{:redo :recompute} (set (map :name (list-restarts run))))))))
