@@ -1,6 +1,5 @@
 (ns rapids.objects.interruptions
   (:import (clojure.lang Keyword)
-           (rapids.objects.flow Flow)
            (rapids.objects.closure Closure)))
 
 (defrecord Interruption [name data])

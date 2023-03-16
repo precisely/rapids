@@ -22,7 +22,7 @@
                  [migratus "1.3.6"]
                  [hikari-cp "2.13.0"]
                  [metosin/jsonista "0.3.5"]]
-  :aot [rapids.storage.CacheProxy rapids.objects.CurrentContinuationChange]
+  :aot [rapids.storage.CacheProxy rapids.objects.CurrentContinuationChange rapids.objects.closure]
   :clean-targets ^{:protect false} ["target"]
   :profiles {:dev {
                    :source-paths ["src"]
