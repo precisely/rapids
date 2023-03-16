@@ -69,18 +69,21 @@
 (defn attempt-subclause? [o] (or (handler-form? o) (finally-form o)))
 
 (defn normalize-handler-args
-  "Returns [docstring attrmap arglist body]"
+  "Parses args as [docstring? attrmap? body] and returns
+
+   [attrmap arglist body], where docstring is included in attrmap in the :doc key."
   [args]
   (let [[docstring attrmap sigs] (normalize-deflow-args args)
-        _ (if (-> sigs count (> 1))
-            (throw (ex-info "Handler body must be a single arity flow"
-                     {:type :syntax-error})))
+        _       (if (-> sigs count (> 1))
+                  (throw (ex-info "Handler body must be a single arity flow"
+                           {:type :syntax-error})))
         [arglist & body] (first sigs)
-        _ (if-not (vector? arglist)
-            (throw (ex-info "Expecting a vector for handler arglist"
-                     {:type    :syntax-error
-                      :arglist arglist})))]
-    [docstring attrmap arglist body]))
+        _       (if-not (vector? arglist)
+                  (throw (ex-info "Expecting a vector for handler arglist"
+                           {:type    :syntax-error
+                            :arglist arglist})))
+        attrmap (if docstring (assoc attrmap :doc docstring) attrmap)]
+    [attrmap arglist body]))
 
 (defn expand-handler [ccvar h-form finally-flow]
   {:pre [(seq? h-form)]}
@@ -90,7 +93,7 @@
             (throw (ex-info "Invalid interruption handler name: expecting a keyword"
                      (assoc m :name iname :type (type iname)))))
 
-        [docstring data arglist body] (normalize-handler-args definition)]
+        [metadata arglist body] (normalize-handler-args definition)]
     (if (-> arglist count (> 1))
       (throw (ex-info "Only one argument to interruption handler allowed"
                (assoc m :arglist arglist))))
@@ -100,21 +103,19 @@
                                 ~@(if finally-flow `((rapids/fcall ~finally-flow)))
                                 (update-run! :interrupt nil)
                                 result#)))
-       ~docstring
-       ~data)))
+       ~metadata)))
 
 (defn normalize-restart-def [r]
   (let [restart (cond
                   (seq? r) (let [[name & definition] r
-                                 [doc data arglist body] (normalize-handler-args definition)]
-                             {:name name
-                              :doc  doc
-                              :data data
-                              :do   `(~'flow ~arglist ~@body)})
+                                 [metadata arglist body] (normalize-handler-args definition)]
+                             {:name     name
+                              :metadata metadata
+                              :do       `(~'flow ~arglist ~@body)})
                   (map? r) r)
-        {name   :name,
-         doc    :doc,
-         doflow :do} restart]
+        {name       :name,
+         {doc :doc} :metadata,
+         doflow     :do} restart]
     (if-not (keyword? name)
       (throw (ex-info "Restart name must be a keyword" {:type :syntax-error, :restart r})))
     (if-not ((some-fn string? nil?) doc)
@@ -128,12 +129,11 @@
 (defn install-restart-map-expr [restartdefs restart-cc]
   (let [make-restart (fn [nrdef]
                        `(map->Restart
-                          {:name         ~(:name nrdef)
-                           :data         ~(:data nrdef)
-                           :doc          ~(:doc nrdef)
-                           :continuation (rapids/flow [& args#]
-                                           (rapids/fcall ~restart-cc
-                                             (rapids/fapply ~(:do nrdef) args#)))}))
+                          {:name     ~(:name nrdef)
+                           :metadata ~(:metadata nrdef)
+                           :closure  (rapids/flow [& args#]
+                                       (rapids/fcall ~restart-cc
+                                         (rapids/fapply ~(:do nrdef) args#)))}))
         nrestartdefs (map normalize-restart-def restartdefs)
         restart-map  `(hash-map ~@(apply concat (map #(vector (:name %), (make-restart %)) nrestartdefs)))]
     `(set! *attempts* (cons (-> *attempts* first (update :restarts merge ~restart-map))
@@ -164,14 +164,14 @@
                      result#))
                  body)))))))
 
-(defmacro ^{:arglists '([name doc-string? attr-map? [ivar] body])}
+(defmacro ^{:arglists '([name doc-string? attr-map? [data] body])}
   handle
   "Installs an interrupt handler for the current attempt.
 
   Usage:
   (handle name doc-string? attr-map? [ivar] body)
   name - keyword naming the interruption
-  ivar - variable which will bind the interrupt object and be accessible to body
+  data - variable which will bind the interrupt's :data and be accessible to body
          (a destructuring expression can also be provided here)
   doc-string? - optional string
   data-map? - optional additional data available in the interrupt
@@ -268,4 +268,4 @@
       (throw (ex-info "Unknown restart"
                {:type    :runtime-error
                 :restart rname})))
-    (universal-call (get-in restarts [rname :continuation]) args)))
+    (universal-call (get-in restarts [rname :closure]) args)))

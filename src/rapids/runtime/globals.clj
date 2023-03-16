@@ -4,7 +4,7 @@
 ;;; Current Run
 ;;;
 (def ^{:dynamic true
-       :doc     "The id of the currewnt run"}
+       :doc     "The id of the current run"}
   *current-run-id*)
 
 (def ^{:dynamic true

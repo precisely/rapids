@@ -79,26 +79,23 @@
   "Interrupts the run, passing control to the innermost attempt handler matching the interruption's name.
 
   Usage:
-  (interrupt! run-id (->interruption :foo :data {:a 123} :message \"hello\"))
-  OR
-  (interrupt! run-id :foo :data {:a 123} :message \"hello\")"
-  ([run-id i & {:keys [message data] :as keys}]
-   {:pre [(not (nil? run-id))]}
-   (cond
-     (keyword? i) (interrupt! run-id (->interruption i :message message :data data))
-     (interruption? i) (if keys
-                         (throw (ex-info "Unexpected arguments provided to interrupt! with Interruption argument"
-                                  {:args [i :message message :data data]}))
-                         (ensure-cached-connection
-                           (with-run run-id
-                             (interrupt-run!)
-                             (initialize-run-for-runlet)
-                             (push-stack! raise-partition-fn-address {} 'interrupt)
-                             (start-runlet-loop! (next-stack-fn!) i)
-                             (current-run))))
-     :otherwise (throw (ex-info "Unexpected argument type to interrupt!. Expecting Keyword or Interruption"
-                         {:type (type i)
-                          :args [i :message message :data data]})))))
+  (interrupt! run-id :foo {:data-used-by-foo-handler 123})"
+  ([run-id name] (interrupt! run-id name nil))
+  ([run-id name data]
+   (if-not ((some-fn uuid? run?) run-id)
+     (throw (ex-info "Unexpected argument type: expecting run or run-id"
+              {:type :runtime-error, :run-id run-id})))
+   (if-not (keyword? name)
+     (throw (ex-info "Unexpected argument type: expecting keyword"
+              {:type :runtime-error, :name name})))
+   (ensure-cached-connection
+     (with-run run-id
+       (interrupt-run!)
+       (initialize-run-for-runlet)
+       ;; set up the stack to call raise with bindings {:interrupt the-interruption}
+       (push-stack! raise-partition-fn-address {} 'interrupt)
+       (start-runlet-loop! (next-stack-fn!) (->interruption name data))
+       (current-run)))))
 
 (defn defer
   "Defers execution of function f until after the top level eval loop has completed

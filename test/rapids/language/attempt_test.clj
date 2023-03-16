@@ -18,11 +18,10 @@
 (deftest normalize-restart-test
   (testing "s-expr style restart"
     (testing "should turn into a map"
-      (is (= {:data {}
-              :name :set-dosage
-              :doc  "description"
-              :do   '(flow [a] (do-something a))}
-            (normalize-restart-def '(:set-dosage "description" [a] (do-something a)))))))
+      (is (= {:name     :set-dosage
+              :metadata {:doc "description", :foo 1}
+              :do       '(flow [a] (do-something a))}
+            (normalize-restart-def '(:set-dosage "description" {:foo 1} [a] (do-something a)))))))
   (testing "map style restart"
     (testing "valid restart should return as provided"
       (let [valid-restart {:name        :set-dosage
@@ -34,9 +33,9 @@
     (testing "invalid doc should error"
       (is (throws-error-output #"(?m)If provided, restart doc must be string"
             (normalize-restart-def
-              {:name :set-dosage
-               :doc  'abc
-               :do   '(flow [a] (do-something a))}))))
+              {:name     :set-dosage
+               :metadata {:doc 'abc}
+               :do       '(flow [a] (do-something a))}))))
     (testing "Invalid restart name should error"
       (is (throws-error-output #"(?m)Restart name must be a keyword"
             (normalize-restart-def
@@ -58,4 +57,4 @@
 (deftest handle-clause-test
   (testing "Should error when invoked outside of attempt clause"
     (is (throws-error-output #"Attempt handler must appear at end of attempt body"
-          (eval '(rapids.language.attempt/handle :foo i (do-something)))))))
+          (eval '(rapids.language.attempt/handle :foo [i] (do-something)))))))
