@@ -194,42 +194,32 @@ The `attempt` macro provides `handle` and `finally` internal forms, and a contex
 ```clojure
  (attempt
    (let [dosage (restartable (calculate-dosage)
-                  ; shorthand form:
-                  (:set-dosage "Describe it here" [] ...flow-body)
-                  ; alternative longhand form:
-                  {:name :set-dosage
-                   :do (flow [..] ...), ; if not provided, defaults to (flow [] (the-expression))
-                   :describe #(... return a string)
-                   :data {}
-                   :expose true})] ; if true, this codepoint will be appended to
-                                  ; the interruption's restarts and thus will be available
-                                  ; outside this attempt block
+                  (:set-dosage [data] ...flow-body)
+                  (:reinterview-patient 
+                     "redo the dosage after interviewing the patient" ; :doc field of :metadata
+                     {:interactive true} ; this is the metadata 
+                     [message interview-parameters] ...)]
       (advise-patient-on-dosage dosage)
       (do-other-stuff)
 
       ; define multiple restarts within an attempt body
       (restartable (measure-inr-level..)
          (:retry [] (measure-inr-level))  equivalent to {:name :retry :do (flow [] get-cholesterol-level)})
-         {:name :recompute
-          :do (flow [v] ...)
-          :describe #(...)
-          :data {}})
+         (:recompute "recompute the inr level" {:my-meta-data 123} [data] (recalculate-with data)))
 
     handlers - can run some code, and can either invoke a retrace or a recovery
                  note that during an interruption, the caller with the interruption ID
                  has control; the run is outputing to that caller.
 
-   (handle :abort i   e.g., returning a different value
+   (handle :abort [_]   e.g., returning a different value
       (>* "Hello, doctor, I am aborting this dosing procedure")
       nil) ; return nil from this attempt block
 
-   (handle :warfarin-sensitivity-change i   e.g., retracing to an earlier step
-      (>* (str "Hello, doctor, I will reset the dose to " (:new-dosage i) " as you requested")
-      (restart :set-dosage (:new-dosage i)) ; retraces are defined in the attempt
+   (handle :warfarin-sensitivity-change [{dosage :dosage}]   e.g., retracing to an earlier step
+      (>* (str "Hello, doctor, I will reset the dose to " dosage " as you requested")
+      (restart :set-dosage dosage) ; retraces are defined in the attempt
 
-   (handle :retry-dosing i   recovers from the interrupted step
-      (restart i :retry)) ; recoveries are defined in the interrupt
-
+  
    (handle true i  catch any Interruption - demonstrates handling an arbitrary process
       (>* "I'm unable to determine what to do next. Please select one of the choices.")
       (>* (generate-choices-from-restarts (concat )))

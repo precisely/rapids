@@ -169,40 +169,46 @@
   "Installs an interrupt handler for the current attempt.
 
   Usage:
-  (handle name doc-string? attr-map? [ivar] body)
-  name - keyword naming the interruption
-  data - variable which will bind the interrupt's :data and be accessible to body
-         (a destructuring expression can also be provided here)
+  (handle name doc-string? attr-map? [data] body)
+  name        - keyword naming the interruption
   doc-string? - optional string
-  data-map? - optional additional data available in the interrupt
-
+  metadata?   - optional map
+  data        - A symbol or destructuring expression which will bind the interrupt's :data
+                and will be accessible to body
   Example:
-  (handle :foo i
-    \"this will handle the :foo interruption\"
-    {:my-meta-data \"this will be accessible in :data of the interrupt handler returned by list-interrupt-handlers\"})"
+  (handle :foo
+    \"this is the docstring - it will be :doc in the :metadata\"
+    {:my-meta-data \"this map will be accessible as :metadata\"}
+    [interrupt-data]
+    (do-something-with interrupt-data))
+
+  When (interrupt! run :foo 123) is called, the :foo handler will be invoked and interrupt-data will be 123."
   [& args]
   (throw (ex-info "Attempt handler must appear at end of attempt body and before finally clause."
            {:form &form
             :line (:line (meta &form))})))
 
 (defmacro restartable
-  "Executes expr and provides one or more restarts. Each restart is a flow which takes
-  any number of args and returns a value which will be provided at the location of the
+  "Stores a point in code and makes it available to subsequent restart calls.
+
+  Takes an expr, which it executes and returns the value of, and provides one or more restarts.
+  Each restart is a flow which takes any number of args and returns a value which will be provided at the location of the
   restartable expression. Restarts are invoked by calling `(restart restart-name ...args)`.
 
-  Restarts may only be defined within an attempt block, and only restarts within the current
-  attempt may be invoked by restart. A list of available restarts is available with
+  Unlike handlers, which handle situations arising within the attempt block they are defined in,
+  restarts, once enountered, are available until the outermost attempt block completes.
+
   `(list-restarts)`
 
   Usage:
   (restartable expr
-    (name doc-string? data? [args] body)
-    (name doc-string? data? [args] body)
+    (name doc-string? metadata? [args] body)
+    (name doc-string? metadata? [args] body)
     ...)
 
   name        - keyword
   doc-string? - optional string
-  data?       - optional map
+  metadata?   - optional map
   [args]      - arglist
   body        - flow body
 
