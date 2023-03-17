@@ -17,11 +17,17 @@
    ^Closure closure
    ^Object metadata])         ; optional user-defined info describing the interruption handler
 
+(defn interruption-handler? [o] (instance? InterruptionHandler o))
+
 (defrecord Attempt
   [handlers                   ; a vector of InterruptionHandlers
    restarts])                 ; a map of keywords to Restarts
+
+(defn attempt? [o] (instance? Attempt o))
 
 (defrecord Restart
   [^Keyword name
    ^Closure closure           ; a flow closure accepting a current-continuation
    ^Object metadata])         ; arbitrary data describing the restart
+
+(defn restart? [o] (instance? Restart o))
