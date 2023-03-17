@@ -88,15 +88,17 @@
 (defn expand-handler [ccvar h-form finally-flow]
   {:pre [(seq? h-form)]}
   (let [[_ iname & definition] h-form
-        m (merge (meta h-form) {:type :syntax-error})
-        _ (if-not (keyword? iname)
-            (throw (ex-info "Invalid interruption handler name: expecting a keyword"
-                     (assoc m :name iname :type (type iname)))))
+        m        (meta h-form)
+        err-data (merge m {:type :syntax-error})
+        _        (if-not (keyword? iname)
+                   (throw (ex-info "Invalid interruption handler name: expecting a keyword"
+                            (assoc err-data :name iname :type (type iname)))))
 
-        [metadata arglist body] (normalize-handler-args definition)]
+        [metadata arglist body] (normalize-handler-args definition)
+        metadata (assoc metadata :_source (assoc m :file *file*))]
     (if (-> arglist count (> 1))
       (throw (ex-info "Only one argument to interruption handler allowed"
-               (assoc m :arglist arglist))))
+               (assoc err-data :arglist arglist))))
     `(->InterruptionHandler ~iname
        (flow ~arglist
          (rapids/fcall ~ccvar (let [result# (do ~@body)]
@@ -108,7 +110,9 @@
 (defn normalize-restart-def [r]
   (let [restart (cond
                   (seq? r) (let [[name & definition] r
-                                 [metadata arglist body] (normalize-handler-args definition)]
+                                 [metadata arglist body] (normalize-handler-args definition)
+                                 m        (meta r)
+                                 metadata (assoc metadata :_source (assoc m :file *file*))]
                              {:name     name
                               :metadata metadata
                               :do       `(~'flow ~arglist ~@body)})

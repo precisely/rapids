@@ -18,10 +18,13 @@
 (deftest normalize-restart-test
   (testing "s-expr style restart"
     (testing "should turn into a map"
-      (is (= {:name     :set-dosage
-              :metadata {:doc "description", :foo 1}
-              :do       '(flow [a] (do-something a))}
-            (normalize-restart-def '(:set-dosage "description" {:foo 1} [a] (do-something a)))))))
+      (let [norm-reset-def (normalize-restart-def
+                             '(:set-dosage "description" {:foo 1} [a] (do-something a)))]
+        (is (= :set-dosage (:name norm-reset-def)))
+        (is (= '(flow [a] (do-something a)) (:do norm-reset-def)))
+        (is (= 1 (-> norm-reset-def :metadata :foo)))
+        (is (map? (-> norm-reset-def :metadata :_source))))))
+
   (testing "map style restart"
     (testing "valid restart should return as provided"
       (let [valid-restart {:name        :set-dosage

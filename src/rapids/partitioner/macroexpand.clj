@@ -1,5 +1,6 @@
 (ns rapids.partitioner.macroexpand
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [rapids.support.util :as util]))
 
 (defn make-gensym-context [] {:counter    (atom 0)
                               :map        (atom {})
@@ -69,7 +70,7 @@
             (if (is-replacable? o)
               (stable-symbol o)
               o))]
-    (clojure.walk/prewalk substitution body)))
+    (util/prewalk-with-meta substitution body)))
 
 (defn- _partition-expander [f form]
   (let [form-meta (meta form)

@@ -16,14 +16,9 @@
   (let [attempt-val (attempt
                       (>* (list-interrupt-handlers))
                       (let [result (restartable (interruptible-child)
-                                     ;; list definition style
                                      (:redo [o] {:redo-value o})
-
-                                     ;; map definition style
-                                     {:name :recompute
-                                      :do   (flow [v] (print v))
-                                      :doc  "documentation"
-                                      :data {}})]
+                                     (:recompute "docstr" {:test-meta true}
+                                       [v] (print v)))]
                         (reset! attempt-holder rapids.runtime.globals/*attempts*)
                         (>* :body-called)
                         [result :uninterrupted-result])
@@ -166,9 +161,25 @@
       (is (= '(:baz :bar :foo) (map :name (list-interrupt-handlers run2))))
 
       (testing "the interrupt handlers available within the run are the same as those accessible outside the run"
-        (is (= (list-interrupt-handlers run2) (first (:output run2))))))))
+        (is (= (list-interrupt-handlers run2) (first (:output run2)))))
+
+      (testing "interrupt handlers should have location metadata"
+        (let [src (-> run1 list-interrupt-handlers first :metadata :_source)]
+          (is (-> src :line int?))
+          (is (-> src :column int?))
+          (is (-> src :file string?)))))))
 
 (deftest ^:language list-restarts-test
   (testing "list-restarts"
-    (let [run (start! interruptible-flow)]
-      (is (= #{:redo :recompute} (set (map :name (list-restarts run))))))))
+    (let [run      (start! interruptible-flow)
+          restarts (list-restarts run)]
+      (testing "it returns the expected named restarts"
+        (is (every? rapids.objects.interruptions/restart? restarts))
+        (is (= #{:redo :recompute} (set (map :name restarts))))
+        (testing "each restart should contain :_source metadata"
+          (is (-> restarts first :metadata :_source :line int?))
+          (is (-> restarts first :metadata :_source :column int?))
+          (is (-> restarts first :metadata :_source :file string?))
+          (is (-> restarts second :metadata :_source :line int?))
+          (is (-> restarts second :metadata :_source :column int?))
+          (is (-> restarts second :metadata :_source :file string?)))))))
