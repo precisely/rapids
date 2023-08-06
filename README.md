@@ -9,7 +9,7 @@ The value of this approach is that you can write user experiences just like func
 
 ## Documentation
 
-  * [Intro](https://github.com/precisely/rapids/blob/dev/doc/01-intro.md )
+  * [Overview](https://github.com/precisely/rapids/blob/dev/doc/01-intro.md )
   * [Interruptions - Exception handling for user experiences](https://github.com/precisely/rapids/blob/dev/doc/02-interruptions.md )
   * [Architecture - How it works](https://github.com/precisely/rapids/blob/dev/doc/03-architecture.md )
 
