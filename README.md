@@ -7,11 +7,19 @@ Rapids simplifies coding complex user interaction flows for web scale applicatio
 
 The value of this approach is that you can compose user experiences just like you would functions in an ordinary program. Rapids lets you write user experiences with branching logic, loops, exception handling (see Interruptions) and higher order programming. You can even coordinate parallel user experiences using channel-like objects called "pools". This approach produces fewer files, much less code and requires vastly less infrastructure. It also makes it easy to write unit tests for complex user experiences. 
 
+## Docs
+
+  * [Intro](https://github.com/precisely/rapids/blob/dev/doc/01-intro.md )
+  * [Interruptions - Exception handling for user experiences](https://github.com/precisely/rapids/blob/dev/doc/02-interruptions.md )
+  * [Architecture - How it works](https://github.com/precisely/rapids/blob/dev/doc/03-architecture.md )
+
+
+## Basic Usage
+
 Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `<*` (aka `input!`) operator. The system saves the state of the computation when the `<*` operator is invoked to a persistent storage. An in-memory and Postgres implementation are provided, and you can roll your own. 
 
 The control API consists of two main functions, `start!` and `continue!` for starting and continuing flows. 
 
-## Basic Usage
 Also see `tests/rapids_test.clj`.
 
 ### Define a flow
