@@ -3,7 +3,7 @@
 
 A DSL for programming user interaction flows. 
 
-Rapids simplifies coding complex user interaction flows for web scale applications. It replaces state machines with programs. Each user experience is defined as a function-like object called a "flow". Within a flow you can freely intermix computational expressions with expressions which pause for arbitrarily long periods for user input. 
+Rapids simplifies coding complex user interaction flows for web scale applications. It is an alternative to using state machines. Each user experience is defined as a function-like object called a "flow". Within a flow you can freely intermix computational expressions with expressions which pause for arbitrarily long periods for user input. 
 
 The value of this approach is that you can compose user experiences just like you would functions in an ordinary program. Rapids lets you write user experiences with branching logic, loops, exception handling (see Interruptions) and higher order programming. You can even coordinate parallel user experiences using channel-like objects called "pools". This approach produces fewer files, much less code and requires vastly less infrastructure. It also makes it easy to write unit tests for complex user experiences. 
 
