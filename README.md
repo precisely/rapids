@@ -3,7 +3,11 @@
 
 A DSL for programming user interaction flows. 
 
-Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `(input!)` special form. The system uses a persistent Storage which saves the state of the computation when the `input!` operator is invoked. An in-memory and Postgres implementation are provided. 
+Rapids simplifies coding complex user interaction flows for web scale applications. It replaces state machines with programs. Each user experience is defined as a function-like object called a "flow". Within a flow you can freely intermix computational expressions with expressions which pause for arbitrarily long periods for user input. 
+
+The value of this approach is that you can compose user experiences just like you would functions in an ordinary program. Rapids lets you write user experiences with branching logic, loops, exception handling (see Interruptions) and higher order programming. You can even coordinate parallel user experiences using channel-like objects called "pools". This approach produces fewer files, much less code and requires vastly less infrastructure. It also makes it easy to write unit tests for complex user experiences. 
+
+Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `<*` (aka `input!`) operator. The system saves the state of the computation when the `<*` operator is invoked to a persistent storage. An in-memory and Postgres implementation are provided, and you can roll your own. 
 
 The control API consists of two main functions, `start!` and `continue!` for starting and continuing flows. 
 
@@ -13,10 +17,10 @@ Also see `tests/rapids_test.clj`.
 ### Define a flow
 ```clojure
 (deflow multiply-by-user-input [x]
-  (*> "Hi, please enter a number!")
-  (let [user-num, (Integer/parseInt (<*))
+  (>* "Hi, please enter a number!") ; output a string - this will be available in the stored state
+  (let [user-num, (Integer/parseInt (<*)) ; wait for input, then parse the result to return an integer, and assign it to user-num.
         result (* user-num x)]
-  (*> (str "Multiplying " x " by " user-num " gives " result))  
+  (>* (str "Multiplying " x " by " user-num " gives " result))  
 ```
 As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions like `defn`.
 
