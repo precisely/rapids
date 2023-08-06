@@ -1,10 +1,16 @@
 # Introduction to Rapids
 
-Rapids makes it easy to create sophisticated user interaction flows - for example chatbots or intelligent assistants, personalized onboarding experiences, or situations where multiple users need to be coordinated. The key idea is to represent human computer interactions as functions. Rapids calls these interaction functions "flows".
+Rapids makes it easy to create sophisticated user interaction flows - long running interactions with AIs, personalized onboarding experiences, or situations where multiple users need to be coordinated. The key idea is to represent human computer interactions as functions. Rapids calls these "flows".
+
+Flows are intended as a replacement for finite state machines. FSMs tend to be difficult to change, and difficult to scale. Control flow techniques used in programming languages (branching logic, loops, exception handling) are more compact, readable, and easier to test. Programs are more powerful, since they can have arbitrarily many states whereas FSMs must have a predefined set of states. 
+
+Rapids was designed to enable long running functions (flows) which are accessible via a WEB API. Rapids is fully general, however, and connecting it to the Web should be regarded as an implementation detail. A separate project (https://github.com/precisely/pia-server) provides an example of how to do this. 
+
+Rapids is an inversion of control technique applied to API programming. Instead of writing programs which respond to API calls, you write a program which conceptually reads and writes values from the API during the course of its execution. This allows thinking of user experiences as *programs* rather than scattering the logic of user experiences all over the infrastructure of a web site (in models, views, controllers, queues, etc). 
 
 ## Defining user interaction functions (flows)
 
-Unlike regular CPU-bound functions, a flow may pause for arbitrarily long periods while it  waits for a human (or other external entity) to complete a task and possibly enter some data. Flows are defined using the `deflow` macro, which is analogous to Clojure's `defn`. The argument lists look the same:
+Unlike regular CPU-bound functions, a flow may pause for arbitrarily long periods while it waits for a human (or other external entity) to complete a task and possibly provide some data. Flows are defined using the `deflow` macro, which is analogous to Clojure's `defn`. The argument lists look the same:
 
 ```clojure
 (defn [name docstring? & sigs] ...)
@@ -15,20 +21,54 @@ The code bodies inside `deflow` can include most Clojure expressions, such as fu
 
 Here's a highly repetitive chatbot that keeps greeting people by name:
 ```clojure
-(deflow greeting-bot []
+(deflow flow-name doc-string? attr-map? [params*] prepost-map? body)
+(deflow greeting-bot
+  "A bot that keeps asking your name"
+  []
   (loop []
-    (output! "What is your name?")
+    (output! "What is your name?") 
     (let [user-name (input!)]
       (when (not= user-name "stop")
         (input! (str "Hello, " user-name))
         (recur))))) 
 ```
 
+A `Run` is roughly the Rapids-equivalent of a Java thread or a Unix process. A `Run` is created from a flow using `start!`:
+
+```clojure
+(start! flow-name args [:index metadata]) ;  returns a new Run instance with a unique `:id` value
+
+(start! greeting-bot []) 
+```
+
+The `start!` function provides arguments to the flow and allows setting metadata (the index). Most importantly, the `start!` function initiates the *run loop*, a function which manages the execution of the flow. 
+
 ### Getting input and producing output 
 
-### Starting and continuing a run
+The `input!` (aka `<*`) and `output!` (aka `>*`) operators get data from and send data to the outside world (symbolized by the `*`). You can think of them as "Web STDIN" and "Web STDOUT". When input is requested, the run loop is halted and the `Run` is put into a suspended state. The `continue!` Rapids API function provides a value that will be returned by `(<*)`. 
+
+The output, provided by `(<*)`, is sent to an append-only array that is saved in the `:output` field of the current `Run` instance. The output can be any kind of data. However, in typical usage, it is JSON-compatible values that can be returned in a standard API call. 
+
+```clojure
+(<*) ; shorthand for (input!)
+(>*) ; shorthand for (output!)
+```
+
+### Continuing a run
+
+When an input expression is encountered during execution of a flow, Rapids saves the state of the stack. The flow can be continued by calling `continue!`. This function retrieves the `Run` from persistent storage and restarts the run loop, providing an input value to it.
+
+```clojure
+(continue! run-id & {:keys [input permit interrupt preserve-output]})
+
+(continue! greeting-bot-run-id :input "Bob") ; normally "Bob" would be a value provided by a user
+```
+
+The `permit`, `interrupt` and `preserve-output` keys are advanced topics that will be discussed later.
 
 ### Killing a run
+
+Sometimes, it's necessary to force a run to stop, just like you might with a Unix process. In most cases in the API, you can provide a `Run` instance or the `:id`.
 
 `(kill! run)`
 
