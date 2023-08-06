@@ -5,9 +5,9 @@ A DSL for programming user interaction flows.
 
 Rapids simplifies coding complex user interaction flows for web scale applications. It is an alternative to using state machines. Each user experience is defined as a function-like object called a "flow". Within a flow you can freely intermix computational expressions with expressions which pause for arbitrarily long periods for user input. 
 
-The value of this approach is that you can compose user experiences just like you would functions in an ordinary program. Rapids lets you write user experiences with branching logic, loops, exception handling (see Interruptions) and higher order programming. You can even coordinate parallel user experiences using channel-like objects called "pools". This approach produces fewer files, much less code and requires vastly less infrastructure. It also makes it easy to write unit tests for complex user experiences. 
+The value of this approach is that you can write user experiences just like functions. Rapids makes it easy to create user experiences with branching logic, loops, exception handling (see Interruptions) and using higher order programming techniques. You can even coordinate parallel user experiences using channel-like objects called "pools". This approach produces fewer files, much less code and requires vastly less infrastructure. It also makes it easy to write unit tests for complex user experiences. 
 
-## Docs
+## Documentation
 
   * [Intro](https://github.com/precisely/rapids/blob/dev/doc/01-intro.md )
   * [Interruptions - Exception handling for user experiences](https://github.com/precisely/rapids/blob/dev/doc/02-interruptions.md )
@@ -16,9 +16,11 @@ The value of this approach is that you can compose user experiences just like yo
 
 ## Basic Usage
 
-Rapids defines a new macro, `deflow`, akin to `defn`, but which  permits suspending execution until an external event is received. This is done with the `<*` (aka `input!`) operator. The system saves the state of the computation when the `<*` operator is invoked to a persistent storage. An in-memory and Postgres implementation are provided, and you can roll your own. 
+Rapids defines a new macro, `deflow`, akin to `defn`, but which permits suspending execution until an external event is received. This is done with the `<*` (aka `input!`) operator. The system saves the state of the computation when the `<*` operator is invoked to a persistent storage. An in-memory and Postgres implementation are provided, and you can roll your own. 
 
-The control API consists of two main functions, `start!` and `continue!` for starting and continuing flows. 
+The control API consists of Clojure functions, `start!`, `continue!` and `interrupt!`. The `start!` function takes a flow (and optional arguments) and creates a `Run` object, which is conceptually equivalent to a thread or a process. The `Run` executes until it encounters a `<*` operator. The `continue!` function takes a `Run` and provides it with data which becomes the return value of the `<*` operator which suspended the run.
+
+The `Run` contains the execution state of the program (the stack and dynamic variables) and metadata. It is one of the two objects stored in persistent storage. `Run` metadata can be set during flow execution and used for indexing and retrieving runs or just to provide useful information about execution state. 
 
 Also see `tests/rapids_test.clj`.
 
@@ -42,7 +44,7 @@ As of 0.3.2, `deflow` supports multi-arity signatures and pre/post conditions li
 
 #### output! (shorthand: *>)
 
-```
+```Clojure
 (output! arg*) ; or (*> arg*)
 ```
 Write an object to the `:output` key.
@@ -55,7 +57,7 @@ The `output!` operator is conceptually akin to writing to stdout, but the output
 
 Suspends execution of the run until a call to `continue!`.
  
-```
+```Clojure
 (input!) ; or (<*)
 (input! :permit permit)
 (input! :expires expiry-time, :default value)
