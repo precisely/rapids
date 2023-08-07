@@ -21,7 +21,6 @@ The code bodies inside `deflow` can include most Clojure expressions, such as fu
 
 Here's a highly repetitive chatbot that keeps greeting people by name:
 ```clojure
-(deflow flow-name doc-string? attr-map? [params*] prepost-map? body)
 (deflow greeting-bot
   "A bot that keeps asking your name"
   []
@@ -38,14 +37,15 @@ A `Run` is roughly the Rapids-equivalent of a Java thread or a Unix process. A `
 ```clojure
 (start! flow-name args [:index metadata]) ;  returns a new Run instance with a unique `:id` value
 
-(start! greeting-bot []) 
+;; E.g.,
+(start! greeting-bot [] :index {:user-id user-id}) 
 ```
 
 The `start!` function provides arguments to the flow and allows setting metadata (the index). Most importantly, the `start!` function initiates the *run loop*, a function which manages the execution of the flow. This function is typically invoked inside an API endpoint for creating run objects. E.g., `POST /runs`. 
 
 ### Getting input and producing output 
 
-The `input!` (aka `<*`) and `output!` (aka `>*`) operators get data from and send data to the outside world (symbolized by the `*`). You can think of them as "Web STDIN" and "Web STDOUT". When input is requested, the run loop is halted and the `Run` is put into a suspended state. The `continue!` Rapids API function provides a value that will be returned by `(<*)`. The `continue!` function is typically invoked within an API endpoint specific to a particular run. E.g., `POST /runs/{id}`.
+The `input!` (aka `<*`) and `output!` (aka `>*`) operators get data from and send data to the outside world (symbolized by the `*`). You can think of them as "Web STDIN" and "Web STDOUT". When input is requested, the run loop is halted and the `Run` is put into a suspended state. The `continue!` function allows a client to provide a value that will be returned by `(<*)` within the body of the flow. The `continue!` function is typically invoked by the handler of an API endpoint. E.g., `POST /runs/{id}`. From a RESTful perspective, the `Run` is a document created by `start!`, and `continue!` mutates the document.
 
 The programmer "writes" to the API by using `(>*)`. This operator writes its arguments to an append-only array that is saved in the `:output` field of the current `Run` instance. The output can be any kind of data. However it is typically a value that can be rendered as JSON, and so can be returned in a standard API call. Note, the output array is normally reset (set to a zero-length array) when `continue!` is invoked.
 
@@ -66,10 +66,10 @@ It is also possible to provide a test the client must satisfy by providing the `
 (<* :permit (fn [x] (= x "this-is-the-permit-value"))
 ```
 
-Convenience functions may combine output and input forms into a single elegant expression that generates a user interface element. E.g.,
+Convenience functions may combine output and input forms into a single expression that generates a user interface element. E.g.,
 
 ```clojure
-;; a one liner that generates a form 
+;; example use of a <*form flow that combines 
 (let [result (<*form [(label "What did you think?")
                       (choice :rating [:great :ok :bad])])]
    (if (-> result :rating (= :great))
