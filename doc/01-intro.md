@@ -4,9 +4,9 @@ Rapids makes it easy to create sophisticated user interaction flows. You can use
 
 Flows are intended as a replacement for finite state machines. FSMs tend to be difficult to change, and difficult to scale. Control flow techniques used in programming languages (branching logic, loops, exception handling) are more compact, readable, and easier to test. Programs are also strictly more powerful, since they can have arbitrarily many states whereas FSMs must have a predefined set of states. 
 
-Rapids was designed to enable long running functions (flows) which are accessible via a WEB API. Rapids is fully general, however, and connecting it to the Web should be regarded as an implementation detail. A separate project (https://github.com/precisely/pia-server) provides an example of how to do this. 
+Rapids was designed to enable long running functions (flows) which are accessible via a WEB API. Rapids makes no commitment to any communication protocol, however, and connecting it to the Web should be regarded as an implementation detail. A separate project (https://github.com/precisely/pia-server) provides an example of how to do this. The API is a set of Clojure functions and records.
 
-Rapids is an inversion of control technique applied to API programming. Instead of writing programs which respond to API calls, you write a program which conceptually reads and writes values from the API during the course of its execution. This allows thinking of user experiences as *programs* rather than scattering the logic of user experiences all over the infrastructure of a web site (in models, views, controllers, queues, etc). 
+Rapids applies inversion of control to API programming. Instead of writing programs which respond to API calls, you write a program which conceptually reads and writes values from the API during the course of its execution. This allows thinking of user experiences as *programs*, and treating the user interactions along the way as computational expressions, indistinguishable from programmatic expressions which execute on the CPU. This change greatly simplifies user experience development, as many changes (e.g., to models, views, controllers, queues, etc) can often be described as one or two lines of code inside a user experience function.
 
 ## Defining user interaction functions (flows)
 
