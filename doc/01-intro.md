@@ -1,6 +1,6 @@
 # Introduction to Rapids
 
-Rapids makes it easy to create sophisticated user interaction flows - long running interactions with AIs, personalized onboarding experiences, or situations where multiple users need to be coordinated. The key idea is to represent human computer interactions as functions. Rapids calls these "flows".
+Rapids makes it easy to create sophisticated user interaction flows. You can use Rapids to create long running structured interactions with AIs, personalized onboarding experiences, or situations where multiple users need to be coordinated. The key idea is to represent human computer interactions as functions. Rapids calls these "flows".
 
 Flows are intended as a replacement for finite state machines. FSMs tend to be difficult to change, and difficult to scale. Control flow techniques used in programming languages (branching logic, loops, exception handling) are more compact, readable, and easier to test. Programs are more powerful, since they can have arbitrarily many states whereas FSMs must have a predefined set of states. 
 
