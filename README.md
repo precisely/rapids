@@ -7,7 +7,7 @@ Rapids simplifies coding complex user interaction flows for web scale applicatio
 
 The value of this approach is that you can write user experiences just like functions. Rapids makes it easy to create user experiences with branching logic, loops, exception handling (see Interruptions), and higher order programming techniques. You can even coordinate parallel user experiences using channel-like objects called "pools". This approach produces fewer files, much less code and requires vastly less infrastructure. It also makes it easy to write unit tests for complex user experiences. 
 
-[![An image showing the core Rapids API: start!, continue!, interrupt!, get](doc/images/overview-api.jpeg)]
+![An image showing the core Rapids API: start!, continue!, interrupt!, get](doc/images/overview-api.jpeg)
 
 
 ## Documentation
