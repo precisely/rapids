@@ -1,10 +1,16 @@
 # Introduction to Rapids
 
-Rapids makes it easy to create sophisticated user interaction flows - for example chatbots or intelligent assistants, personalized onboarding experiences, or situations where multiple users need to be coordinated. The key idea is to represent human computer interactions as functions. Rapids calls these interaction functions "flows".
+Rapids makes it easy to create sophisticated user interaction flows. You can use Rapids to create long running structured interactions with AIs, personalized onboarding experiences, or situations where multiple users need to be coordinated. The key idea is to represent human computer interactions as functions. Rapids calls these "flows".
+
+Flows are intended as a replacement for finite state machines. FSMs tend to be difficult to change, and difficult to scale. Control flow techniques used in programming languages (branching logic, loops, exception handling) are more compact, readable, and easier to test. Programs are also strictly more powerful, since they can have arbitrarily many states whereas FSMs must have a predefined set of states. 
+
+Rapids was designed to enable long running functions (flows) which are accessible via a WEB API. Rapids makes no commitment to any communication protocol, however, and connecting it to the Web should be regarded as an implementation detail. A separate project (https://github.com/precisely/pia-server) provides an example of how to do this. The API is a set of Clojure functions and records.
+
+Rapids applies inversion of control to API programming. Instead of writing programs which respond to API calls, you write a program which conceptually reads and writes values from the API during the course of its execution. This allows thinking of user experiences as *programs*, and treating the user interactions along the way as computational expressions, indistinguishable from programmatic expressions which execute on the CPU. This change greatly simplifies user experience development, as many changes (e.g., to models, views, controllers, queues, etc) can often be described as one or two lines of code inside a user experience function.
 
 ## Defining user interaction functions (flows)
 
-Unlike regular CPU-bound functions, a flow may pause for arbitrarily long periods while it  waits for a human (or other external entity) to complete a task and possibly enter some data. Flows are defined using the `deflow` macro, which is analogous to Clojure's `defn`. The argument lists look the same:
+Unlike regular CPU-bound functions, a flow may pause for arbitrarily long periods while it waits for a human (or other external entity) to complete a task and possibly provide some data. Flows are defined using the `deflow` macro, which is analogous to Clojure's `defn`. The argument lists look the same:
 
 ```clojure
 (defn [name docstring? & sigs] ...)
@@ -15,24 +21,81 @@ The code bodies inside `deflow` can include most Clojure expressions, such as fu
 
 Here's a highly repetitive chatbot that keeps greeting people by name:
 ```clojure
-(deflow greeting-bot []
+(deflow greeting-bot
+  "A bot that keeps asking your name"
+  []
   (loop []
-    (output! "What is your name?")
+    (output! "What is your name?") 
     (let [user-name (input!)]
       (when (not= user-name "stop")
         (input! (str "Hello, " user-name))
         (recur))))) 
 ```
 
+A `Run` is roughly the Rapids-equivalent of a Java thread or a Unix process. A `Run` is created from a flow using `start!`:
+
+```clojure
+(start! flow-name args [:index metadata]) ;  returns a new Run instance with a unique `:id` value
+
+;; E.g.,
+(start! greeting-bot [] :index {:user-id user-id}) 
+```
+
+The `start!` function provides arguments to the flow and allows setting metadata (the index). Most importantly, the `start!` function initiates the *run loop*, a function which manages the execution of the flow. This function is typically invoked inside an API endpoint for creating run objects. E.g., `POST /runs`. 
+
 ### Getting input and producing output 
 
-### Starting and continuing a run
+The `input!` (aka `<*`) and `output!` (aka `>*`) operators get data from and send data to the outside world (symbolized by the `*`). You can think of them as "Web STDIN" and "Web STDOUT". When input is requested, the run loop is halted and the `Run` is put into a suspended state. The `continue!` function allows a client to provide a value that will be returned by `(<*)` within the body of the flow. The `continue!` function is typically invoked by the handler of an API endpoint. E.g., `POST /runs/{id}`. From a RESTful perspective, the `Run` is a document created by `start!`, and `continue!` mutates the document.
+
+The programmer "writes" to the API by using `(>*)`. This operator writes its arguments to an append-only array that is saved in the `:output` field of the current `Run` instance. The output can be any kind of data. However it is typically a value that can be rendered as JSON, and so can be returned in a standard API call. Note, the output array is normally reset (set to a zero-length array) when `continue!` is invoked.
+
+```clojure
+(<*) ; shorthand for (input!)
+(>*) ; shorthand for (output!)
+```
+
+When requesting input, it is possible to provide a time out and default value (described below). Note how this makes it trivial to create timed events (e.g., like for a marketing funnel).
+
+```clojure
+(<* :expires (-> 3 days from-now) :default "This string will be returned")
+```
+It is also possible to provide a test the client must satisfy by providing the `permit` parameter. This can be a value or a function. When provided, a subsequent `continue!` call must provide a valid permit value. Typically, the permit is provided to the client in a previous output or by some other method.
+
+```clojure
+(<* :permit "this-is-the-permit-value")
+(<* :permit (fn [x] (= x "this-is-the-permit-value"))
+```
+
+Convenience functions may combine output and input forms into a single expression that generates a user interface element. E.g.,
+
+```clojure
+;; example use of a <*form flow that combines 
+(let [result (<*form [(label "What did you think?")
+                      (choice :rating [:great :ok :bad])])]
+   (if (-> result :rating (= :great))
+      (>* (text "Glad to hear that"))))
+```
+Note that the output generated by Rapids is entirely up to the programmer. Typically, a front-end library interprets the `:output` of a `Run` and generates appropriate UI which 
+
+### Continuing a run
+
+When an input expression is encountered during execution of a flow, Rapids saves the state of the stack. The flow can be continued by calling `continue!`. This function retrieves the `Run` from persistent storage and restarts the run loop, providing an input value to it.
+
+```clojure
+(continue! run-id & {:keys [input permit preserve-output]})
+
+(continue! greeting-bot-run-id :input "Bob") ; normally "Bob" would be a value provided by a user
+```
+
+The `preserve-output` param is a boolean that if truthy prevents the `:output` array from being cleared. The `permit` param if provided is a test
 
 ### Killing a run
 
+Sometimes, it's necessary to force a run to stop, just like you might with a Unix process. In most cases in the API, you can provide a `Run` instance or the `:id`.
+
 `(kill! run)`
 
-### Functional flows: closures and higher order flow programming
+### Higher order flow programming
 
 Flows can be defined anonymously similar to functions.
 ```clojure
@@ -55,10 +118,11 @@ Higher order flows analogous to functional counterparts like `map`, `reduce`, et
 
 Flows and suspending functions often take an `expires` argument. This is a timestamp that tells the system when to automatically resume the operations. If the operation returns a value, a `default` argument can be provided. 
 
-Delays can be implemented using timeouts:
+Delays can be implemented using timeouts. When a timeout expires, the default value will be returned.
 
 ```clojure
 (<* :expires (-> 3 days from-now))
+(<* :expires (-> 3 days from-now) :default 123) ; in 3 days, this will return 123 
 ```
 
 To ensure that delays are not triggered by inadvertent or intentional `continue!` calls, simply add a permit that cannot be provided or guessed.

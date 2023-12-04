@@ -1,13 +1,14 @@
 # Rapids
 [![dev](https://github.com/precisely/rapids/actions/workflows/tests.yml/badge.svg?branch=dev&label=dev&text=dev%20tests&title=dev%20tests)](https://github.com/precisely/rapids/actions/workflows/tests.yml)
 
-A DSL for programming user interaction flows. 
+A DSL for programming user interaction flows.
 
 Rapids simplifies coding complex user interaction flows for web scale applications. It is an alternative to using state machines. Each user experience is defined as a function-like object called a "flow". Within a flow you can freely intermix computational expressions with expressions which pause for arbitrarily long periods for user input without consuming computational resources (other than a small amount of state on the backend). 
 
 The value of this approach is that you can write user experiences just like functions. Rapids makes it easy to create user experiences with branching logic, loops, exception handling (see Interruptions), and higher order programming techniques. You can even coordinate parallel user experiences using channel-like objects called "pools". This approach produces fewer files, much less code and requires vastly less infrastructure. It also makes it easy to write unit tests for complex user experiences. 
 
 [![An image showing the core Rapids API: start!, continue!, interrupt!, get](doc/images/overview-api.jpeg)]
+
 
 ## Documentation
 
