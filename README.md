@@ -19,7 +19,7 @@ The value of this approach is that you can write user experiences just like func
 
 ## Basic Usage
 
-Rapids defines a new macro, `deflow`, akin to `defn`, but which permits suspending execution until an external event is received. This is done with the `<*` (aka `input!`) operator. The system saves the state of the computation when the `<*` operator is invoked to a persistent storage. An in-memory and Postgres implementation are provided, and you can roll your own. 
+Rapids defines a new macro, `deflow`, akin to Clojure's [`defn`](https://clojuredocs.org/clojure.core/defn), but which permits suspending execution until an external event is received. This is done with the `<*` (aka `input!`) operator. The system saves the state of the computation when the `<*` operator is invoked to a persistent storage. An in-memory and Postgres implementation are provided, or you can roll your own. 
 
 The control API consists of Clojure functions, `start!`, `continue!` and `interrupt!`. The `start!` function takes a flow (and optional arguments) and creates a `Run` object, which is conceptually equivalent to a thread or a process. The `Run` executes until it encounters a `<*` operator. The `continue!` function takes a `Run` and provides it with data which becomes the return value of the `<*` operator which suspended the run.
 
